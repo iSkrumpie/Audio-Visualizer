@@ -272,6 +272,8 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
 
     // ── Frequency energy ──────────────────────────────────────────────────────
     const rawData    = audioAnalysis.rawFreqData;
+    logoBeatDetector.setSensitivity(s.beatFxSensitivity ?? 1.0);
+    fireBeatDetector.setSensitivity(s.fireSensitivity ?? 1.0);
     const logoBeat   = logoBeatDetector.update(rawData, s.beatFxFreqStart, s.beatFxFreqEnd);
     const fireBeat   = fireBeatDetector.update(rawData, s.fireFreqStart, s.fireFreqEnd);
     const fireEnergy = fireBeatDetector.energy;

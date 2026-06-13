@@ -11,6 +11,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { getSettings } from '@/lib/settingsStore';
+import { FreqBeatDetector } from '@/lib/audioUtils';
 
 
 const MAX_BARS = 256;
@@ -23,9 +24,10 @@ export function InstancedBars() {
   const smoothed    = useMemo(() => new Float32Array(MAX_BARS).fill(0), []);
   const peaks       = useMemo(() => new Float32Array(MAX_BARS).fill(0.02), []);
   const peakHeights = useMemo(() => new Float32Array(MAX_BARS).fill(0), []);
-  const rotationRef = useRef(0);
-  const timeRef     = useRef(0);
-  const colorObj    = useMemo(() => new THREE.Color(), []);
+  const rotationRef     = useRef(0);
+  const timeRef         = useRef(0);
+  const colorObj        = useMemo(() => new THREE.Color(), []);
+  const barsBeatDetector = useMemo(() => new FreqBeatDetector(), []);
 
   // 4 random colors generated once per session for 'random' color mode
   const randomColors = useMemo(() => {
@@ -68,7 +70,12 @@ export function InstancedBars() {
 
     const freq     = audioAnalysis.freqData;
     const loudness = audioAnalysis.loudness;
-    const beat     = audioAnalysis.beatPhase;
+    barsBeatDetector.setSensitivity(b.beatSensitivity ?? 1.0);
+    const beat = barsBeatDetector.update(
+      audioAnalysis.rawFreqData,
+      b.beatFreqStart ?? 60,
+      b.beatFreqEnd ?? 250,
+    );
 
     const totalBars = Math.min(b.count, MAX_BARS);
 

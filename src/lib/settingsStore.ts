@@ -1,6 +1,10 @@
 /**
  * Settings Store (Zustand + localStorage persist)
  *
+ * v10: Added per-component sensitivity multipliers (beatFxSensitivity, fireSensitivity,
+ *      reactiveSensitivity), bars beat detection fields (beatFreqStart/End/Sensitivity),
+ *      and nebula pulse mode (nebulaBeatMode/FreqStart/End/Sensitivity).
+ *
  * v9: Added `audio` group with globalBeatFreqStart/End/Sensitivity for
  *     configurable global beat detection (replaces hardcoded 60-120 Hz kick).
  *
@@ -50,8 +54,9 @@ export type Settings = {
     tintMode: 'multiply' | 'overlay' | 'soft-light' | 'screen';
     // ── Beat reactivity ────────────────────────────────────────────────
     scaleOnBeat: number;    // 0..0.5
-    beatFxFreqStart: number; // 20..20000 Hz
-    beatFxFreqEnd: number;   // 20..20000 Hz
+    beatFxFreqStart: number;      // 20..20000 Hz
+    beatFxFreqEnd: number;        // 20..20000 Hz
+    beatFxSensitivity: number;    // 0.1..5.0 detector sensitivity multiplier
     // ── Shader vignette ────────────────────────────────────────────────
     vignetteEnabled: boolean;
     vignetteStrength: number; // 0..1
@@ -65,6 +70,11 @@ export type Settings = {
     nebulaScale: number;       // 0.1..3.0 (relative to screen, 1=fill)
     nebulaOffsetX: number;     // -1..1 (fraction of half-width)
     nebulaOffsetY: number;     // -1..1 (fraction of half-height)
+    // ── Nebula beat pulse ──────────────────────────────────────────────
+    nebulaBeatMode: boolean;       // false = continuous (bass+loudness), true = beat pulse
+    nebulaBeatFreqStart: number;   // 20..20000 Hz
+    nebulaBeatFreqEnd: number;     // 20..20000 Hz
+    nebulaBeatSensitivity: number; // 0.1..5.0
     // ── PostFX ─────────────────────────────────────────────────────────
     bloomEnabled: boolean;
     bloomIntensity: number;
@@ -130,8 +140,9 @@ export type Settings = {
     // ── Beat scale ─────────────────────────────────────────────────────
     beatScaleStrength: number;  // 0..1
     beatRotationBurst: number;  // 0..2
-    beatFxFreqStart: number;    // 20..20000 Hz
-    beatFxFreqEnd: number;      // 20..20000 Hz
+    beatFxFreqStart: number;      // 20..20000 Hz
+    beatFxFreqEnd: number;        // 20..20000 Hz
+    beatFxSensitivity: number;    // 0.1..5.0 detector sensitivity multiplier
     // ── Glow ───────────────────────────────────────────────────────────
     glowEnabled: boolean;
     glowIntensity: number;      // 0..100
@@ -149,6 +160,7 @@ export type Settings = {
     fireReactivity: number;     // 0..3
     fireFreqStart: number;      // 20..20000 Hz
     fireFreqEnd: number;        // 20..20000 Hz
+    fireSensitivity: number;    // 0.1..5.0 fire beat detector sensitivity
   };
 
   bars: {
@@ -178,6 +190,10 @@ export type Settings = {
     // ── Peak indicators ────────────────────────────────────────────────
     peakEnabled: boolean;
     peakDecay: number;          // 0.980..0.999
+    // ── Beat boost ─────────────────────────────────────────────────────
+    beatFreqStart: number;      // 20..20000 Hz — beat detection range for height boost
+    beatFreqEnd: number;        // 20..20000 Hz
+    beatSensitivity: number;    // 0.1..5.0
   };
 
   audio: {
@@ -207,8 +223,9 @@ export type Settings = {
     /** Hz boundaries between custom color zones (length = customColors.length - 1) */
     customFreqBoundaries: number[];
     // ── Reactive frequency range ───────────────────────────────────────
-    reactiveFreqStart: number;  // 20..20000 Hz
-    reactiveFreqEnd: number;    // 20..20000 Hz
+    reactiveFreqStart: number;    // 20..20000 Hz
+    reactiveFreqEnd: number;      // 20..20000 Hz
+    reactiveSensitivity: number;  // 0.1..5.0 detector sensitivity multiplier
     // ── Orbit ──────────────────────────────────────────────────────────
     orbitMode: 'circular' | 'elliptical' | 'scatter';
     ellipseRatio: number;       // 0.3..1.0
@@ -245,6 +262,7 @@ const DEFAULT_SETTINGS: Settings = {
     scaleOnBeat: 0,
     beatFxFreqStart: 20,
     beatFxFreqEnd: 200,
+    beatFxSensitivity: 1.0,
     vignetteEnabled: false,
     vignetteStrength: 0.5,
     nebulaEnabled: false,
@@ -256,6 +274,10 @@ const DEFAULT_SETTINGS: Settings = {
     nebulaScale: 1.0,
     nebulaOffsetX: 0,
     nebulaOffsetY: 0,
+    nebulaBeatMode: false,
+    nebulaBeatFreqStart: 40,
+    nebulaBeatFreqEnd: 120,
+    nebulaBeatSensitivity: 1.0,
     bloomEnabled: false,
     bloomIntensity: 1.2,
     bloomThreshold: 0.25,
@@ -313,6 +335,7 @@ const DEFAULT_SETTINGS: Settings = {
     beatRotationBurst: 0,
     beatFxFreqStart: 20,
     beatFxFreqEnd: 200,
+    beatFxSensitivity: 1.0,
     glowEnabled: true,
     glowIntensity: 50,
     glowColor: '#6366F1',
@@ -328,6 +351,7 @@ const DEFAULT_SETTINGS: Settings = {
     fireReactivity: 1.0,
     fireFreqStart: 20,
     fireFreqEnd: 200,
+    fireSensitivity: 1.0,
   },
 
   bars: {
@@ -351,6 +375,9 @@ const DEFAULT_SETTINGS: Settings = {
     smoothing: 0.18,
     peakEnabled: false,
     peakDecay: 0.987,
+    beatFreqStart: 60,
+    beatFreqEnd: 250,
+    beatSensitivity: 1.0,
   },
 
   audio: {
@@ -375,6 +402,7 @@ const DEFAULT_SETTINGS: Settings = {
     customFreqBoundaries: [200, 2000, 8000],
     reactiveFreqStart: 20,
     reactiveFreqEnd: 200,
+    reactiveSensitivity: 1.0,
     orbitMode: 'circular',
     ellipseRatio: 0.6,
     particleShape: 'circle',
@@ -406,9 +434,9 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v9',
+      name: 'audiovisualizer:settings:v10',
       storage: createJSONStorage(() => localStorage),
-      version: 9,
+      version: 10,
       migrate: () => ({ settings: DEFAULT_SETTINGS }),
     },
   ),

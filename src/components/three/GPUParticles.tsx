@@ -233,6 +233,7 @@ export function GPUParticles() {
 
     // Audio reactivity from configured Hz range
     const { bass, loudness } = audioAnalysis;
+    particleBeatDetector.setSensitivity(sp.reactiveSensitivity ?? 1.0);
     const particleBeat = particleBeatDetector.update(audioAnalysis.rawFreqData, sp.reactiveFreqStart, sp.reactiveFreqEnd);
     const axisEnergy   = particleBeatDetector.energy;
     const kickForce    = Math.pow(particleBeat, 1.5) * 12 * Math.min(scale * 2, 1) * sp.kickBurstStrength;

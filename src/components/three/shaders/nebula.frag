@@ -6,6 +6,7 @@ uniform float uIntensity;
 uniform float uDriftSpeed;
 uniform float uAudioEnergy;
 uniform float uAudioBass;
+uniform float uAudioPulse;
 uniform vec3 uColor1;
 uniform vec3 uColor2;
 
@@ -68,8 +69,9 @@ void main() {
   float noise = n1 * 0.6 + n2 * 0.4;
   noise = noise * 0.5 + 0.5; // remap to 0..1
 
-  // Audio-reactive density boost
-  float audioBoost = 1.0 + uAudioEnergy * 1.5 + uAudioBass * 0.8;
+  // Audio-reactive density boost (uAudioPulse sharpens on beat when nebulaBeatMode enabled)
+  float np_pulse = 1.0 + uAudioPulse * 2.0;
+  float audioBoost = 1.0 + uAudioEnergy * 1.5 * np_pulse + uAudioBass * 0.8;
   noise *= audioBoost;
 
   // Color blend between two nebula colors

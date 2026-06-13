@@ -489,6 +489,7 @@ export function BackgroundPlane() {
     if (!mat) return;
     const s  = getSettings();
     const bg = s.background;
+    beatDetector.setSensitivity(bg.beatFxSensitivity ?? 1.0);
     const beatPhase = beatDetector.update(audioAnalysis.rawFreqData, bg.beatFxFreqStart, bg.beatFxFreqEnd);
 
     mat.uniforms.uTime.value       += delta;

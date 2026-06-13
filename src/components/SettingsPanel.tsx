@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettingsStore, getSettings, type Settings } from '@/lib/settingsStore';
 import { usePresetsStore } from '@/lib/presetsStore';
+import { HzRangePicker } from '@/components/HzRangePicker';
 
 type Section = 'background' | 'logo' | 'bars' | 'particles';
 
@@ -554,6 +555,7 @@ function BackgroundSection() {
   const [beat,     sBeat]     = useF('background', 'scaleOnBeat');
   const [beatFS,   sBeatFS]   = useF('background', 'beatFxFreqStart');
   const [beatFE,   sBeatFE]   = useF('background', 'beatFxFreqEnd');
+  const [beatSens, sBeatSens] = useF('background', 'beatFxSensitivity');
   const [vigE,     sVigE]     = useF('background', 'vignetteEnabled');
   const [vigS,     sVigS]     = useF('background', 'vignetteStrength');
   const [nebE,     sNebE]     = useF('background', 'nebulaEnabled');
@@ -565,6 +567,10 @@ function BackgroundSection() {
   const [nebSc,    sNebSc]    = useF('background', 'nebulaScale');
   const [nebOX,    sNebOX]    = useF('background', 'nebulaOffsetX');
   const [nebOY,    sNebOY]    = useF('background', 'nebulaOffsetY');
+  const [nebBM,    sNebBM]    = useF('background', 'nebulaBeatMode');
+  const [nebBFS,   sNebBFS]   = useF('background', 'nebulaBeatFreqStart');
+  const [nebBFE,   sNebBFE]   = useF('background', 'nebulaBeatFreqEnd');
+  const [nebBSens, sNebBSens] = useF('background', 'nebulaBeatSensitivity');
   const [bloom,    sBloom]    = useF('background', 'bloomEnabled');
   const [bloomI,   sBloomI]   = useF('background', 'bloomIntensity');
   const [bloomT,   sBloomT]   = useF('background', 'bloomThreshold');
@@ -664,15 +670,21 @@ function BackgroundSection() {
       </Acc>
 
       <Acc label="Beat FX">
-        <FR label="Freq start" hint={`${beatFS} Hz`} sub="React to energy in this Hz range">
-          <Sl value={beatFS as number} min={20} max={20000} step={10} onChange={sBeatFS} />
-        </FR>
-        <FR label="Freq end" hint={`${beatFE} Hz`}>
-          <Sl value={beatFE as number} min={20} max={20000} step={10} onChange={sBeatFE} />
-        </FR>
-        <FR label="Scale amount" hint={`${((beat as number) * 100).toFixed(0)}%`}>
-          <Sl value={beat as number} min={0} max={0.5} step={0.005} onChange={sBeat} />
-        </FR>
+        <p className="mb-2 font-mono text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>React to energy in this Hz range</p>
+        <HzRangePicker
+          startHz={beatFS as number}
+          endHz={beatFE as number}
+          onChangeStart={sBeatFS}
+          onChangeEnd={sBeatFE}
+        />
+        <div className="mt-3">
+          <FR label="Scale amount" hint={`${((beat as number) * 100).toFixed(0)}%`}>
+            <Sl value={beat as number} min={0} max={0.5} step={0.005} onChange={sBeat} />
+          </FR>
+          <FR label="Sensitivity" hint={`${(beatSens as number).toFixed(2)}×`} sub="Lower = more sensitive">
+            <Sl value={beatSens as number} min={0.1} max={5.0} step={0.05} onChange={sBeatSens} />
+          </FR>
+        </div>
       </Acc>
 
       <Acc label="Vignette">
@@ -710,6 +722,23 @@ function BackgroundSection() {
             <FR label="Offset Y" hint={`${(nebOY as number).toFixed(2)}`} sub="Negative = down">
               <Sl value={nebOY as number} min={-1} max={1} step={0.05} onChange={sNebOY} />
             </FR>
+            <div className="mt-3 rounded-md border p-2" style={{ borderColor: 'var(--border)' }}>
+              <Tg value={nebBM as boolean} onChange={sNebBM} label="Beat pulse mode" />
+              {!!nebBM && (
+                <div className="mt-2 space-y-2">
+                  <p className="font-mono text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>Pulse on detected beats in this range</p>
+                  <HzRangePicker
+                    startHz={nebBFS as number}
+                    endHz={nebBFE as number}
+                    onChangeStart={sNebBFS}
+                    onChangeEnd={sNebBFE}
+                  />
+                  <FR label="Sensitivity" hint={`${(nebBSens as number).toFixed(2)}×`}>
+                    <Sl value={nebBSens as number} min={0.1} max={5.0} step={0.05} onChange={sNebBSens} />
+                  </FR>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </Acc>
@@ -860,6 +889,7 @@ function LogoSection_() {
   const [bsc,   sBsc]   = useF('logo', 'beatScaleStrength');
   const [bFS,   sBFS]   = useF('logo', 'beatFxFreqStart');
   const [bFE,   sBFE]   = useF('logo', 'beatFxFreqEnd');
+  const [bSens, sBSens] = useF('logo', 'beatFxSensitivity');
   const [gE,    sGE]    = useF('logo', 'glowEnabled');
   const [gI,    sGI]    = useF('logo', 'glowIntensity');
   const [gC,    sGC]    = useF('logo', 'glowColor');
@@ -875,6 +905,7 @@ function LogoSection_() {
   const [fireR,  sFireR]  = useF('logo', 'fireReactivity');
   const [fireFS, sFireFS] = useF('logo', 'fireFreqStart');
   const [fireFE, sFireFE] = useF('logo', 'fireFreqEnd');
+  const [fireSn, sFireSn] = useF('logo', 'fireSensitivity');
 
   return (
     <div>
@@ -926,12 +957,19 @@ function LogoSection_() {
             <FR label="Inner color"><CP value={fireCI as string} onChange={sFireCI} /></FR>
             <FR label="Mid color"><CP value={fireCM as string} onChange={sFireCM} /></FR>
             <FR label="Outer color"><CP value={fireCO as string} onChange={sFireCO} /></FR>
-            <FR label="Freq start" hint="Hz">
-              <Sl value={fireFS as number} min={20} max={20000} step={10} onChange={sFireFS} />
-            </FR>
-            <FR label="Freq end" hint="Hz">
-              <Sl value={fireFE as number} min={20} max={20000} step={10} onChange={sFireFE} />
-            </FR>
+            <div className="mt-2">
+              <HzRangePicker
+                startHz={fireFS as number}
+                endHz={fireFE as number}
+                onChangeStart={sFireFS}
+                onChangeEnd={sFireFE}
+              />
+              <div className="mt-2">
+                <FR label="Sensitivity" hint={`${(fireSn as number).toFixed(2)}×`} sub="Lower = more sensitive">
+                  <Sl value={fireSn as number} min={0.1} max={5.0} step={0.05} onChange={sFireSn} />
+                </FR>
+              </div>
+            </div>
           </div>
         )}
       </Acc>
@@ -943,12 +981,19 @@ function LogoSection_() {
         <FR label="Rotation burst on beat" hint={`${(rotB as number).toFixed(2)}`}>
           <Sl value={rotB as number} min={0} max={2} step={0.05} onChange={sRotB} />
         </FR>
-        <FR label="Beat freq start" hint={`${bFS} Hz`}>
-          <Sl value={bFS as number} min={20} max={20000} step={10} onChange={sBFS} />
-        </FR>
-        <FR label="Beat freq end" hint={`${bFE} Hz`}>
-          <Sl value={bFE as number} min={20} max={20000} step={10} onChange={sBFE} />
-        </FR>
+        <div className="mt-2">
+          <HzRangePicker
+            startHz={bFS as number}
+            endHz={bFE as number}
+            onChangeStart={sBFS}
+            onChangeEnd={sBFE}
+          />
+          <div className="mt-2">
+            <FR label="Sensitivity" hint={`${(bSens as number).toFixed(2)}×`} sub="Lower = more sensitive">
+              <Sl value={bSens as number} min={0.1} max={5.0} step={0.05} onChange={sBSens} />
+            </FR>
+          </div>
+        </div>
       </Acc>
     </div>
   );
@@ -1065,6 +1110,9 @@ function BarsSection() {
   const [re,    sRe]   = useF('bars', 'reactivity');
   const [pe,    sPe]   = useF('bars', 'peakEnabled');
   const [pd,    sPd]   = useF('bars', 'peakDecay');
+  const [bbtFS, sBbtFS] = useF('bars', 'beatFreqStart');
+  const [bbtFE, sBbtFE] = useF('bars', 'beatFreqEnd');
+  const [bbtSn, sBbtSn] = useF('bars', 'beatSensitivity');
 
   const binToHz = (bin: number) => Math.round((bin / 128) * 22050);
 
@@ -1151,6 +1199,21 @@ function BarsSection() {
           </div>
         )}
       </Acc>
+
+      <Acc label="Beat Boost">
+        <p className="mb-2 font-mono text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>Frequency range for bar-height beat boost</p>
+        <HzRangePicker
+          startHz={bbtFS as number}
+          endHz={bbtFE as number}
+          onChangeStart={sBbtFS}
+          onChangeEnd={sBbtFE}
+        />
+        <div className="mt-2">
+          <FR label="Sensitivity" hint={`${(bbtSn as number).toFixed(2)}×`} sub="Lower = more sensitive">
+            <Sl value={bbtSn as number} min={0.1} max={5.0} step={0.05} onChange={sBbtSn} />
+          </FR>
+        </div>
+      </Acc>
     </div>
   );
 }
@@ -1174,6 +1237,7 @@ function ParticlesSection() {
   const [kb,   sKb]  = useF('particles', 'kickBurstStrength');
   const [rFS,  sRFS] = useF('particles', 'reactiveFreqStart');
   const [rFE,  sRFE] = useF('particles', 'reactiveFreqEnd');
+  const [rSens, sRSens] = useF('particles', 'reactiveSensitivity');
   const [cl,   sCl]  = useF('particles', 'connectionLines');
   const [cd,   sCd]  = useF('particles', 'connectionDistance');
   const [co,   sCo]  = useF('particles', 'connectionOpacity');
@@ -1268,12 +1332,19 @@ function ParticlesSection() {
         <FR label="Kick burst">
           <Sl value={kb as number} min={0} max={3} step={0.05} onChange={sKb} />
         </FR>
-        <FR label="React freq start" hint={`${rFS} Hz`}>
-          <Sl value={rFS as number} min={20} max={20000} step={10} onChange={sRFS} />
-        </FR>
-        <FR label="React freq end" hint={`${rFE} Hz`}>
-          <Sl value={rFE as number} min={20} max={20000} step={10} onChange={sRFE} />
-        </FR>
+        <div className="mt-1">
+          <HzRangePicker
+            startHz={rFS as number}
+            endHz={rFE as number}
+            onChangeStart={sRFS}
+            onChangeEnd={sRFE}
+          />
+          <div className="mt-2">
+            <FR label="Sensitivity" hint={`${(rSens as number).toFixed(2)}×`} sub="Lower = more sensitive">
+              <Sl value={rSens as number} min={0.1} max={5.0} step={0.05} onChange={sRSens} />
+            </FR>
+          </div>
+        </div>
       </Acc>
 
       <Acc label="Connections">
