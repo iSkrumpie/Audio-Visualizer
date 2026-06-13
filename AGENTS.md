@@ -10,15 +10,15 @@ Diese Datei ist der **persistente Kontext-Snapshot** für jeden KI-Agenten, der 
 - **Ich (Haupt-Agent / Orchestrator)** plane, entscheide, verifiziere und kommuniziere mit dem User. **Ich schreibe KEINEN Code selbst.**
 - **Jegliche Implementierungs-Arbeit delegiere ich an `worker`-Subagents.** Jeder Worker bekommt einen vollständigen, abgeschlossenen Task mit Kontext, Akzeptanzkriterien und Verifikationsschritten.
 - **Worker dürfen ihrerseits Subagents einsetzen** (z. B. `scout` zum Code-Finden, `researcher` für Doku/Recherche, weitere `worker` für isolierte Teilaufgaben). Das ist explizit erlaubt und erwünscht.
-- **Triviale 1–2-Schritt-Tasks** (z. B. `git add` + `git commit`, Konsole-Kommandos, Status-Checks) führt der Orchestrator weiterhin **selbst** aus. Das ist **kein** Verstoß gegen 0.1.
+- **Triviale 1-2-Schritt-Tasks** (z. B. `git add` + `git commit`, Konsole-Kommandos, Status-Checks) führt der Orchestrator weiterhin **selbst** aus. Das ist **kein** Verstoß gegen 0.1.
 
 ### 0.2 Worker-Briefing (Pflicht-Inhalt)
 Jeder Worker-Task enthält mindestens:
-1. **Ziel** — was genau soll am Ende funktionieren / anders sein.
-2. **Betroffene Dateien** — Pfade, ggf. mit Reason "warum" pro Datei.
-3. **Constraints** — relevante Regeln aus AGENTS.md (z. B. ANGLE-Prefix-Regel, `frameloop="never"`-Konventionen, Settings-Schema-Bump-Regel).
-4. **Verifikation** — wie der Worker **selbst** prüft, dass die Änderung korrekt ist (z. B. `npm run typecheck`, `npm run build`, gezielter `grep`/`read`).
-5. **Output-Format** — kurze Zusammenfassung: "geändert: X, Y · verifiziert: typecheck=OK, build=OK · offene Punkte: …".
+1. **Ziel** - was genau soll am Ende funktionieren / anders sein.
+2. **Betroffene Dateien** - Pfade, ggf. mit Reason "warum" pro Datei.
+3. **Constraints** - relevante Regeln aus AGENTS.md (z. B. ANGLE-Prefix-Regel, `frameloop="never"`-Konventionen, Settings-Schema-Bump-Regel).
+4. **Verifikation** - wie der Worker **selbst** prüft, dass die Änderung korrekt ist (z. B. `npm run typecheck`, `npm run build`, gezielter `grep`/`read`).
+5. **Output-Format** - kurze Zusammenfassung: "geändert: X, Y · verifiziert: typecheck=OK, build=OK · offene Punkte: ...".
 
 ### 0.3 Verifikation
 - Worker verifizieren **selbst** (typecheck, build, grep, read). Erst dann melden sie "fertig".
@@ -28,15 +28,15 @@ Jeder Worker-Task enthält mindestens:
 
 ## 0.4 Commit-Pflicht (feingranularer Rollback)
 
-**Nach JEDER abgeschlossenen Änderung — egal ob von Orchestrator oder Worker — wird sofort ein Commit gemacht.** Ziel: jederzeit auf jede Zwischenversion zurückrollen können.
+**Nach JEDER abgeschlossenen Änderung - egal ob von Orchestrator oder Worker - wird sofort ein Commit gemacht.** Ziel: jederzeit auf jede Zwischenversion zurückrollen können.
 
 ### Regeln
 - **Granularität:** ein Commit pro logisch trennbarem Änderungsblock (z. B. UI-Section + Library-Helper getrennt, nicht in einem Riesensammel-Commit).
-- **Message-Stil:** [Conventional Commits](https://www.conventionalcommits.org/) — `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `style:`, `perf:`, `test:`. Optional Scope: `feat(InstancedBars): …`.
+- **Message-Stil:** [Conventional Commits](https://www.conventionalcommits.org/) - `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `style:`, `perf:`, `test:`. Optional Scope: `feat(InstancedBars): ...`.
 - **Commits gehören zum Workflow**, nicht zur Höflichkeit. Wird eine Änderung nicht committed, gilt sie als **nicht abgeschlossen**.
-- **VOR einer neuen Änderung** immer kurz `git status` + `git diff --stat` prüfen — kein `git add -A` "auf Verdacht". Nur die tatsächlich von der aktuellen Änderung betroffenen Dateien stagen.
+- **VOR einer neuen Änderung** immer kurz `git status` + `git diff --stat` prüfen - kein `git add -A` "auf Verdacht". Nur die tatsächlich von der aktuellen Änderung betroffenen Dateien stagen.
 - **Vor destruktiven Operationen** (`reset --hard`, `clean`, Branch-Löschung) **immer** beim User rückfragen.
-- **WIP-Stände** dürfen als `wip: …`-Commit committed werden, wenn ein Rollback-Punkt gebraucht wird. Vor dem nächsten Feature-Commit dann `git reset --soft HEAD~1` und neu squaschen.
+- **WIP-Stände** dürfen als `wip: ...`-Commit committed werden, wenn ein Rollback-Punkt gebraucht wird. Vor dem nächsten Feature-Commit dann `git reset --soft HEAD~1` und neu squaschen.
 
 ### Standard-Workflow
 1. Worker liefert fertige, selbst-verifizierte Änderung.
@@ -46,13 +46,13 @@ Jeder Worker-Task enthält mindestens:
 
 ### Author
 - Aktuell gesetzt: `Skrumpie <skrumpie@local>` (lokal-only, **nicht** global).
-- User kann das jederzeit mit `git config user.email "…"` überschreiben (repo-lokal reicht).
+- User kann das jederzeit mit `git config user.email "..."` überschreiben (repo-lokal reicht).
 
 ### Rollback-Hilfe
-- `git log --oneline -n 20` — Historie ansehen.
-- `git checkout <hash> -- <pfad>` — einzelne Datei aus altem Stand holen.
-- `git revert <hash>` — sicheren Rückwärts-Commit erzeugen (bevorzugt bei veröffentlichtem/push-barem Stand).
-- `git reset --hard <hash>` — **nur auf explizite User-Freigabe**, in diesem rein lokalen Repo aber unkritisch.
+- `git log --oneline -n 20` - Historie ansehen.
+- `git checkout <hash> -- <pfad>` - einzelne Datei aus altem Stand holen.
+- `git revert <hash>` - sicheren Rückwärts-Commit erzeugen (bevorzugt bei veröffentlichtem/push-barem Stand).
+- `git reset --hard <hash>` - **nur auf explizite User-Freigabe**, in diesem rein lokalen Repo aber unkritisch.
 
 ---
 
@@ -74,7 +74,7 @@ Design-Ziel: "Studio"-Aesthetic (skrumpie.de-inspiriert), Dark-Mode only, vier-S
 | UI             | React 19 + StrictMode                                     |
 | Animation/HUD  | framer-motion 12 (Uploader, Settings-Panel, Overlays)     |
 | 3D             | three 0.170 + @react-three/fiber 9 + @react-three/drei 10 + @react-three/postprocessing 3 |
-| PostFX         | **BackgroundPlane.tsx Shader** (alle BG-Effekte inline in GLSL) — `@react-three/postprocessing` installiert aber inaktiv (PostFX.tsx = Stub) |
+| PostFX         | **BackgroundPlane.tsx Shader** (alle BG-Effekte inline in GLSL) - `@react-three/postprocessing` installiert aber inaktiv (PostFX.tsx = Stub) |
 | Encoding       | **mediabunny** (WebCodecs-Wrapper) - H.264 + AAC          |
 | Audio-Analyse  | Native Web Audio API (eigener Dual-Analyser)              |
 | State          | zustand 5 (drei Stores: audio, settings, presets - alle mit `persist`) |
@@ -120,7 +120,7 @@ src/
 ├── main.tsx                 # Mount, <StrictMode>, <ThemeApplier> + <App>
 ├── App.tsx                  # State-Machine: 'upload' ↔ 'visualize'
 │                            # exportMode: 'idle' | 'picking' | 'running'
-├── index.css                # Tailwind v4 import, Design-Tokens, Theme-Vars
+├── index.css                # Tailwind v4 import, Design-Tokens, Theme-Vars, .hz-range-picker
 ├── vite-env.d.ts            # *.vert / *.frag / *.glsl + EyeDropper API type decls
 │
 ├── components/
@@ -132,6 +132,7 @@ src/
 │   ├── TransportBar.tsx     # Player: Seek-Slider, Play/Pause, Volume, Export
 │   ├── SettingsPanel.tsx    # Right-Drawer mit 4 Tabs + Preset-Dropdown + Accordion-Sections
 │   ├── ExportOverlay.tsx    # 2-Screen-Modal: Preset-Picker → Progress
+│   ├── HzRangePicker.tsx    # Shared: 10 Preset-Buttons + log-Dual-Slider + Bin-Quality-Indicator
 │   └── three/
 │       ├── AudioScene.tsx       # <Canvas> frameloop="never", advance() via sceneRegistry
 │       ├── BackgroundPlane.tsx  # ALLE Hintergrund-Effekte im GLSL-Shader (nur BG-Layer!):
@@ -139,11 +140,13 @@ src/
 │       │                        # pixelation, dot, grid, sepia, colorAvg,
 │       │                        # hueShift, brightness, contrast, saturation, vignette, tint
 │       ├── InstancedBars.tsx    # Radial-FFT-Bars + optionale Peak-Dots (2. InstancedMesh)
+│       │                        # Eigener FreqBeatDetector für Hz-konfigurierbaren Beat-Boost
 │       ├── GPUParticles.tsx     # THREE.Points + THREE.LineSegments (connection lines)
 │       │                        # Shapes: circle/star/diamond, ColorModes: solid/rainbow/custom/random
-│       ├── CenterLogo.tsx       # Logo: immer circle, ShaderMaterial Glow-Plane, Fire-Ring (fBm Procedural)
-│       ├── NebulaPlane.tsx      # fBM-Simplex-Noise-Fog + nebulaScale/offsetX/offsetY
-│       ├── PostFX.tsx           # PERMANENTER STUB — gibt immer null zurück
+│       ├── CenterLogo.tsx       # Logo: immer circle, ShaderMaterial Glow-Plane (4 Color-Modi),
+│       │                        # Fire-Ring (fBm Procedural, RingGeometry auf Logo-Rand)
+│       ├── NebulaPlane.tsx      # fBM-Simplex-Fog + optional Pulse-Mode (eigener FreqBeatDetector)
+│       ├── PostFX.tsx           # PERMANENTER STUB - gibt immer null zurück
 │       └── shaders/
 │           ├── nebula.vert
 │           └── nebula.frag
@@ -151,18 +154,23 @@ src/
 ├── hooks/
 │   ├── useAudioReactive.ts  # Dual-Analyser (visual=256 smoothed, kick=2048 raw)
 │   │                        # rAF-Tick ruft sceneRegistry.advance() → treibt R3F-Frame
+│   │                        # + globaler FreqBeatDetector für audioAnalysis.beatPhase
 │   ├── useFileUpload.ts     # Validierung (Audio 2 GB / Image 100 MB) → store
 │   └── useTheme.ts          # Mirror settings.theme.mode → document.documentElement.dataset.theme
 │
 └── lib/
     ├── audioStore.ts        # zustand: Files + Volume + ErrorMessage + Analysis-Felder
-    ├── audioUtils.ts        # getFreqRangeEnergy() — Hz→Bin-Mapping
-    │                        # FreqBeatDetector — Spectral-Flux Onset-Detection (pro Komponente eine Instanz)
-    ├── settingsStore.ts     # zustand + persist(key='audiovisualizer:settings:v8', v=8)
+    ├── audioUtils.ts        # getFreqRangeEnergy() - Hz→Bin-Mapping
+    │                        # FreqBeatDetector - Spectral-Flux Onset-Detection (pro Komponente eine Instanz)
+    │                        # FREQ_PRESETS, sliderToHz/hzToSlider (log), getBinCountForRange
+    ├── settingsStore.ts     # zustand + persist(key='audiovisualizer:settings:v11', v=11)
+    │                        # DEFAULT_SETTINGS ist exportiert (für useF-Defensive-Defaults)
     ├── presetsStore.ts      # zustand + persist(key='audiovisualizer:presets:v1')
     ├── exportEngine.ts      # Mediabunny-MP4-Pipeline + AAC-Bitrate-Probe
+    │                        # + eigener FreqBeatDetector für audioAnalysis.beatPhase
     ├── exportPresets.ts     # YouTube + TikTok Preset-Definitionen
     ├── fft.ts               # Offline-Cooley-Tukey-FFT für Export
+    │                        # precomputeFFT() liefert freqData (128) UND rawFreqData (1024)
     ├── workflowGradient.ts  # 4-Stop-Color-Helper (cyan→violet→pink→orange)
     └── utils.ts             # formatTime, clamp, lerp
 ```
@@ -194,8 +202,9 @@ User-Upload → audioStore.setAudio(file) → useAudioReactive-useEffect
     │     → audioAnalysis.freqData    (128 bins, ~172 Hz/Bin) → Bars, Particles (Farben)
     │     → audioAnalysis.bass/loudness/highs
     └─→ AnalyserNode (fft 2048, smooth 0.0) → "kick"
-          → audioAnalysis.rawFreqData (1024 bins, ~21.5 Hz/Bin) → FreqBeatDetector
-          → audioAnalysis.beatPhase   (decaying 0..1, hardcoded 60-120Hz kick)
+          → audioAnalysis.rawFreqData (1024 bins, ~21.5 Hz/Bin)
+          → global FreqBeatDetector(settings.audio.globalBeatFreqStart/End, settings.audio.globalBeatSensitivity)
+          → audioAnalysis.beatPhase   (decaying 0..1, Hz-konfigurierbar via Settings)
 
 Jeder rAF-Tick:
   → schreibt in audioAnalysis (mutable, von useFrame gelesen)
@@ -204,7 +213,9 @@ Jeder rAF-Tick:
 
 **Three.js-Komponenten lesen NIE aus zustand für per-Frame-Daten.** Immer `audioAnalysis` direkt + `getSettings()`.
 
-**`audioAnalysis.rawFreqData`** — WICHTIG: Immer für `FreqBeatDetector.update()` verwenden, NICHT `freqData`. Die geglätteten `freqData` (smoothing=0.55) verschlucken Transienten → Beat-Detection feuert nie.
+**`audioAnalysis.rawFreqData`** - WICHTIG: Immer für `FreqBeatDetector.update()` verwenden, NICHT `freqData`. Die geglätteten `freqData` (smoothing=0.55) verschlucken Transienten → Beat-Detection feuert nie.
+
+**`audioAnalysis.beatPhase`** - Wird vom globalen `FreqBeatDetector` in `useAudioReactive` erzeugt. Frequenzbereich und Sensitivity kommen aus `settings.audio.globalBeat*`. Default 40-120 Hz (Kick). Im Export wird der **gleiche** Detector mit den **gleichen** Settings nachgebaut (siehe §4.5).
 
 ### 4.5 Export-Pipeline (`src/lib/exportEngine.ts`)
 
@@ -212,14 +223,21 @@ Jeder rAF-Tick:
 exportMP4(file, options)
   1. AAC-Bitrate-Probe  → AudioEncoder.isConfigSupported() mit [audioBitrate, 320k, 256k, 192k, 128k]
   2. decode   → AudioBuffer (48kHz)
-  3. analyze  → precomputeFFT() → Array<{freqData, bass, loudness, highs}> (1/frame)
+  3. analyze  → precomputeFFT() → Array<{freqData (128), rawFreqData (1024), bass, loudness, highs}> (1/frame)
   4. Renderer resize auf Zielauflösung, Camera anpassen
-  5. render   → pro Frame: audioAnalysis setzen + sceneRegistry.advance(timestamp)
-                videoSource.add(timestamp, 1/fps)
+  5. render   → pro Frame:
+                  audioAnalysis.freqData.set(...)
+                  audioAnalysis.rawFreqData.set(...)   ← KRITISCH: ohne das feuert KEIN FreqBeatDetector
+                  global FreqBeatDetector(settings.audio.globalBeat*).update(rawFreqData, ...)
+                  audioAnalysis.beatPhase = globalBeat
+                  sceneRegistry.advance(timestamp)
+                  videoSource.add(timestamp, 1/fps)
   6. audio    → audioSource.add(audioBuffer)
   7. finalize → output.finalize() → Blob
   8. restore  → Renderer-Size + Camera zurücksetzen
 ```
+
+**KRITISCH** (v11-Fix): `audioAnalysis.rawFreqData` muss pro Frame gesetzt werden. Sonst sehen alle 5+ `FreqBeatDetector`-Instanzen (Background, Logo×2, Particles, Bars, Nebula-Pulse) leere Daten und **nur Bars animieren sich** im Export (über `freqData`). Hardcoded 60-120 Hz Kick-Detection wurde entfernt - der globale `FreqBeatDetector` läuft mit den **gleichen** Settings wie das Live-Preview.
 
 **Export-Presets** (`src/lib/exportPresets.ts`):
 - YouTube: 1080p@60 (12Mbps), 1080p@30 (8Mbps), 1440p@60 (24Mbps), 1440p@30 (16Mbps), 4K@30 (45Mbps)
@@ -227,23 +245,26 @@ exportMP4(file, options)
 
 ### 4.6 Settings-Store (localStorage)
 
-- Key: `audiovisualizer:settings:v8`
-- `version: 8`, `migrate: () => DEFAULT_SETTINGS` → bei Schema-Bump alles wipen
+- Key: `audiovisualizer:settings:v11`
+- `version: 11`, `migrate: () => DEFAULT_SETTINGS` → bei Schema-Bump alles wipen
+- `DEFAULT_SETTINGS` ist **exportiert** (für `useF`-Defensive-Defaults bei alten Presets - siehe §6)
 - **Gruppen:**
 
 | Gruppe | Inhalt |
 |--------|--------|
 | `theme` | `mode`, `accent`, `secondary` (Palette-Farben, kein eigener Tab) |
-| `background` | blur, brightness, saturation, contrast, hueShift, sharpen, tint (color/opacity/mode), **beatFxFreqStart/beatFxFreqEnd** (Hz-Slider, ersetzt altes beatFxSource-Enum), scaleOnBeat (0..0.5), vignette (enabled/strength), nebula (enabled/intensity/color1/color2/driftSpeed/reactivity/**scale/offsetX/offsetY**), PostFX: bloom (enabled/intensity/threshold), CA (enabled/offset), noise (enabled/intensity/**speed/beatReactivity**), scanlines (enabled/density/**speed/beatReactivity**), **glitch (enabled/delay/strength/beatReactivity)**, sepia (enabled/intensity), pixelation (enabled/granularity/**beatReactivity**), dotscreen (enabled/scale/**speed/beatReactivity**), grid (enabled/scale/**speed/beatReactivity**), colorAvg (enabled) — **kein hueSat, kein BC** (=doppelt mit Image-Reglern, entfernt) |
-| `logo` | enabled, size (80-**1600**), opacity, beatScaleStrength, glow (enabled/intensity/color/size/**glowBlur**), **fire (enabled/intensity/color1/color2/speed/beatReactivity)** — shape/cornerRadius/rotation/ring entfernt, Logo ist immer circle |
-| `bars` | enabled, count, thickness, lengthScale, innerRadius, rotationSpeed, rotationOnBeat, colorMode (**solid/rainbow/custom/random**), solidColor, **customColors** (string[]), **customFreqBoundaries** (number[]), reactivity, freqStart, freqEnd, opacity, minHeight, gapSize, smoothing, peakEnabled, peakDecay — mirror entfernt |
-| `particles` | enabled, count, size, orbitRadius, speed, spread, kickBurstStrength, opacity, sizeOnBeat, colorMode (**solid/rainbow/custom/random**), **solidColor**, **customColors** (string[]), **customFreqBoundaries** (number[]), orbitMode (circular/elliptical/scatter), ellipseRatio, **reactiveFreqStart/reactiveFreqEnd** (Hz-Slider, ersetzt reactiveAxis-Enum), particleShape (circle/star/diamond), blendMode, connectionLines, connectionDistance, connectionOpacity, twinkle, twinkleSpeed — monoColor/reactiveAxis entfernt |
+| `audio` (NEU v11) | `globalBeatFreqStart`, `globalBeatFreqEnd` (Hz, default 40-120 = Kick), `globalBeatSensitivity` (0.1-5.0, default 1.0). Treibt den globalen `FreqBeatDetector` in `useAudioReactive` + `exportEngine` → schreibt `audioAnalysis.beatPhase`. |
+| `background` | blur, brightness, saturation, contrast, hueShift, sharpen, tint (color/opacity/mode), **beatFxFreqStart/beatFxFreqEnd** (HzRangePicker), **beatFxSensitivity** (0.1-5.0), scaleOnBeat (0..0.5), vignette (enabled/strength), nebula (enabled/intensity/color1/color2/driftSpeed/reactivity/scale/offsetX/offsetY + **nebulaBeatMode/FreqStart/End/Sensitivity** für optionalen Pulse-Mode), PostFX: bloom (enabled/intensity/threshold), CA (enabled/offset), noise (enabled/intensity/speed/beatReactivity/scale/colorMode), scanlines (enabled/density/speed/beatReactivity/thickness), glitch (enabled/delay/strength/RGBSplit/BlockSize/BlockProb/Vertical/BeatSync/Decay), sepia (enabled/intensity), pixelation (enabled/granularity/beatReactivity/wave/waveSpeed), dotscreen (enabled/scale/rotation/rotSpeed/beatScale/colorSep), grid (enabled/scale/pulseStrength/wave/waveSpeed/movement/color), colorAverage (enabled) |
+| `logo` | enabled, size (80-1600), opacity, **beatScaleStrength**, **beatFxFreqStart/beatFxFreqEnd** (HzRangePicker), **beatFxSensitivity**, glow (enabled/intensity/**color (Solid-Mode)/size/glowBlur** + **colorMode ('solid'\|'rainbow'\|'custom'\|'random')**, **cycleSpeed (rainbow/custom)**, **customColors (string[]) (custom-Mode)**), fire (enabled/intensity/height/speed/inner/mid/outerColor/**reactivity/freqStart/freqEnd/sensitivity**). - shape/cornerRadius/**beatRotationBurst**/ring entfernt (v11), Logo ist immer circle, kein Rotation-Burst mehr. |
+| `bars` | enabled, count, thickness, lengthScale, innerRadius, rotationSpeed, rotationOnBeat, colorMode (solid/rainbow/custom/random), solidColor, customColors (string[]), customFreqBoundaries (number[]), reactivity, freqStart/freqEnd (Bin-Index, für Height-Mapping - **separat** von beatFreq*), opacity, minHeight, gapSize, smoothing, peakEnabled, peakDecay - **NEU v11: beatFreqStart/beatFreqEnd (HzRangePicker) + beatSensitivity** für eigenen Bars-Beat-Boost. mirror entfernt |
+| `particles` | enabled, count, size, orbitRadius, speed, spread, kickBurstStrength, opacity, sizeOnBeat, colorMode (solid/rainbow/custom/random), solidColor, customColors (string[]), customFreqBoundaries (number[]), reactiveFreqStart/reactiveFreqEnd (HzRangePicker), **reactiveSensitivity**, orbitMode (circular/elliptical/scatter), ellipseRatio, particleShape (circle/star/diamond), blendMode, connectionLines, connectionDistance, connectionOpacity, twinkle, twinkleSpeed - monoColor/reactiveAxis entfernt |
 
 ### 4.7 Preset-Store (localStorage)
 
 - Key: `audiovisualizer:presets:v1`
-- Jedes Preset: `{ id, name, createdAt, settings: Settings }`
+- Jedes Preset: `{ id, name, createdAt, settings: Settings }` - **vollständiger** Settings-Snapshot (überlebt Schema-Bumps nicht)
 - UI: Dropdown (auto-load bei Auswahl) + "Save"-Button (expandiert Name-Input) + Trash-Icon
+- **Alte Presets** (vor Schema-Bump gespeichert) haben Felder der neueren Version **nicht**. Wird vom `useF`-Hook defensiv behandelt (siehe §6 + §9).
 
 ### 4.8 SettingsPanel - Tab-Struktur
 
@@ -253,10 +274,16 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 
 | Tab | Accordions |
 |-----|-----------|
-| Background | Image · Tint · Beat FX (**freqStart/freqEnd Hz-Slider**) · Vignette · Nebula/Fog (Scale+Offset) · Glow FX · Color FX (CA, Sepia, ColorAvg) · Stylize (Noise+anim, Scanlines+anim, Glitch+Controls+beatReactivity, Pixelation+beatReactivity, DotScreen+anim, Grid+anim) |
-| Logo | Size · Glow (mit glowBlur) · **Fire Ring** · Animation |
-| Bars | General · Shape · Frequency · Animation · Size & Radius · Peaks · **Custom Colors** (bei colorMode=custom) |
-| Particles | General · Shape & Size · Orbit · Physics (**reactiveFreqStart/End Hz-Slider**) · Connections · Flicker · **Custom Colors** (bei colorMode=custom) |
+| Background | Image · Tint · **Beat FX (HzRangePicker + Sensitivity)** · Vignette · **Nebula/Fog (Scale+Offset + optional Beat-Pulse Mode)** · Glow FX · Color FX (CA, Sepia, ColorAvg) · Effects (Noise+anim, Scanlines+anim, Glitch+Controls+beatReactivity, Pixelation+beatReactivity, DotScreen+anim, Grid+anim) |
+| Logo | Size · **Glow (ColorMode solid/rainbow/custom/random + CycleSpeed)** · **Fire Ring (HzRangePicker + Sensitivity)** · **Animation (HzRangePicker + Sensitivity, kein Rotation-Burst mehr)** |
+| Bars | General · Shape · Frequency · Animation · Size & Radius · Peaks · **Beat Boost (HzRangePicker + Sensitivity, NEU v11)** · **Custom Colors** (bei colorMode=custom) |
+| Particles | General · Shape & Size · Orbit · **Physics (HzRangePicker + Sensitivity)** · Connections · Flicker · **Custom Colors** (bei colorMode=custom) |
+
+**HzRangePicker** (`src/components/HzRangePicker.tsx`):
+- **10 Preset-Buttons**: Kick (40-120), Sub-Bass (20-80), Bass (20-250), Snare (150-900), Vocal (300-3000), Mids (250-4000), High-Mids (2000-6000), Highs (4000-20000), Hi-Hat (6000-14000), Full (20-16000)
+- **Logarithmischer Dual-Slider** (sliderToHz/hzToSlider in `audioUtils.ts`) - 20-20000 Hz
+- **Bin-Quality-Indicator** (poor/ok/good) - warnt vor zu schmalen Bändern (< 4 FFT-Bins)
+- CSS in `index.css` unter `.hz-range-picker` (overlapping range inputs mit transparent track)
 
 **Preset-Bar** sitzt zwischen Header und Tabs: `[Dropdown ▼] [🗑] [Save]` + optionales Name-Input.
 
@@ -268,19 +295,19 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 - `Tg({ value, onChange, label })` - Toggle Switch
 - `Acc({ label, defaultOpen?, children })` - Accordion
 - `EffectCard({ label, enabled, onToggle, children? })` - PostFX-Card mit Toggle
-- `CustomColorEditor({ colors, boundaries, onChange })` - Editor für custom Farb-Zonen (Bars + Particles)
-- `useF(group, key)` - gibt `[value, setter]` zurück, kein Rerender-overhead für Three.js
+- `CustomColorEditor({ group })` - Editor für custom Farb-Zonen (Bars + Particles; nicht Glow - Glow hat eigenen inline-Editor)
+- `useF(group, key)` - gibt `[value, setter]` zurück, **kein** Rerender-overhead für Three.js. **Defensive**: gibt `DEFAULT_SETTINGS[group][key]` zurück wenn Feld im aktuellen State `undefined` ist (z.B. altes Preset geladen).
 
 ### 4.9 Three.js Komponenten - Was macht was
 
 | Komponente | Liest Settings aus | Besonderheiten |
 |-----------|-------------------|----------------|
-| `BackgroundPlane` | `settings.background.*`, `settings.theme.mode` | Alle Hintergrund-Effekte im GLSL-Shader. NUR Hintergrund betroffen. useFrame hat `delta` für `uTime` (Noise/Glitch). ANGLE-Variablen-Prefix-Regel! **1× FreqBeatDetector** (useMemo) für Beat FX → liest rawFreqData. Bloom: 9×9 2D Gaussian Kernel, 1-Texel-Stride. |
-| `NebulaPlane` | `settings.background.nebula*` | fBM-Simplex-Fog, 2 Farben, audio-reaktiv, **nebulaScale + nebulaOffsetX/Y** |
-| `PostFX` | — | **Permanenter Stub**, immer `null`. Kein EffectComposer. |
-| `InstancedBars` | `settings.bars.*` | MAX_BARS=256, 2. InstancedMesh für Peak-Dots, freqStart/freqEnd remappt FFT-Bins; colorMode custom/random per-Bar-Color via Instanced Attribute. Beat via `audioAnalysis.beatPhase` (hardcoded Kick). |
-| `CenterLogo` | `settings.logo.*` | Immer circle; canvas-Circular-Mask; **ShaderMaterial Glow-Plane** (CircleGeometry 64seg, radial falloff + edge-fade smoothstep, glowBlur uniform); **Fire-Ring** = RingGeometry + fBm-Noise-ShaderMaterial. **2× FreqBeatDetector** (logoBeatDetector + fireBeatDetector) → lesen rawFreqData. |
-| `GPUParticles` | `settings.particles.*` | Custom Shader mit uShape (circle/star/diamond), LineSegments für connectionLines (O(n2), cap 200), orbitMode elliptical/scatter. **1× FreqBeatDetector** (particleBeatDetector) → liest rawFreqData für reactiveFreqStart/End. |
+| `BackgroundPlane` | `settings.background.*`, `settings.theme.mode` | Alle Hintergrund-Effekte im GLSL-Shader. NUR Hintergrund betroffen. useFrame hat `delta` für `uTime` (Noise/Glitch). ANGLE-Variablen-Prefix-Regel! **1× FreqBeatDetector** (useMemo) → `setSensitivity(beatFxSensitivity) + update(rawFreqData, beatFxFreqStart, beatFxFreqEnd)`. Bloom: 9×9 2D Gaussian Kernel, 1-Texel-Stride. |
+| `NebulaPlane` | `settings.background.nebula*` | fBM-Simplex-Fog, 2 Farben, audio-reaktiv, nebulaScale + nebulaOffsetX/Y. **Optional Pulse-Mode** (`nebulaBeatMode`): eigener `FreqBeatDetector` + neuer `uAudioPulse` uniform im `nebula.frag` (np_ prefix). Default OFF → alte bass+loudness Waber-Logik bleibt. |
+| `PostFX` | - | **Permanenter Stub**, immer `null`. Kein EffectComposer. |
+| `InstancedBars` | `settings.bars.*` | MAX_BARS=256, 2. InstancedMesh für Peak-Dots, freqStart/freqEnd remappt FFT-Bins (Height); colorMode custom/random per-Bar-Color via Instanced Attribute. **Eigener FreqBeatDetector** (barsBeatDetector) → `setSensitivity(beatSensitivity) + update(rawFreqData, beatFreqStart, beatFreqEnd)` für `barH += beat * 25 * scale` Boost. |
+| `CenterLogo` | `settings.logo.*` | Immer circle; canvas-Circular-Mask; **ShaderMaterial Glow-Plane** (CircleGeometry 64seg, radial falloff + edge-fade smoothstep, glowBlur uniform). **Glow Color-Modi** (JS-side, nicht im Shader): solid / rainbow (HSL-cycle) / custom (lerp durch glowCustomColors) / random (4 session-fixed Farben). **Fire-Ring** = RingGeometry (innerR=0.5, outerR=0.5+fireHeight) + fBm-Noise-ShaderMaterial. Scale = `logoSize * beatScale` (nicht `* 2` - bug-Fix v11). z=0.1, renderOrder=7 → zeichnet ÜBER dem Logo. **2× FreqBeatDetector** (logoBeatDetector + fireBeatDetector) → setSensitivity + update. **kein** beatRotationBurst mehr. |
+| `GPUParticles` | `settings.particles.*` | Custom Shader mit uShape (circle/star/diamond), LineSegments für connectionLines (O(n2), cap 200), orbitMode elliptical/scatter. **1× FreqBeatDetector** (particleBeatDetector) → setSensitivity(reactiveSensitivity) + update(rawFreqData, reactiveFreqStart, reactiveFreqEnd). |
 
 ### 4.10 Z-Layering (von hinten nach vorne)
 
@@ -291,10 +318,24 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 -3.1 GPUParticles LineSegments (renderOrder=3)
  -3  GPUParticles Points (renderOrder=4)
   0  CenterLogo mesh (renderOrder=6)
- -0.05 Glow-Plane ShaderMaterial (radial falloff, renderOrder=5)
-  0.05 Fire-Ring RingGeometry ShaderMaterial (renderOrder=7)
+  0.1 Fire-Ring RingGeometry ShaderMaterial (renderOrder=7)   ← zeichnet über Logo
      PostFX = stub, kein EffectComposer
+     Glow-Plane (renderOrder=5) sitzt hinter dem Logo, eigene z=-0.1 in useFrame
 ```
+
+### 4.11 FreqBeatDetector-Inventar (welche Komponente hat eigene Instanz)
+
+| Instanz | Datei | Settings-Quelle | update() Argumente |
+|---|---|---|---|
+| global | `useAudioReactive.ts` (module-level) + `exportEngine.ts` (eigene Instanz) | `settings.audio.globalBeatFreq*` + `globalBeatSensitivity` | `rawFreqData`, `globalBeatFreqStart`, `globalBeatFreqEnd` |
+| background | `BackgroundPlane.tsx` (`beatDetector`) | `settings.background.beatFxFreq*` + `beatFxSensitivity` | `rawFreqData`, `beatFxFreqStart`, `beatFxFreqEnd` |
+| logo | `CenterLogo.tsx` (`logoBeatDetector`) | `settings.logo.beatFxFreq*` + `beatFxSensitivity` | `rawFreqData`, `beatFxFreqStart`, `beatFxFreqEnd` |
+| fire | `CenterLogo.tsx` (`fireBeatDetector`) | `settings.logo.fireFreq*` + `fireSensitivity` | `rawFreqData`, `fireFreqStart`, `fireFreqEnd` |
+| particles | `GPUParticles.tsx` (`particleBeatDetector`) | `settings.particles.reactiveFreq*` + `reactiveSensitivity` | `rawFreqData`, `reactiveFreqStart`, `reactiveFreqEnd` |
+| bars | `InstancedBars.tsx` (`barsBeatDetector`) | `settings.bars.beatFreq*` + `beatSensitivity` | `rawFreqData`, `beatFreqStart`, `beatFreqEnd` |
+| nebula-pulse | `NebulaPlane.tsx` (`nebulaBeatDetector`) | `settings.background.nebulaBeatFreq*` + `nebulaBeatSensitivity` | `rawFreqData`, `nebulaBeatFreqStart`, `nebulaBeatFreqEnd` |
+
+**7 Instanzen gesamt** (1 global, 6 komponenten-spezifisch). Alle nutzen `setSensitivity()` VOR `update()` im useFrame.
 
 ---
 
@@ -324,22 +365,23 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 - **sceneRegistry.advance() MUSS aufgerufen werden** - `frameloop="never"` heißt: ohne `advance()` kein Render, kein `useFrame`. Live-Preview: rAF-Tick. Export: in der Frame-Loop.
 - **sceneRegistry muss befüllt sein vor exportMP4** - User muss einmal Play gedrückt haben.
 - **Settings-Schema-Bump**: `version` in `settingsStore.ts` erhöhen + Storage-Key ändern. Sonst crasht alter localStorage.
-- **Aktueller Storage-Key**: `audiovisualizer:settings:v8` — bei nächster Schema-Änderung auf `v9` bumpen.
+- **Aktueller Storage-Key**: `audiovisualizer:settings:v11`. Bei Schema-Änderung auf `v12` bumpen UND `migrate: () => DEFAULT_SETTINGS` (kompletter Reset). `DEFAULT_SETTINGS` ist exportiert für defensive useF-Fallbacks.
+- **Alte Presets & Schema-Bumps**: `useF`-Hook gibt `DEFAULT_SETTINGS[group][key]` zurück wenn ein Feld im aktuellen State `undefined` ist. Das fängt Presets ab, die vor dem letzten Schema-Bump gespeichert wurden — das UI sieht nie `undefined` und crashed nicht. Im `useFrame` der Three.js-Komponenten gibt es zusätzliche `??`-Fallbacks als Defense-in-Depth.
 - **🔴 ANGLE/Windows GLSL-Regel (KRITISCH)**: ANGLE (Chromes WebGL auf Windows) akzeptiert KEINE gleichen Variablennamen in parallelen `if/else`-Blöcken oder Schleifen in derselben Funktion → stiller Shader-Compile-Fehler → schwarzes Bild. **Regel für BackgroundPlane.tsx**: `vec2 ts` einmalig am Anfang von `void main()`, jeder Block/Loop hat eindeutigen Prefix: bl=blur, sh=sharpen, ca=CA, bm=bloom, ns=noise, sc=scanlines, dt=dot, gd=grid, pix=pixelation, gl_=glitch, cg=color grading, tnt=tint, vg=vignette, gr=gradient.
 - **BackgroundPlane = alle BG-Effekte**: PostFX.tsx ist permanenter Stub. Alle Background-Tab-Effekte laufen im `BackgroundPlane`-Shader → betreffen nur Hintergrund-Layer.
 - **Dual-Analyser-Init idempotent**: `if (sourceRef.current) return` - sonst "InvalidStateError: already connected".
 - **FFT-Band-Mapping** in `fft.ts` und `useAudioReactive.ts` muss identisch bleiben (bass: 0..5, highs: 60..end).
 - **Peak-Dots in InstancedBars**: zweites InstancedMesh (`peakMeshRef`) - `visible` wird per `peakEnabled` gesteuert.
 - **connectionLines cap**: Bei aktivierten Connection Lines werden max 200 Partikel verarbeitet (O(n2) Distance-Check).
-- **Logo ist immer circle** — `LogoShape`-Type und `shape`/`cornerRadius`/`rotation`/`ring`-Settings wurden in v8 entfernt. Kein square/rounded-Codepfad mehr.
+- **Logo ist immer circle** - `LogoShape`-Type und `shape`/`cornerRadius`/`rotation`/`ring`-Settings wurden in v8 entfernt. Kein square/rounded-Codepfad mehr.
 - **Fire-Ring Shader**: Inline fBm-Noise-GLSL in `CenterLogo.tsx`. ANGLE-Prefix-Regel gilt auch dort (`fr_` Prefix für alle lokalen Variablen im Fire-Fragment-Shader).
-- **getFreqRangeEnergy**: In `audioUtils.ts` — mappt Hz-Bereich auf FFT-Bin-Indizes. Für kontinuierliche Energie-Werte (z.B. Farben). Für Beat-Detection immer `FreqBeatDetector` verwenden.
-- **FreqBeatDetector** (`audioUtils.ts`): Spectral-Flux Onset-Detection. Misst positive Energie-Änderungen zwischen Frames (nicht Absolutwert), normalisiert per Bin-Count. Funktioniert für jede Bandbreite (20-100 Hz schmal genauso wie 20-16000 Hz breit). **Muss rawFreqData (1024 Bins, kick analyser) bekommen** — niemals freqData (geglättet, 128 Bins). Jede Komponente erstellt ihre eigene Instanz via `useMemo(() => new FreqBeatDetector(), [])`. `detector.update(rawFreqData, startHz, endHz)` → gibt decaying Phase 0..1 zurück. `detector.energy` → gibt aktuelle Roh-Energie zurück.
-- **rawFreqData vs freqData**: `audioAnalysis.rawFreqData` = kick analyser (fftSize=2048, smoothing=0, 1024 Bins). `audioAnalysis.freqData` = visual analyser (fftSize=256, smoothing=0.55, 128 Bins). Für Beat-Detection IMMER rawFreqData — geglättete Daten verschlucken Transienten und die Detection feuert nie.
-- **Bloom-Shader**: 9×9 2D Gaussian Kernel mit 1-Texel-Stride und σ≈2. KEINE separable Two-Pass-Lösung im Single-Fragment-Shader — das erzeugt Kreuz/Linien-Artefakte.
-- **Glow-Plane**: CircleGeometry (64 Segmente) statt PlaneGeometry — verhindert sichtbare Rechtecks-Kanten. Shader hat zusätzlich `smoothstep(0.7, 1.0, dist)` Edge-Fade.
+- **getFreqRangeEnergy**: In `audioUtils.ts` - mappt Hz-Bereich auf FFT-Bin-Indizes. Für kontinuierliche Energie-Werte (z.B. Farben). Für Beat-Detection immer `FreqBeatDetector` verwenden.
+- **FreqBeatDetector** (`audioUtils.ts`): Spectral-Flux Onset-Detection. Misst positive Energie-Änderungen zwischen Frames (nicht Absolutwert), normalisiert per Bin-Count. Funktioniert für jede Bandbreite (20-100 Hz schmal genauso wie 20-16000 Hz breit). **Muss rawFreqData (1024 Bins, kick analyser) bekommen** - niemals freqData (geglättet, 128 Bins). Jede Komponente erstellt ihre eigene Instanz via `useMemo(() => new FreqBeatDetector(), [])`. `detector.update(rawFreqData, startHz, endHz)` → gibt decaying Phase 0..1 zurück. `detector.energy` → gibt aktuelle Roh-Energie zurück.
+- **rawFreqData vs freqData**: `audioAnalysis.rawFreqData` = kick analyser (fftSize=2048, smoothing=0, 1024 Bins). `audioAnalysis.freqData` = visual analyser (fftSize=256, smoothing=0.55, 128 Bins). Für Beat-Detection IMMER rawFreqData - geglättete Daten verschlucken Transienten und die Detection feuert nie.
+- **Bloom-Shader**: 9×9 2D Gaussian Kernel mit 1-Texel-Stride und σ≈2. KEINE separable Two-Pass-Lösung im Single-Fragment-Shader - das erzeugt Kreuz/Linien-Artefakte.
+- **Glow-Plane**: CircleGeometry (64 Segmente) statt PlaneGeometry - verhindert sichtbare Rechtecks-Kanten. Shader hat zusätzlich `smoothstep(0.7, 1.0, dist)` Edge-Fade.
 - **ThemeToggle.tsx** existiert noch als Datei, wird aber nirgends mehr verwendet (weder in TransportBar noch in Uploader). Kann irgendwann gelöscht werden.
-- **`workflowColorAt` liest CSS-Vars** — wird nicht mehr in Bars/Particles verwendet (colorMode 'workflow-gradient' entfernt), noch in workflowGradient.ts vorhanden.
+- **`workflowColorAt` liest CSS-Vars** - wird nicht mehr in Bars/Particles verwendet (colorMode 'workflow-gradient' entfernt), noch in workflowGradient.ts vorhanden.
 - **EyeDropper-API**: Typ-Deklaration in `vite-env.d.ts` (nicht in TypeScript DOM lib enthalten). Nur Chrome 95+.
 
 ---
@@ -349,7 +391,7 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 | Was passieren soll | Datei |
 |---|---|
 | Hintergrund-Effekt ändern (Blur, Tint, Bloom, CA, etc.) | `BackgroundPlane.tsx` Shader + Uniforms in useFrame + `settingsStore.background` |
-| Neuen Hintergrund-Effekt hinzufügen | `BackgroundPlane.tsx` erweitern — ANGLE-Prefix-Regel beachten! |
+| Neuen Hintergrund-Effekt hinzufügen | `BackgroundPlane.tsx` erweitern - ANGLE-Prefix-Regel beachten! |
 | Bars-Settings | `InstancedBars.tsx` + `settingsStore.bars` |
 | Partikel-Settings | `GPUParticles.tsx` + `settingsStore.particles` |
 | Logo-Settings | `CenterLogo.tsx` + `settingsStore.logo` |
@@ -383,18 +425,24 @@ node scripts/<name>.mjs   # Playwright-Smoketest (braucht laufenden Dev-Server v
 
 - *"Bars drehen sich zu schnell"* → `InstancedBars.tsx` → `rotationRef.current += ...`
 - *"Export crasht mit AAC-Fehler"* → `exportEngine.ts` → `findSupportedAacBitrate()`
-- *"Export zeigt statisches Bild"* → `exportEngine.ts` → `sceneRegistry.advance(timestamp)` vorhanden? Canvas `frameloop="never"` korrekt?
-- *"Beat trifft nicht (hardcoded Kick)"* → `useAudioReactive.ts` (HISTORY_LEN, 1.6×, 0.12 threshold)
-- *"Konfigurierbarer Beat reagiert nicht"* → Prüfen: 1) `rawFreqData` (nicht `freqData`) an `FreqBeatDetector.update()` übergeben? 2) FreqBeatDetector-Instanz via `useMemo` erstellt (nicht inline new)? 3) Hz-Range sinnvoll (zu breit → Spectral Flux verdünnt, zu eng → zu wenige Bins)?
+- *"Export zeigt nur Bars animiert, alles andere statisch"* → `exportEngine.ts` schreibt `audioAnalysis.rawFreqData`? `fft.ts` precomputeFFT liefert rawFreqData (1024 bins)? Sonst sehen alle FreqBeatDetector-Instanzen leere Daten.
+- *"Export-Bild ist schwarz / friert ein"* → `useF`-Defensive-Default vorhanden? `DEFAULT_SETTINGS` exportiert? Bei alten Presets greift der Fallback. Siehe §6.
+- *"Beat trifft nicht"* → 1) `rawFreqData` (nicht `freqData`) an `FreqBeatDetector.update()` übergeben? 2) FreqBeatDetector-Instanz via `useMemo` erstellt? 3) `setSensitivity()` VOR `update()` aufgerufen? 4) Hz-Range sinnvoll (zu breit → Spectral Flux verdünnt, zu eng → < 4 Bins → "poor" im HzRangePicker-Indikator)? 5) `audio.beatFxSensitivity` (0.1-5.0) prüfen.
 - *"Logo ist gestreckt"* → `CenterLogo.tsx` → canvas `drawImage` Cover-Logik
 - *"Settings werden nicht gespeichert"* → `settingsStore.ts` Version-Bump + neuer Key
-- *„Blur sieht kachelig aus“* → `BackgroundPlane.tsx` Shader → BLUR_SIGMA=2.0 (Modul-Konstante), blurStride=blur/(3×BLUR_SIGMA)
+- *„Blur sieht kachelig aus"* → `BackgroundPlane.tsx` Shader → BLUR_SIGMA=2.0 (Modul-Konstante), blurStride=blur/(3×BLUR_SIGMA)
 - *"Partikel haben keine Verbindungslinien"* → `GPUParticles.tsx` → `connectionLines` setting + LineSegments
 - *"Export-Preset fehlt"* → `exportPresets.ts` → `EXPORT_PRESETS` Array
+- *"Fire-Ring sitzt nicht am Logo-Rand"* → `CenterLogo.tsx` → `fireScale = logoSize * beatScale` (nicht `* 2`), z=0.1, renderOrder=7
+- *"Logo Glow zeigt falsche Farbe / wird schwarz beim Color-Mode-Wechsel"* → Altes Preset geladen? `useF` defensive Default prüfen, `CenterLogo` `??`-Fallbacks prüfen
+- *"Hz-Slider zu ungenau / klemmt in der Mitte"* → Logarithmisches Mapping (sliderToHz/hzToSlider) ist Standard. Linearer Slider 20-20000 Hz ist unbrauchbar → HzRangePicker statt Sl für Frequenz-Bereiche verwenden.
+- *"Neue Beat-Reactivity in Komponente X einbauen"* → Pattern: 1) Settings-Felder in settingsStore.ts hinzufügen (schema-bump nicht vergessen), 2) `useMemo(() => new FreqBeatDetector(), [])` in Komponente, 3) `setSensitivity()` VOR `update()` im useFrame, 4) HzRangePicker + Sensitivity-Slider in SettingsPanel via `useF`-Hook, 5) update §4.11 in AGENTS.md
 
 ---
 
-*Stand: Session 5 — settingsStore v8. Alle Hz-basierten Beat-Effekte auf `FreqBeatDetector` (Spectral-Flux Onset-Detection) umgestellt. `audioAnalysis.rawFreqData` (kick analyser, 1024 Bins, smoothing=0) exponiert und als einzige Datenquelle für Beat-Detection verwendet. `FreqBeatDetector`-Instanzen: 1× BackgroundPlane, 2× CenterLogo (logo + fire), 1× GPUParticles. Bloom-Shader auf korrekten 9×9 2D-Gaussian-Kernel (1-Texel-Stride) korrigiert. Glow-Plane auf CircleGeometry (64 Seg) + Edge-Fade umgestellt. Session 4: settingsStore v8, Hz-Slider, Logo-Vereinfachung, Fire-Ring, Custom Colors, Stylize-Animationen.*
+*Stand: Session 7 — settingsStore **v11**. Komplettes Audio-Reactivity-Refactoring abgeschlossen:*
+- *Session 6 (Audio-Reactivity Refactor): settingsStore v9 (Foundation: `FREQ_PRESETS`, log Hz-slider helpers, adaptive `FreqBeatDetector` mit bandwidth-aware threshold + `setSensitivity()`, neuer `audio`-Group für globalen Beat). v10 (UI: `HzRangePicker` mit 10 Preset-Buttons + log Dual-Slider + Bin-Quality-Indicator, alle 5 Komponenten + Nebula-Optional wiederverwenden HzRangePicker, per-Trigger Sensitivity). **7 FreqBeatDetector-Instanzen** gesamt (1 global + 6 komponenten-spezifisch).*
+- *Session 7 (Export-Bug + Glow-Color-Modi + Fire-Position): settingsStore v11. Fix: Export-Pipeline schreibt jetzt `audioAnalysis.rawFreqData` pro Frame und nutzt globalen `FreqBeatDetector` mit `settings.audio.*` statt hardcoded 60-120 Hz Kick — alle Animationen reagieren jetzt im MP4 wie im Live-Preview. Logo-Glow hat 4 Color-Modi (solid/rainbow/custom/random). Fire-Ring sitzt jetzt korrekt am Logo-Rand (`fireScale = logoSize * beatScale`, z=0.1, renderOrder=7). `beatRotationBurst` entfernt. `useF`-Hook mit defensiver Default-Logik (`DEFAULT_SETTINGS[group][key]` als Fallback) macht alte Presets ohne v11-Felder crash-frei nutzbar. Exportierte `DEFAULT_SETTINGS` aus settingsStore.*
 
 ---
 
@@ -417,4 +465,4 @@ git revert <hash>                   # sicherer Rückwärts-Commit
 git reset --hard <hash>             # nur nach User-Freigabe
 ```
 
-**Erinnerung:** Nach jeder Änderung committen — Details in **§ 0.4** (Commit-Pflicht).
+**Erinnerung:** Nach jeder Änderung committen - Details in **§ 0.4** (Commit-Pflicht).
