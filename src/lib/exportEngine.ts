@@ -178,6 +178,18 @@ export async function exportMP4(
     // correct Hz→bin mapping.
     const globalBeatDetector = new FreqBeatDetector(audioBuffer.sampleRate);
 
+    // Reset every per-component FreqBeatDetector instance to a clean
+    // first-frame state. They have been running against the live audio
+    // stream in the preview and their prevBins / fluxHistory are trained
+    // on that data — without a reset, the first ~40 frames (~0.67s) of
+    // the export would compare precomputed spectral flux against
+    // live-trained flux averages, producing wrong beat cadences and
+    // visibly inconsistent beat-driven animations (grid pulse, scanline
+    // beat, logo fire, particle kick, etc.).
+    for (const detector of sceneRegistry.beatDetectors) {
+      detector.reset();
+    }
+
     onProgress({ phase: 'rendering', progress: 0, message: `Rendering 0/${fftFrames.length} frames...` });
 
     const frameDuration = 1 / fps;

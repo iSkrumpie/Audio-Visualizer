@@ -13,6 +13,7 @@ import { useAudioStore } from '@/lib/audioStore';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { getSettings } from '@/lib/settingsStore';
 import { useSettingsStore } from '@/lib/settingsStore';
+import { useBeatDetectorRegistration } from './AudioScene';
 import { FreqBeatDetector } from '@/lib/audioUtils';
 
 const REF_VMIN = 900;
@@ -269,6 +270,8 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
   const fireGeoRef     = useRef<THREE.RingGeometry | null>(null);
   const logoBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
   const fireBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
+  useBeatDetectorRegistration(logoBeatDetector);
+  useBeatDetectorRegistration(fireBeatDetector);
 
   // ── useFrame: update all reactive state ─────────────────────────────────────
   useFrame((state, delta) => {

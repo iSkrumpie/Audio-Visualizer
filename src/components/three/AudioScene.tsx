@@ -33,7 +33,26 @@ export const sceneRegistry: {
    * preview window and not the export frame.
    */
   setSize: ((width: number, height: number) => void) | null;
-} = { gl: null, scene: null, camera: null, advance: null, setSize: null };
+  /**
+   * Set of per-component FreqBeatDetector instances that the export
+   * pipeline needs to reset() before the first frame: each component
+   * mounts its detector via useMemo and runs it continuously against
+   * the live audio analyser. When the export starts writing precomputed
+   * FFT data into audioAnalysis.rawFreqData, the detectors' prevBins
+   * and fluxHistory are still trained on the live stream — without a
+   * reset, the first ~40 frames (~0.67s) of the export would have wrong
+   * beat cadences. Components register their detector here on mount
+   * and unregister on unmount.
+   */
+  beatDetectors: Set<{ reset: () => void }>;
+} = {
+  gl: null,
+  scene: null,
+  camera: null,
+  advance: null,
+  setSize: null,
+  beatDetectors: new Set(),
+};
 
 /** Captures Three.js internals for the export pipeline */
 function SceneCapture() {
@@ -56,6 +75,21 @@ function SceneCapture() {
     };
   }, [gl, scene, camera, advance, r3fSetSize]);
   return null;
+}
+
+/**
+ * Helper for components that own a FreqBeatDetector: registers it in the
+ * scene-wide registry on mount and unregisters on unmount, so the export
+ * pipeline can reset every detector to a clean first-frame state.
+ */
+export function useBeatDetectorRegistration(detector: { reset: () => void } | null) {
+  useEffect(() => {
+    if (!detector) return;
+    sceneRegistry.beatDetectors.add(detector);
+    return () => {
+      sceneRegistry.beatDetectors.delete(detector);
+    };
+  }, [detector]);
 }
 
 type AudioSceneProps = {

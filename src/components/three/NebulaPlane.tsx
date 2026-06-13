@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { getSettings } from '@/lib/settingsStore';
 import { FreqBeatDetector } from '@/lib/audioUtils';
+import { useBeatDetectorRegistration } from './AudioScene';
 import nebulaVert from './shaders/nebula.vert';
 import nebulaFrag from './shaders/nebula.frag';
 
@@ -19,6 +20,7 @@ export function NebulaPlane() {
   const matRef = useRef<THREE.ShaderMaterial>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const nebulaBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
+  useBeatDetectorRegistration(nebulaBeatDetector);
 
   const uniforms = useMemo(() => ({
     uTime:        { value: 0 },

@@ -17,6 +17,7 @@ import { useAudioStore } from '@/lib/audioStore';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { getSettings } from '@/lib/settingsStore';
 import { FreqBeatDetector } from '@/lib/audioUtils';
+import { useBeatDetectorRegistration } from './AudioScene';
 
 const bgVert = /* glsl */ `
 varying vec2 vUv;
@@ -492,6 +493,7 @@ export function BackgroundPlane() {
   // the Hz→bin mapping drifts and the background-shader beat animations
   // (grid pulse, scanline beat, noise boost) trigger at the wrong cadence.
   const beatDetector = useMemo(() => new FreqBeatDetector(48000), []);
+  useBeatDetectorRegistration(beatDetector);
 
   useFrame((state, delta) => {
     const mat = matRef.current;

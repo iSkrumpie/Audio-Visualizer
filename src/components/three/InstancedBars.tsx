@@ -10,6 +10,7 @@ import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
+import { useBeatDetectorRegistration } from './AudioScene';
 import { getSettings } from '@/lib/settingsStore';
 import { FreqBeatDetector } from '@/lib/audioUtils';
 
@@ -28,6 +29,7 @@ export function InstancedBars() {
   const timeRef         = useRef(0);
   const colorObj        = useMemo(() => new THREE.Color(), []);
   const barsBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
+  useBeatDetectorRegistration(barsBeatDetector);
 
   // 4 random colors generated once per session for 'random' color mode
   const randomColors = useMemo(() => {

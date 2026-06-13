@@ -158,6 +158,26 @@ export class FreqBeatDetector {
   }
 
   /**
+   * Reset the detector to a clean first-frame state: prevBins and the
+   * rolling flux history are zeroed, and the phase envelope is cleared.
+   *
+   * Required when switching from a live audio stream (e.g. the live preview
+   * that trained this detector) to a fresh precomputed stream (the export
+   * pipeline) — without the reset, the first ~40 frames (~0.67s) of the
+   * export would compare precomputed spectral flux against flux averages
+   * trained on live data, producing wrong beat cadences and inconsistent
+   * beat-driven animations (grid pulse, scanline beat, logo fire, etc.).
+   */
+  reset(): void {
+    this.prevBins = new Float32Array(1024);
+    this.fluxHistory = new Array(this.historyLen).fill(0);
+    this.historyIdx = 0;
+    this.historyFull = false;
+    this.phase = 0;
+    this.lastEnergy = 0;
+  }
+
+  /**
    * Call once per frame with the RAW (unsmoothed) FFT data and Hz range.
    *
    * @param rawFreqData  audioAnalysis.rawFreqData (1024 bins, kick analyser)

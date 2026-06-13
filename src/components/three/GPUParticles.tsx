@@ -10,6 +10,7 @@ import { useRef, useMemo } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
+import { useBeatDetectorRegistration } from './AudioScene';
 import { getSettings } from '@/lib/settingsStore';
 import { FreqBeatDetector } from '@/lib/audioUtils';
 
@@ -150,6 +151,7 @@ export function GPUParticles() {
   const linesRef  = useRef<THREE.LineSegments>(null);
   const timeRef   = useRef(0);
   const particleBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
+  useBeatDetectorRegistration(particleBeatDetector);
 
   const particles = useMemo(() => {
     const accentHue    = hexToHue(getSettings().theme.accent);
