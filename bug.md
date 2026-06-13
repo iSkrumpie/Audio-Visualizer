@@ -1,6 +1,10 @@
 # Export-Bug: Background, Bars, Particles reagieren im MP4 schwächer als im Preview
 
-**Status:** GELÖST — Commit `d9da87a` (Session 10).
+**Status:** OFFEN — zwei Bestätigte Root-Causes, beide gefixt in Commit `2fe4030`. Browser-Test steht aus.
+
+**Confirmed Root Causes:**
+- Bug 1: `OfflineAudioContext.AnalyserNode.getByteFrequencyData()` gibt in Chrome immer Zeros zurück (Chrome-Limitation). Fix: zurück zur custom Cooley-Tukey FFT.
+- Bug 2: `THREE.Clock` benutzt `performance.now()` intern für delta-Berechnung — ignoriert den timestamp der an `advance()` übergeben wird. Im schnellen Export-Loop → delta ≈ 0.001s statt 0.01667s → alle zeitbasierten Animationen (uTime, noise, scanlines, glitch, orbit) laufen 16× zu langsam → erscheinen eingefroren. Fix: `performance.now()` während `advance()` überschreiben.
 
 **Symptom (Stand Session nach Commit `1704883`):**
 - Preview: Background-Beat-Animationen (Grid-Pulse, Scanline-Beat, Noise-Boost, Glitch-on-Beat, Pixelation, Dot-Scale, Background-Scale) pulsieren sichtbar.
