@@ -81,7 +81,7 @@ Design-Ziel: "Studio"-Aesthetic (skrumpie.de-inspiriert), Dark-Mode only, vier-S
 | Styling        | **Tailwind v4 CSS-first** (`@tailwindcss/vite`, KEINE `tailwind.config.ts`) |
 | Shader-Imports | `vite-plugin-glsl` (`.vert` / `.frag` als ESM-Strings)    |
 | Noise          | simplex-noise 4 (im Nebula-Shader, via Ashima Arts 2D)    |
-| E2E            | Playwright (nur in `scripts/`, keine Test-Framework-Setup) |
+| E2E            | Playwright (3× Smoke-Tests in `scripts/`, keine Test-Framework-Setup). Voraussetzung: `npm run dev` läuft auf :5173 + echtes `tmp/Logo.png` für `measure-logo-real.mjs` |
 
 **Target**: `es2022`, `chromium-basierte Browser` (Firefox ungetestet).
 
@@ -94,7 +94,7 @@ Design-Ziel: "Studio"-Aesthetic (skrumpie.de-inspiriert), Dark-Mode only, vier-S
 ### 3.1 `npm run dev` ist tabu
 **Nie selbst `npm run dev`, `vite`, `vite preview` o.ä. starten.** Immer nur der User.
 
-Erlaubt: `npm run typecheck`, `npm run build`, `node scripts/*.mjs`, `grep`/`rg`, `cat`/`read`, Git-Kommandos.
+Erlaubt: `npm run typecheck`, `npm run build`, `node scripts/test-e2e-v2.mjs` / `node scripts/measure-logo-fit.mjs` / `node scripts/measure-logo-real.mjs`, `grep`/`rg`, `cat`/`read`, Git-Kommandos.
 
 ### 3.2 Bugs selbst verifizieren
 1. **Verstehen** - Code lesen, exakt reproduzieren.
@@ -415,7 +415,10 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 ```bash
 npm run typecheck    # tsc -b --noEmit  - schnell, prüft TS-Fehler
 npm run build        # vollständiger Produktions-Build
-node scripts/<name>.mjs   # Playwright-Smoketest (braucht laufenden Dev-Server vom User)
+node scripts/test-e2e-v2.mjs             # E2E: full pipeline upload + play
+node scripts/measure-logo-fit.mjs        # Logo-Cover-Fit (1:1, 16:9, 9:16)
+node scripts/measure-logo-real.mjs       # Echtes User-Logo (braucht tmp/Logo.png)
+                                          # Voraussetzung für alle 3: laufender Dev-Server vom User
 ```
 
 ---
@@ -439,7 +442,7 @@ node scripts/<name>.mjs   # Playwright-Smoketest (braucht laufenden Dev-Server v
 
 ---
 
-*Stand: Session 8 — Cleanup. `workflowGradient.ts` (116 Zeilen Dead Code) + `audioStore.rawWave`-Feld entfernt. settingsStore weiterhin v11. AGENTS.md §6 ThemeToggle-Aussage korrigiert (wird doch noch in Uploader.tsx verwendet).*
+*Stand: Session 8 — Cleanup. `workflowGradient.ts` (116 Zeilen Dead Code) + `audioStore.rawWave`-Feld + `scripts/smoke-stage-redesign.mjs` (veraltet — referenzierte nicht mehr existente colorModes 'workflow-gradient' und 'spectrum') entfernt. settingsStore weiterhin v11. AGENTS.md §6 ThemeToggle-Aussage korrigiert (wird doch noch in Uploader.tsx verwendet). Verbleibende Scripts: `test-e2e-v2.mjs` (generalistisch), `measure-logo-fit.mjs`, `measure-logo-real.mjs`.*
 
 *Session 7 — settingsStore **v11**. Komplettes Audio-Reactivity-Refactoring abgeschlossen:*
 - *Session 6 (Audio-Reactivity Refactor): settingsStore v9 (Foundation: `FREQ_PRESETS`, log Hz-slider helpers, adaptive `FreqBeatDetector` mit bandwidth-aware threshold + `setSensitivity()`, neuer `audio`-Group für globalen Beat). v10 (UI: `HzRangePicker` mit 10 Preset-Buttons + log Dual-Slider + Bin-Quality-Indicator, alle 5 Komponenten + Nebula-Optional wiederverwenden HzRangePicker, per-Trigger Sensitivity). **7 FreqBeatDetector-Instanzen** gesamt (1 global + 6 komponenten-spezifisch).*
