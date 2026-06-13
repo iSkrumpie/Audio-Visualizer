@@ -62,7 +62,7 @@ export function fftMagnitude(samples: Float32Array): Float32Array {
 
 /**
  * Extract FFT frame data from an AudioBuffer at a given time.
- * Returns 128-bin Uint8Array (0-255), matching Web Audio API format.
+ * Returns a Uint8Array of size fftSize/2, 0-255, matching Web Audio API format.
  */
 export function extractFFTFrame(
   audioBuffer: AudioBuffer,
@@ -98,13 +98,18 @@ export function extractFFTFrame(
 
 /**
  * Pre-compute all FFT frames for an AudioBuffer.
- * Returns array of { freqData, bass, loudness, highs, energy }.
+ * Returns array of { freqData (128 bins), rawFreqData (1024 bins), bass, loudness, highs, energy }.
+ *
+ * freqData mirrors the live visual AnalyserNode (fftSize=256, 128 bins).
+ * rawFreqData mirrors the live kick AnalyserNode (fftSize=2048, 1024 bins, no smoothing)
+ * — required for Hz-configurable beat detection in the export pipeline.
  */
 export function precomputeFFT(
   audioBuffer: AudioBuffer,
   fps: number = 60,
 ): Array<{
   freqData: Uint8Array;
+  rawFreqData: Uint8Array;
   bass: number;
   loudness: number;
   highs: number;
@@ -114,17 +119,25 @@ export function precomputeFFT(
   const totalFrames = Math.ceil(duration * fps);
   const frames: Array<{
     freqData: Uint8Array;
+    rawFreqData: Uint8Array;
     bass: number;
     loudness: number;
     highs: number;
     energy: number;
   }> = [];
 
+  const VISUAL_FFT = 256; // → 128 bins
+  const KICK_FFT   = 2048; // → 1024 bins
+
   for (let i = 0; i < totalFrames; i++) {
     const time = i / fps;
-    const freqData = extractFFTFrame(audioBuffer, time, 256);
 
-    // Extract bands (same mapping as useAudioReactive)
+    // Visual bins (matches live visual analyser)
+    const freqData = extractFFTFrame(audioBuffer, time, VISUAL_FFT);
+    // Raw bins (matches live kick analyser, no smoothing)
+    const rawFreqData = extractFFTFrame(audioBuffer, time, KICK_FFT);
+
+    // Visual bands (same mapping as useAudioReactive)
     let bassSum = 0;
     for (let j = 0; j < 6; j++) bassSum += freqData[j];
     const bass = bassSum / (6 * 255);
@@ -139,8 +152,10 @@ export function precomputeFFT(
 
     const energy = Math.min(1, bass * 2 + loudness + highs * 0.5);
 
-    frames.push({ freqData, bass, loudness, highs, energy });
+    frames.push({ freqData, rawFreqData, bass, loudness, highs, energy });
   }
 
   return frames;
 }
+
+// (replaced above — kept empty marker to avoid stale duplication)

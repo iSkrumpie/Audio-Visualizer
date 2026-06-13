@@ -23,6 +23,9 @@ import * as THREE from 'three';
 import { precomputeFFT } from './fft';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { sceneRegistry } from '@/components/three/AudioScene';
+import { FreqBeatDetector } from './audioUtils';
+import { getSettings } from './settingsStore';
+import { useAudioStore } from './audioStore';
 
 export type ExportProgress = {
   phase: 'decoding' | 'analyzing' | 'rendering' | 'finalizing' | 'done' | 'error';
@@ -150,39 +153,35 @@ export async function exportMP4(
     // Start the output — required before any frames can be added
     await output.start();
 
-    // Beat detection state for export
-    const beatHistory: number[] = new Array(25).fill(0);
-    let beatGlow = 0;
+    // Global beat detector — mirrors useAudioReactive's live detector so the
+    // exported video matches the live preview's audio reactivity exactly.
+    const globalBeatDetector = new FreqBeatDetector();
 
     onProgress({ phase: 'rendering', progress: 0, message: `Rendering 0/${fftFrames.length} frames...` });
 
     const frameDuration = 1 / fps;
     const totalFrames = fftFrames.length;
+    const audioSettings = getSettings().audio;
 
     for (let i = 0; i < totalFrames; i++) {
       const frame = fftFrames[i];
 
       // Set audioAnalysis to pre-computed values
       audioAnalysis.freqData.set(frame.freqData.subarray(0, 128));
+      audioAnalysis.rawFreqData.set(frame.rawFreqData.subarray(0, 1024));
       audioAnalysis.bass = frame.bass;
       audioAnalysis.loudness = frame.loudness;
       audioAnalysis.highs = frame.highs;
 
-      // Beat detection (same logic as live)
-      const kickBinHz = 48000 / 2048;
-      const lo = Math.floor(60 / kickBinHz);
-      const hi = Math.ceil(120 / kickBinHz);
-      let kickEnergy = 0;
-      for (let j = lo; j <= hi && j < frame.freqData.length; j++) {
-        kickEnergy += frame.freqData[j];
-      }
-      kickEnergy /= (hi - lo + 1) * 255;
-      beatHistory.push(kickEnergy);
-      beatHistory.shift();
-      const avg = beatHistory.reduce((a, b) => a + b, 0) / beatHistory.length;
-      if (kickEnergy > avg * 1.6 && kickEnergy > 0.12) beatGlow = 1;
-      beatGlow = Math.max(0, beatGlow - 0.035);
-      audioAnalysis.beatPhase = beatGlow;
+      // Drive the global beat detector with the same settings as live preview
+      globalBeatDetector.setSensitivity(audioSettings.globalBeatSensitivity ?? 1.0);
+      const globalBeat = globalBeatDetector.update(
+        frame.rawFreqData,
+        audioSettings.globalBeatFreqStart ?? 40,
+        audioSettings.globalBeatFreqEnd ?? 120,
+      );
+      audioAnalysis.beatPhase = globalBeat;
+      useAudioStore.getState().beatPhase = globalBeat;
 
       // Advance R3F frame — runs all useFrame callbacks (bars, particles, etc.) then renders
       const timestamp = i * frameDuration;
