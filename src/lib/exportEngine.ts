@@ -201,6 +201,22 @@ export async function exportMP4(
         gl.render(scene, camera);
       }
 
+      // Force the canvas backing buffer back to the target export size.
+      // R3F's resize-pipeline (react-use-measure + subscribe block) sets the
+      // canvas CSS size, then the browser's ResizeObserver fires async and
+      // reports the actual rendered size — which can be clipped by the
+      // preview's parent container (overflow-hidden / scrollbar width) and
+      // differ from the export target by a few pixels. R3F's subscribe then
+      // calls gl.setSize() with the wrong size, shrinking the canvas buffer
+      // mid-export. Mediabunny's video encoder then sees a different
+      // canvas size than the first frame and refuses to encode.
+      // We pin canvas.width/height directly here, AFTER advance() and BEFORE
+      // videoSource.add() reads them. updateStyle=false leaves the CSS box
+      // alone, so the ResizeObserver won't immediately re-fire.
+      if (canvas.width !== width || canvas.height !== height) {
+        gl.setSize(width, height, false);
+      }
+
       // Capture frame
       await videoSource.add(timestamp, frameDuration);
 
