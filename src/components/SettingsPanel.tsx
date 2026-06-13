@@ -675,7 +675,7 @@ function BackgroundSection() {
         </FR>
       </Acc>
 
-      <Acc label="Vignette (shader)">
+      <Acc label="Vignette">
         <Tg value={vigE as boolean} onChange={sVigE} label="Enabled" />
         {!!vigE && (
           <div className="mt-3">
@@ -686,7 +686,7 @@ function BackgroundSection() {
         )}
       </Acc>
 
-      <Acc label="Nebula / Fog">
+      <Acc label="Fog">
         <Tg value={nebE as boolean} onChange={sNebE} label="Enabled" />
         {!!nebE && (
           <div className="mt-3 space-y-2">
@@ -714,7 +714,7 @@ function BackgroundSection() {
         )}
       </Acc>
 
-      <Acc label="Glow FX">
+      <Acc label="Glow">
         <EffectCard label="Bloom" enabled={bloom as boolean} onToggle={sBloom}>
           <FR label="Intensity">
             <Sl value={bloomI as number} min={0} max={3} step={0.05} onChange={sBloomI} />
@@ -725,7 +725,7 @@ function BackgroundSection() {
         </EffectCard>
       </Acc>
 
-      <Acc label="Color FX">
+      <Acc label="Color">
         <EffectCard label="Chromatic aberration" enabled={ca as boolean} onToggle={sCa}>
           <FR label="Offset">
             <Sl value={caO as number} min={0} max={0.02} step={0.0005} onChange={sCaO} />
