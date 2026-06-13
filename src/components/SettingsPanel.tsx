@@ -1,0 +1,1382 @@
+/**
+ * SettingsPanel — side-drawer for live-tuning the visualizer
+ *
+ * v3: redesigned for Studio aesthetic. Theme-aware via CSS variables.
+ * All hardcoded green colors removed — uses var(--accent), var(--text), etc.
+ */
+
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useSettingsStore, getSettings, type Settings } from '@/lib/settingsStore';
+import { usePresetsStore } from '@/lib/presetsStore';
+
+type Section = 'background' | 'logo' | 'bars' | 'particles';
+
+const SECTIONS: { id: Section; label: string }[] = [
+  { id: 'background', label: 'Background' },
+  { id: 'logo',       label: 'Logo' },
+  { id: 'bars',       label: 'Bars' },
+  { id: 'particles',  label: 'Particles' },
+];
+
+export function SettingsPanel() {
+  const [open, setOpen] = useState(false);
+  const [section, setSection] = useState<Section>('background');
+  const resetToDefault = useSettingsStore((s) => s.resetToDefault);
+  const { presets, savePreset, deletePreset } = usePresetsStore();
+  const setSettings = useSettingsStore((s) => s.setSettings);
+
+  // Preset bar state
+  const [saving, setSaving] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [selectedId, setSelectedId] = useState<string>('');
+
+  const handlePresetChange = (id: string) => {
+    setSelectedId(id);
+    const preset = presets.find((p) => p.id === id);
+    if (preset) setSettings(() => preset.settings);
+  };
+
+  const handleSave = () => {
+    if (!saving) { setSaving(true); setSaveName(''); return; }
+    const preset = savePreset(saveName || 'My Preset', getSettings());
+    setSelectedId(preset.id);
+    setSaving(false);
+    setSaveName('');
+  };
+
+  return (
+    <>
+      {/* Toggle button — moves left when panel is open */}
+      <motion.button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        animate={{ right: open ? 392 : 16 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        className="absolute top-4 z-50 flex h-9 w-9 items-center justify-center rounded-md transition-colors"
+        style={{
+          background: 'var(--bg-elev-1)',
+          border: '1px solid var(--border)',
+          color: open ? 'var(--accent)' : 'var(--text-muted)',
+          boxShadow: 'var(--shadow-md)',
+        }}
+        aria-label="Settings"
+      >
+        <SettingsIcon />
+      </motion.button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ x: 376, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: 376, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 240, damping: 28 }}
+            className="absolute right-0 top-0 z-40 flex h-full w-[376px] flex-col"
+            style={{
+              background: 'var(--bg-elev-1)',
+              borderLeft: '1px solid var(--border)',
+              boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            <Header onClose={() => setOpen(false)} onReset={resetToDefault} />
+
+            {/* ── Preset bar ─────────────────────────────────── */}
+            <div
+              className="flex flex-col gap-2 border-b px-3 py-2.5"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <div className="flex items-center gap-2">
+                {/* Dropdown */}
+                <div className="relative flex-1">
+                  <select
+                    value={selectedId}
+                    onChange={(e) => handlePresetChange(e.target.value)}
+                    className="w-full appearance-none rounded-md border px-2.5 py-1.5 pr-7 font-ui text-xs outline-none transition-colors"
+                    style={{
+                      background: 'var(--bg-elev-2)',
+                      borderColor: 'var(--border)',
+                      color: selectedId ? 'var(--text)' : 'var(--text-muted)',
+                    }}
+                  >
+                    <option value="">— select preset —</option>
+                    {presets.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                  {/* Chevron */}
+                  <span
+                    className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
+                </div>
+
+                {/* Delete button — only when a preset is selected */}
+                {selectedId && (
+                  <button
+                    type="button"
+                    onClick={() => { deletePreset(selectedId); setSelectedId(''); }}
+                    title="Delete preset"
+                    className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-md border transition-colors"
+                    style={{ background: 'transparent', borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(248,113,113,0.08)';
+                      e.currentTarget.style.borderColor = 'var(--danger)';
+                      e.currentTarget.style.color = 'var(--danger)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.color = 'var(--text-muted)';
+                    }}
+                  >
+                    <TrashIcon />
+                  </button>
+                )}
+
+                {/* Save / New button */}
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="flex h-[30px] flex-shrink-0 items-center gap-1.5 rounded-md border px-2.5 font-ui text-xs font-semibold transition-colors"
+                  style={{
+                    background: saving ? 'var(--accent)' : 'transparent',
+                    borderColor: saving ? 'var(--accent)' : 'var(--border-strong)',
+                    color: saving ? 'var(--text-inverse)' : 'var(--text)',
+                  }}
+                >
+                  <SaveIcon />
+                  {saving ? 'Confirm' : 'Save'}
+                </button>
+              </div>
+
+              {/* Inline name input — shown when saving */}
+              {saving && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="flex gap-2"
+                >
+                  <input
+                    autoFocus
+                    type="text"
+                    value={saveName}
+                    onChange={(e) => setSaveName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSave();
+                      if (e.key === 'Escape') { setSaving(false); setSaveName(''); }
+                    }}
+                    placeholder="Preset name…"
+                    className="flex-1 rounded-md border px-2.5 py-1.5 font-ui text-xs outline-none transition-colors"
+                    style={{
+                      background: 'var(--bg-elev-2)',
+                      borderColor: 'var(--accent)',
+                      color: 'var(--text)',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { setSaving(false); setSaveName(''); }}
+                    className="rounded-md border px-2 py-1.5 font-mono text-xs transition-colors"
+                    style={{ background: 'transparent', borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                  >
+                    ✕
+                  </button>
+                </motion.div>
+              )}
+            </div>
+
+            {/* Section nav */}
+            <div
+              className="flex flex-wrap gap-1 border-b px-3 py-2"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              {SECTIONS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setSection(s.id)}
+                  className="rounded-md px-2.5 py-1 font-ui text-xs font-medium transition-colors"
+                  style={{
+                    background: section === s.id ? 'var(--bg-elev-2)' : 'transparent',
+                    color: section === s.id ? 'var(--text)' : 'var(--text-muted)',
+                    border: '1px solid',
+                    borderColor: section === s.id ? 'var(--border-strong)' : 'transparent',
+                  }}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {section === 'background' && <BackgroundSection />}
+              {section === 'logo'       && <LogoSection_ />}
+              {section === 'bars'       && <BarsSection />}
+              {section === 'particles'  && <ParticlesSection />}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+
+// ── Shared ─────────────────────────────────────────────────────────────────
+
+function Header({ onClose, onReset }: { onClose: () => void; onReset: () => void }) {
+  return (
+    <div
+      className="flex items-center justify-between border-b px-4 py-3"
+      style={{ borderColor: 'var(--border)' }}
+    >
+      <div>
+        <h2
+          className="font-display text-base font-semibold"
+          style={{ color: 'var(--text)' }}
+        >
+          Settings
+        </h2>
+        <div className="font-mono text-[10px]" style={{ color: 'var(--text-dim)' }}>
+          Live preview
+        </div>
+      </div>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => {
+            if (confirm('Reset all settings to default?')) onReset();
+          }}
+          className="rounded-md px-2.5 py-1 font-ui text-xs transition-colors"
+          style={{ color: 'var(--text-muted)' }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = 'var(--text)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = 'var(--text-muted)';
+          }}
+        >
+          Reset
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-7 w-7 items-center justify-center rounded-md transition-colors"
+          style={{ color: 'var(--text-muted)' }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--bg-elev-2)';
+            e.currentTarget.style.color = 'var(--text)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = 'var(--text-muted)';
+          }}
+        >
+          <CloseIcon />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FR({ label, children, hint, sub }: { label: string; children: React.ReactNode; hint?: string; sub?: string }) {
+  return (
+    <div className="mb-3">
+      <div className="mb-1 flex items-center justify-between">
+        <span
+          className="font-ui text-xs font-medium"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          {label}
+        </span>
+        {hint && (
+          <span className="font-mono text-[10px]" style={{ color: 'var(--text-dim)' }}>
+            {hint}
+          </span>
+        )}
+      </div>
+      {sub && (
+        <p className="mb-1.5 font-mono text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>
+          {sub}
+        </p>
+      )}
+      {children}
+    </div>
+  );
+}
+
+function Sl({
+  value,
+  min,
+  max,
+  step,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
+}) {
+  const pct = ((value - min) / (max - min)) * 100;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="relative flex-1">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value))}
+          className="w-full"
+          style={{
+            background: `linear-gradient(to right, var(--step-1) 0%, var(--step-1) ${pct}%, var(--border-strong) ${pct}%, var(--border-strong) 100%)`,
+            borderRadius: 2,
+          }}
+        />
+      </div>
+      <span
+        className="w-12 text-right font-mono text-[10px] tabular-nums"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        {value.toFixed(step < 0.01 ? 4 : 2)}
+      </span>
+    </div>
+  );
+}
+
+const supportsEyeDropper = typeof window !== 'undefined' && 'EyeDropper' in window;
+
+function CP({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const handleEyeDropper = async () => {
+    try {
+      const picker = new EyeDropper();
+      const result = await picker.open();
+      onChange(result.sRGBHex);
+    } catch {
+      // User cancelled or API unavailable — no-op
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {/* Native colour swatch */}
+      <input
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label="Color picker"
+        title="Open color picker"
+      />
+      {/* Eyedropper (Chrome 95+) */}
+      {supportsEyeDropper && (
+        <button
+          type="button"
+          onClick={() => { void handleEyeDropper(); }}
+          title="Pick color from screen"
+          aria-label="Pick color from screen"
+          className="flex h-6 w-6 items-center justify-center rounded transition-colors"
+          style={{
+            background: 'transparent',
+            border: '1px solid var(--border)',
+            color: 'var(--text-muted)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--bg-elev-2)';
+            e.currentTarget.style.color = 'var(--text)';
+            e.currentTarget.style.borderColor = 'var(--border-strong)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = 'var(--text-muted)';
+            e.currentTarget.style.borderColor = 'var(--border)';
+          }}
+        >
+          <EyeDropperIcon />
+        </button>
+      )}
+      {/* Hex input */}
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-20 rounded-md border px-2 py-1 font-mono text-xs outline-none transition-colors"
+        style={{
+          background: 'var(--bg-elev-2)',
+          borderColor: 'var(--border)',
+          color: 'var(--text)',
+        }}
+        onFocus={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
+        onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+      />
+    </div>
+  );
+}
+
+function EyeDropperIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 2a4 4 0 0 1 4 4c0 1.5-.5 2.5-1.5 3.5L6 18l-4 1 1-4 8.5-8.5C12.5 5.5 12 4 12 2z" />
+      <path d="M14.5 5.5l4 4" />
+      <circle cx="5" cy="19" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function Tg({
+  value,
+  onChange,
+  label,
+}: {
+  value: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!value)}
+      className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 font-ui text-xs font-medium transition-colors"
+      style={{
+        background: value ? 'var(--bg-elev-2)' : 'transparent',
+        color: value ? 'var(--text)' : 'var(--text-muted)',
+        border: '1px solid var(--border)',
+      }}
+    >
+      <span>{label}</span>
+      <span
+        className="flex h-4 w-7 items-center rounded-full transition-colors"
+        style={{ background: value ? 'var(--accent)' : 'var(--border-strong)' }}
+      >
+        <span
+          className="h-3 w-3 rounded-full transition-transform"
+          style={{
+            background: 'var(--bg-elev-1)',
+            transform: value ? 'translateX(15px)' : 'translateX(2px)',
+          }}
+        />
+      </span>
+    </button>
+  );
+}
+
+function CB<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex gap-1">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          className="flex-1 rounded-md px-2 py-1.5 font-ui text-xs font-medium transition-colors"
+          style={{
+            background: value === o.value ? 'var(--bg-elev-2)' : 'transparent',
+            color: value === o.value ? 'var(--text)' : 'var(--text-muted)',
+            border: '1px solid',
+            borderColor: value === o.value ? 'var(--border-strong)' : 'var(--border)',
+          }}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function useF<K extends keyof Settings>(group: K, key: keyof Settings[K]) {
+  const value = useSettingsStore((s) => s.settings[group][key] as unknown);
+  const setSettings = useSettingsStore((s) => s.setSettings);
+  const set = (v: unknown) =>
+    setSettings((prev) => ({ ...prev, [group]: { ...prev[group], [key]: v } }));
+  return [value, set] as const;
+}
+
+// ── Sections ───────────────────────────────────────────────────────────────
+
+// ── Accordion ────────────────────────────────────────────────────────────────
+
+function Acc({ label, children, defaultOpen = false }: {
+  label: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="mb-2 overflow-hidden rounded-md border" style={{ borderColor: 'var(--border)' }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-3 py-2"
+        style={{ background: 'var(--bg-elev-2)' }}
+      >
+        <span className="font-ui text-xs font-semibold" style={{ color: 'var(--text)' }}>{label}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+          strokeLinecap="round" strokeLinejoin="round" aria-hidden
+          style={{ color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open && <div className="p-3">{children}</div>}
+    </div>
+  );
+}
+
+// ── Background Section ────────────────────────────────────────────────────────
+
+function BackgroundSection() {
+
+  const [blur,     sBlur]     = useF('background', 'blur');
+  const [bright,   sBright]   = useF('background', 'brightness');
+  const [sat,      sSat]      = useF('background', 'saturation');
+  const [cont,     sCont]     = useF('background', 'contrast');
+  const [hue,      sHue]      = useF('background', 'hueShift');
+  const [sharp,    sSharp]    = useF('background', 'sharpen');
+  const [tintC,    sTintC]    = useF('background', 'tintColor');
+  const [tintO,    sTintO]    = useF('background', 'tintOpacity');
+  const [tintM,    sTintM]    = useF('background', 'tintMode');
+  const [beat,     sBeat]     = useF('background', 'scaleOnBeat');
+  const [beatFS,   sBeatFS]   = useF('background', 'beatFxFreqStart');
+  const [beatFE,   sBeatFE]   = useF('background', 'beatFxFreqEnd');
+  const [vigE,     sVigE]     = useF('background', 'vignetteEnabled');
+  const [vigS,     sVigS]     = useF('background', 'vignetteStrength');
+  const [nebE,     sNebE]     = useF('background', 'nebulaEnabled');
+  const [nebI,     sNebI]     = useF('background', 'nebulaIntensity');
+  const [nebC1,    sNebC1]    = useF('background', 'nebulaColor1');
+  const [nebC2,    sNebC2]    = useF('background', 'nebulaColor2');
+  const [nebD,     sNebD]     = useF('background', 'nebulaDriftSpeed');
+  const [nebR,     sNebR]     = useF('background', 'nebulaReactivity');
+  const [nebSc,    sNebSc]    = useF('background', 'nebulaScale');
+  const [nebOX,    sNebOX]    = useF('background', 'nebulaOffsetX');
+  const [nebOY,    sNebOY]    = useF('background', 'nebulaOffsetY');
+  const [bloom,    sBloom]    = useF('background', 'bloomEnabled');
+  const [bloomI,   sBloomI]   = useF('background', 'bloomIntensity');
+  const [bloomT,   sBloomT]   = useF('background', 'bloomThreshold');
+  const [ca,       sCa]       = useF('background', 'caEnabled');
+  const [caO,      sCaO]      = useF('background', 'caOffset');
+  const [noise,    sNoise]    = useF('background', 'noiseEnabled');
+  const [noiseI,   sNoiseI]   = useF('background', 'noiseIntensity');
+  const [scan,     sScan]     = useF('background', 'scanlineEnabled');
+  const [scanD,    sScanD]    = useF('background', 'scanlineDensity');
+  const [glitch,   sGlitch]   = useF('background', 'glitchEnabled');
+  const [glitchD,  sGlitchD]  = useF('background', 'glitchDelay');
+  const [glitchS,  sGlitchS]  = useF('background', 'glitchStrength');
+  const [sepia,    sSepia]    = useF('background', 'sepiaEnabled');
+  const [sepiaI,   sSepiaI]   = useF('background', 'sepiaIntensity');
+  const [pixel,    sPixel]    = useF('background', 'pixelationEnabled');
+  const [pixelG,   sPixelG]   = useF('background', 'pixelGranularity');
+  const [dot,      sDot]      = useF('background', 'dotScreenEnabled');
+  const [dotS,     sDotS]     = useF('background', 'dotScale');
+  const [grid,     sGrid]     = useF('background', 'gridEnabled');
+  const [gridS,    sGridS]    = useF('background', 'gridScale');
+  const [colAvg,   sColAvg]   = useF('background', 'colorAverageEnabled');
+  // Noise animation
+  const [noiseSp,  sNoiseSp]  = useF('background', 'noiseSpeed');
+  const [noiseSc,  sNoiseSc]  = useF('background', 'noiseScale');
+  const [noiseCM,  sNoiseCM]  = useF('background', 'noiseColorMode');
+  const [noiseBB,  sNoiseBB]  = useF('background', 'noiseBeatBoost');
+  // Scanline animation
+  const [scanSS,   sScanSS]   = useF('background', 'scanScrollSpeed');
+  const [scanTh,   sScanTh]   = useF('background', 'scanThickness');
+  const [scanBO,   sScanBO]   = useF('background', 'scanBeatOpacity');
+  const [scanBD,   sScanBD]   = useF('background', 'scanBeatDensity');
+  // Glitch animation
+  const [glRGB,    sGlRGB]    = useF('background', 'glitchRGBSplit');
+  const [glBlock,  sGlBlock]  = useF('background', 'glitchBlockSize');
+  const [glProb,   sGlProb]   = useF('background', 'glitchBlockProb');
+  const [glVert,   sGlVert]   = useF('background', 'glitchVertical');
+  const [glSync,   sGlSync]   = useF('background', 'glitchBeatSync');
+  const [glDecay,  sGlDecay]  = useF('background', 'glitchDecay');
+  // Pixelation animation
+  const [pixBS,    sPixBS]    = useF('background', 'pixelBeatSize');
+  const [pixW,     sPixW]     = useF('background', 'pixelWave');
+  const [pixWS,    sPixWS]    = useF('background', 'pixelWaveSpeed');
+  // Dot animation
+  const [dotRot,   sDotRot]   = useF('background', 'dotRotation');
+  const [dotRS,    sDotRS]    = useF('background', 'dotRotSpeed');
+  const [dotBS,    sDotBS]    = useF('background', 'dotBeatScale');
+  const [dotCS,    sDotCS]    = useF('background', 'dotColorSep');
+  // Grid animation
+  const [gridPS,   sGridPS]   = useF('background', 'gridPulseStrength');
+  const [gridW,    sGridW]    = useF('background', 'gridWave');
+  const [gridWS,   sGridWS]   = useF('background', 'gridWaveSpeed');
+  const [gridMv,   sGridMv]   = useF('background', 'gridMovement');
+  const [gridCl,   sGridCl]   = useF('background', 'gridColor');
+
+  return (
+    <div>
+      <Acc label="Image" defaultOpen>
+        <FR label="Blur" hint={`${blur}px`}>
+          <Sl value={blur as number} min={0} max={40} step={1} onChange={sBlur} />
+        </FR>
+        <FR label="Sharpen" hint={`${(sharp as number).toFixed(1)}`}>
+          <Sl value={sharp as number} min={0} max={2} step={0.1} onChange={sSharp} />
+        </FR>
+        <FR label="Brightness" hint={`${(bright as number).toFixed(2)}`}>
+          <Sl value={bright as number} min={0.2} max={2.0} step={0.05} onChange={sBright} />
+        </FR>
+        <FR label="Saturation" hint={`${(sat as number).toFixed(2)}`}>
+          <Sl value={sat as number} min={0} max={2.0} step={0.05} onChange={sSat} />
+        </FR>
+        <FR label="Contrast" hint={`${(cont as number).toFixed(2)}`}>
+          <Sl value={cont as number} min={0.2} max={2.0} step={0.05} onChange={sCont} />
+        </FR>
+        <FR label="Hue shift" hint={`${Math.round(hue as number)}°`}>
+          <Sl value={hue as number} min={0} max={360} step={1} onChange={sHue} />
+        </FR>
+      </Acc>
+
+      <Acc label="Tint">
+        <FR label="Tint color">
+          <CP value={tintC as string} onChange={sTintC} />
+        </FR>
+        <FR label="Opacity" hint={`${Math.round((tintO as number) * 100)}%`}>
+          <Sl value={tintO as number} min={0} max={1} step={0.01} onChange={sTintO} />
+        </FR>
+        <FR label="Blend mode">
+          <CB
+            value={tintM as string}
+            options={[
+              { value: 'multiply',   label: 'Multiply' },
+              { value: 'overlay',    label: 'Overlay' },
+              { value: 'soft-light', label: 'Soft' },
+              { value: 'screen',     label: 'Screen' },
+            ]}
+            onChange={sTintM as (v: string) => void}
+          />
+        </FR>
+      </Acc>
+
+      <Acc label="Beat FX">
+        <FR label="Freq start" hint={`${beatFS} Hz`} sub="React to energy in this Hz range">
+          <Sl value={beatFS as number} min={20} max={20000} step={10} onChange={sBeatFS} />
+        </FR>
+        <FR label="Freq end" hint={`${beatFE} Hz`}>
+          <Sl value={beatFE as number} min={20} max={20000} step={10} onChange={sBeatFE} />
+        </FR>
+        <FR label="Scale amount" hint={`${((beat as number) * 100).toFixed(0)}%`}>
+          <Sl value={beat as number} min={0} max={0.5} step={0.005} onChange={sBeat} />
+        </FR>
+      </Acc>
+
+      <Acc label="Vignette (shader)">
+        <Tg value={vigE as boolean} onChange={sVigE} label="Enabled" />
+        {!!vigE && (
+          <div className="mt-3">
+            <FR label="Strength" hint={`${Math.round((vigS as number) * 100)}%`}>
+              <Sl value={vigS as number} min={0} max={1} step={0.02} onChange={sVigS} />
+            </FR>
+          </div>
+        )}
+      </Acc>
+
+      <Acc label="Nebula / Fog">
+        <Tg value={nebE as boolean} onChange={sNebE} label="Enabled" />
+        {!!nebE && (
+          <div className="mt-3 space-y-2">
+            <FR label="Intensity" hint={`${Math.round((nebI as number) * 100)}%`}>
+              <Sl value={nebI as number} min={0} max={1} step={0.01} onChange={sNebI} />
+            </FR>
+            <FR label="Color 1"><CP value={nebC1 as string} onChange={sNebC1} /></FR>
+            <FR label="Color 2"><CP value={nebC2 as string} onChange={sNebC2} /></FR>
+            <FR label="Drift speed">
+              <Sl value={nebD as number} min={0.1} max={3} step={0.05} onChange={sNebD} />
+            </FR>
+            <FR label="Reactivity">
+              <Sl value={nebR as number} min={0} max={3} step={0.05} onChange={sNebR} />
+            </FR>
+            <FR label="Scale" hint={`${(nebSc as number).toFixed(2)}×`} sub="1.0 fills screen">
+              <Sl value={nebSc as number} min={0.1} max={3.0} step={0.05} onChange={sNebSc} />
+            </FR>
+            <FR label="Offset X" hint={`${(nebOX as number).toFixed(2)}`}>
+              <Sl value={nebOX as number} min={-1} max={1} step={0.05} onChange={sNebOX} />
+            </FR>
+            <FR label="Offset Y" hint={`${(nebOY as number).toFixed(2)}`} sub="Negative = down">
+              <Sl value={nebOY as number} min={-1} max={1} step={0.05} onChange={sNebOY} />
+            </FR>
+          </div>
+        )}
+      </Acc>
+
+      <Acc label="Glow FX">
+        <EffectCard label="Bloom" enabled={bloom as boolean} onToggle={sBloom}>
+          <FR label="Intensity">
+            <Sl value={bloomI as number} min={0} max={3} step={0.05} onChange={sBloomI} />
+          </FR>
+          <FR label="Threshold">
+            <Sl value={bloomT as number} min={0} max={1} step={0.01} onChange={sBloomT} />
+          </FR>
+        </EffectCard>
+      </Acc>
+
+      <Acc label="Color FX">
+        <EffectCard label="Chromatic aberration" enabled={ca as boolean} onToggle={sCa}>
+          <FR label="Offset">
+            <Sl value={caO as number} min={0} max={0.02} step={0.0005} onChange={sCaO} />
+          </FR>
+        </EffectCard>
+        <EffectCard label="Sepia" enabled={sepia as boolean} onToggle={sSepia}>
+          <FR label="Intensity">
+            <Sl value={sepiaI as number} min={0} max={1} step={0.01} onChange={sSepiaI} />
+          </FR>
+        </EffectCard>
+        <EffectCard label="Color average" enabled={colAvg as boolean} onToggle={sColAvg} />
+      </Acc>
+
+      <Acc label="Stylize">
+        <EffectCard label="Noise / grain" enabled={noise as boolean} onToggle={sNoise}>
+          <FR label="Intensity">
+            <Sl value={noiseI as number} min={0} max={1} step={0.01} onChange={sNoiseI} />
+          </FR>
+          <FR label="Speed">
+            <Sl value={noiseSp as number} min={0} max={10} step={0.5} onChange={sNoiseSp} />
+          </FR>
+          <FR label="Scale">
+            <Sl value={noiseSc as number} min={0.5} max={5} step={0.1} onChange={sNoiseSc} />
+          </FR>
+          <FR label="Beat boost">
+            <Sl value={noiseBB as number} min={0} max={3} step={0.1} onChange={sNoiseBB} />
+          </FR>
+          <Tg value={noiseCM as boolean} onChange={sNoiseCM} label="Color grain" />
+        </EffectCard>
+        <EffectCard label="Scanlines" enabled={scan as boolean} onToggle={sScan}>
+          <FR label="Density">
+            <Sl value={scanD as number} min={0.5} max={5} step={0.1} onChange={sScanD} />
+          </FR>
+          <FR label="Scroll speed">
+            <Sl value={scanSS as number} min={-5} max={5} step={0.1} onChange={sScanSS} />
+          </FR>
+          <FR label="Thickness">
+            <Sl value={scanTh as number} min={0.1} max={0.9} step={0.05} onChange={sScanTh} />
+          </FR>
+          <FR label="Beat opacity">
+            <Sl value={scanBO as number} min={0} max={2} step={0.1} onChange={sScanBO} />
+          </FR>
+          <FR label="Beat density">
+            <Sl value={scanBD as number} min={0} max={3} step={0.1} onChange={sScanBD} />
+          </FR>
+        </EffectCard>
+        <EffectCard label="Glitch" enabled={glitch as boolean} onToggle={sGlitch}>
+          <FR label="Delay" hint={`${(glitchD as number).toFixed(1)}s`} sub="Time between glitches">
+            <Sl value={glitchD as number} min={0.5} max={10} step={0.5} onChange={sGlitchD} />
+          </FR>
+          <FR label="Strength" hint={`${(glitchS as number).toFixed(2)}`}>
+            <Sl value={glitchS as number} min={0.01} max={0.5} step={0.01} onChange={sGlitchS} />
+          </FR>
+          <FR label="RGB split">
+            <Sl value={glRGB as number} min={0} max={0.05} step={0.001} onChange={sGlRGB} />
+          </FR>
+          <FR label="Block size">
+            <Sl value={glBlock as number} min={4} max={64} step={1} onChange={sGlBlock} />
+          </FR>
+          <FR label="Block probability">
+            <Sl value={glProb as number} min={0} max={1} step={0.05} onChange={sGlProb} />
+          </FR>
+          <FR label="Vertical mix">
+            <Sl value={glVert as number} min={0} max={1} step={0.05} onChange={sGlVert} />
+          </FR>
+          <FR label="Decay speed">
+            <Sl value={glDecay as number} min={0.5} max={8} step={0.5} onChange={sGlDecay} />
+          </FR>
+          <Tg value={glSync as boolean} onChange={sGlSync} label="Beat sync" />
+        </EffectCard>
+        <EffectCard label="Pixelation" enabled={pixel as boolean} onToggle={sPixel}>
+          <FR label="Granularity">
+            <Sl value={pixelG as number} min={1} max={30} step={1} onChange={sPixelG} />
+          </FR>
+          <FR label="Beat size boost">
+            <Sl value={pixBS as number} min={0} max={200} step={5} onChange={sPixBS} />
+          </FR>
+          <FR label="Wave distortion">
+            <Sl value={pixW as number} min={0} max={1} step={0.05} onChange={sPixW} />
+          </FR>
+          <FR label="Wave speed">
+            <Sl value={pixWS as number} min={0} max={3} step={0.1} onChange={sPixWS} />
+          </FR>
+        </EffectCard>
+        <EffectCard label="Dot screen" enabled={dot as boolean} onToggle={sDot}>
+          <FR label="Scale">
+            <Sl value={dotS as number} min={0.1} max={3} step={0.05} onChange={sDotS} />
+          </FR>
+          <FR label="Rotation">
+            <Sl value={dotRot as number} min={0} max={45} step={1} onChange={sDotRot} />
+          </FR>
+          <FR label="Rotation speed">
+            <Sl value={dotRS as number} min={0} max={2} step={0.05} onChange={sDotRS} />
+          </FR>
+          <FR label="Beat scale">
+            <Sl value={dotBS as number} min={0} max={2} step={0.1} onChange={sDotBS} />
+          </FR>
+          <FR label="Color separation">
+            <Sl value={dotCS as number} min={0} max={1} step={0.05} onChange={sDotCS} />
+          </FR>
+        </EffectCard>
+        <EffectCard label="Grid" enabled={grid as boolean} onToggle={sGrid}>
+          <FR label="Scale">
+            <Sl value={gridS as number} min={0.1} max={5} step={0.1} onChange={sGridS} />
+          </FR>
+          <FR label="Color"><CP value={gridCl as string} onChange={sGridCl} /></FR>
+          <FR label="Pulse strength">
+            <Sl value={gridPS as number} min={0} max={3} step={0.1} onChange={sGridPS} />
+          </FR>
+          <FR label="Wave distortion">
+            <Sl value={gridW as number} min={0} max={1} step={0.05} onChange={sGridW} />
+          </FR>
+          <FR label="Wave speed">
+            <Sl value={gridWS as number} min={0} max={5} step={0.1} onChange={sGridWS} />
+          </FR>
+          <FR label="Movement">
+            <Sl value={gridMv as number} min={0} max={2} step={0.05} onChange={sGridMv} />
+          </FR>
+        </EffectCard>
+      </Acc>
+    </div>
+  );
+}
+
+// ── Logo Section ──────────────────────────────────────────────────────────────
+
+function LogoSection_() {
+  const [en,    sEn]    = useF('logo', 'enabled');
+  const [size,  sSize]  = useF('logo', 'size');
+  const [op,    sOp]    = useF('logo', 'opacity');
+  const [rotB,  sRotB]  = useF('logo', 'beatRotationBurst');
+  const [bsc,   sBsc]   = useF('logo', 'beatScaleStrength');
+  const [bFS,   sBFS]   = useF('logo', 'beatFxFreqStart');
+  const [bFE,   sBFE]   = useF('logo', 'beatFxFreqEnd');
+  const [gE,    sGE]    = useF('logo', 'glowEnabled');
+  const [gI,    sGI]    = useF('logo', 'glowIntensity');
+  const [gC,    sGC]    = useF('logo', 'glowColor');
+  const [gS,    sGS]    = useF('logo', 'glowSize');
+  const [gB,    sGB]    = useF('logo', 'glowBlur');
+  const [fireE,  sFireE]  = useF('logo', 'fireEnabled');
+  const [fireI,  sFireI]  = useF('logo', 'fireIntensity');
+  const [fireH,  sFireH]  = useF('logo', 'fireHeight');
+  const [fireSp, sFireSp] = useF('logo', 'fireSpeed');
+  const [fireCI, sFireCI] = useF('logo', 'fireColorInner');
+  const [fireCM, sFireCM] = useF('logo', 'fireColorMid');
+  const [fireCO, sFireCO] = useF('logo', 'fireColorOuter');
+  const [fireR,  sFireR]  = useF('logo', 'fireReactivity');
+  const [fireFS, sFireFS] = useF('logo', 'fireFreqStart');
+  const [fireFE, sFireFE] = useF('logo', 'fireFreqEnd');
+
+  return (
+    <div>
+      <FR label=""><Tg value={en as boolean} onChange={sEn} label="Show logo" /></FR>
+
+      <Acc label="Size" defaultOpen>
+        <FR label="Size" hint={`${size}px`}>
+          <Sl value={size as number} min={80} max={1600} step={8} onChange={sSize} />
+        </FR>
+        <FR label="Opacity" hint={`${Math.round((op as number) * 100)}%`}>
+          <Sl value={op as number} min={0} max={1} step={0.01} onChange={sOp} />
+        </FR>
+      </Acc>
+
+      <Acc label="Glow">
+        <Tg value={gE as boolean} onChange={sGE} label="Enabled" />
+        {!!gE && (
+          <div className="mt-3 space-y-2">
+            <FR label="Color"><CP value={gC as string} onChange={sGC} /></FR>
+            <FR label="Intensity" hint={`${gI}%`}>
+              <Sl value={gI as number} min={0} max={100} step={1} onChange={sGI} />
+            </FR>
+            <FR label="Size" hint={`${(gS as number).toFixed(2)}×`}>
+              <Sl value={gS as number} min={1.0} max={5.0} step={0.05} onChange={sGS} />
+            </FR>
+            <FR label="Blur" hint={`${gB}px`}>
+              <Sl value={gB as number} min={0} max={50} step={1} onChange={sGB} />
+            </FR>
+          </div>
+        )}
+      </Acc>
+
+      <Acc label="Fire">
+        <Tg value={fireE as boolean} onChange={sFireE} label="Enabled" />
+        {!!fireE && (
+          <div className="mt-3 space-y-2">
+            <FR label="Intensity">
+              <Sl value={fireI as number} min={0} max={2} step={0.05} onChange={sFireI} />
+            </FR>
+            <FR label="Height">
+              <Sl value={fireH as number} min={0} max={1} step={0.05} onChange={sFireH} />
+            </FR>
+            <FR label="Speed">
+              <Sl value={fireSp as number} min={0} max={3} step={0.1} onChange={sFireSp} />
+            </FR>
+            <FR label="Reactivity">
+              <Sl value={fireR as number} min={0} max={3} step={0.1} onChange={sFireR} />
+            </FR>
+            <FR label="Inner color"><CP value={fireCI as string} onChange={sFireCI} /></FR>
+            <FR label="Mid color"><CP value={fireCM as string} onChange={sFireCM} /></FR>
+            <FR label="Outer color"><CP value={fireCO as string} onChange={sFireCO} /></FR>
+            <FR label="Freq start" hint="Hz">
+              <Sl value={fireFS as number} min={20} max={20000} step={10} onChange={sFireFS} />
+            </FR>
+            <FR label="Freq end" hint="Hz">
+              <Sl value={fireFE as number} min={20} max={20000} step={10} onChange={sFireFE} />
+            </FR>
+          </div>
+        )}
+      </Acc>
+
+      <Acc label="Animation">
+        <FR label="Beat scale" hint={`${Math.round((bsc as number) * 100)}%`}>
+          <Sl value={bsc as number} min={0} max={1} step={0.05} onChange={sBsc} />
+        </FR>
+        <FR label="Rotation burst on beat" hint={`${(rotB as number).toFixed(2)}`}>
+          <Sl value={rotB as number} min={0} max={2} step={0.05} onChange={sRotB} />
+        </FR>
+        <FR label="Beat freq start" hint={`${bFS} Hz`}>
+          <Sl value={bFS as number} min={20} max={20000} step={10} onChange={sBFS} />
+        </FR>
+        <FR label="Beat freq end" hint={`${bFE} Hz`}>
+          <Sl value={bFE as number} min={20} max={20000} step={10} onChange={sBFE} />
+        </FR>
+      </Acc>
+    </div>
+  );
+}
+
+// ── Custom Color Editor ─────────────────────────────────────────────────────────
+
+function CustomColorEditor({ group }: { group: 'bars' | 'particles' }) {
+  const colors = useSettingsStore((s) => s.settings[group].customColors);
+  const boundaries = useSettingsStore((s) => s.settings[group].customFreqBoundaries);
+  const setSettings = useSettingsStore((s) => s.setSettings);
+
+  const setColor = (idx: number, color: string) => {
+    setSettings((prev) => {
+      const newColors = [...prev[group].customColors];
+      newColors[idx] = color;
+      return { ...prev, [group]: { ...prev[group], customColors: newColors } };
+    });
+  };
+
+  const setBoundary = (idx: number, hz: number) => {
+    setSettings((prev) => {
+      const newBounds = [...prev[group].customFreqBoundaries];
+      newBounds[idx] = hz;
+      return { ...prev, [group]: { ...prev[group], customFreqBoundaries: newBounds } };
+    });
+  };
+
+  const addColor = () => {
+    setSettings((prev) => {
+      const newColors = [...prev[group].customColors, '#ffffff'];
+      const lastBound = prev[group].customFreqBoundaries[prev[group].customFreqBoundaries.length - 1] || 8000;
+      const newBounds = [...prev[group].customFreqBoundaries, Math.min(lastBound + 2000, 20000)];
+      return { ...prev, [group]: { ...prev[group], customColors: newColors, customFreqBoundaries: newBounds } };
+    });
+  };
+
+  const removeColor = (idx: number) => {
+    if (colors.length <= 2) return;
+    setSettings((prev) => {
+      const newColors = prev[group].customColors.filter((_, i) => i !== idx);
+      const newBounds = prev[group].customFreqBoundaries
+        .filter((_, i) => i !== idx && i !== idx - 1)
+        .slice(0, newColors.length - 1);
+      return { ...prev, [group]: { ...prev[group], customColors: newColors, customFreqBoundaries: newBounds } };
+    });
+  };
+
+  return (
+    <div className="mt-2 space-y-2">
+      {colors.map((color, idx) => (
+        <div key={idx} className="flex items-center gap-2">
+          <CP value={color} onChange={(v) => setColor(idx, v)} />
+          {idx < colors.length - 1 && (
+            <div className="flex items-center gap-1">
+              <span className="font-mono text-[10px]" style={{ color: 'var(--text-dim)' }}>→</span>
+              <input
+                type="number"
+                value={boundaries[idx] ?? 0}
+                onChange={(e) => setBoundary(idx, parseInt(e.target.value) || 0)}
+                className="w-16 rounded border px-1.5 py-0.5 font-mono text-[10px]"
+                style={{ background: 'var(--bg-elev-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                min={20} max={20000} step={100}
+              />
+              <span className="font-mono text-[10px]" style={{ color: 'var(--text-dim)' }}>Hz</span>
+            </div>
+          )}
+          {colors.length > 2 && (
+            <button
+              type="button"
+              onClick={() => removeColor(idx)}
+              className="flex h-5 w-5 items-center justify-center rounded text-[10px]"
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--danger)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+            >
+              ×
+            </button>
+          )}
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addColor}
+        className="w-full rounded-md border px-2 py-1 font-ui text-xs"
+        style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', background: 'transparent' }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--text)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+      >
+        + Add color
+      </button>
+    </div>
+  );
+}
+
+// ── Bars Section ──────────────────────────────────────────────────────────────
+
+function BarsSection() {
+  const [en,    sEn]   = useF('bars', 'enabled');
+  const [cnt,   sCnt]  = useF('bars', 'count');
+  const [cm,    sCm]   = useF('bars', 'colorMode');
+  const [sc,    sSc]   = useF('bars', 'solidColor');
+  const [th,    sTh]   = useF('bars', 'thickness');
+  const [gap,   sGap]  = useF('bars', 'gapSize');
+  const [mh,    sMh]   = useF('bars', 'minHeight');
+  const [op,    sOp]   = useF('bars', 'opacity');
+  const [fs,    sFs]   = useF('bars', 'freqStart');
+  const [fe,    sFe]   = useF('bars', 'freqEnd');
+  const [rs,    sRs]   = useF('bars', 'rotationSpeed');
+  const [rob,   sRob]  = useF('bars', 'rotationOnBeat');
+  const [sm,    sSm]   = useF('bars', 'smoothing');
+  const [ir,    sIr]   = useF('bars', 'innerRadius');
+  const [ls,    sLs]   = useF('bars', 'lengthScale');
+  const [re,    sRe]   = useF('bars', 'reactivity');
+  const [pe,    sPe]   = useF('bars', 'peakEnabled');
+  const [pd,    sPd]   = useF('bars', 'peakDecay');
+
+  const binToHz = (bin: number) => Math.round((bin / 128) * 22050);
+
+  return (
+    <div>
+      <FR label=""><Tg value={en as boolean} onChange={sEn} label="Radial bars" /></FR>
+
+      <Acc label="General" defaultOpen>
+        <FR label="Count" hint={`${cnt}`}>
+          <Sl value={cnt as number} min={8} max={256} step={8} onChange={sCnt} />
+        </FR>
+        <FR label="Color mode">
+          <CB value={cm as string}
+            options={[
+              { value: 'rainbow', label: 'Rainbow' },
+              { value: 'custom',  label: 'Custom' },
+              { value: 'random',  label: 'Random' },
+              { value: 'solid',   label: 'Solid' },
+            ]}
+            onChange={sCm as (v: string) => void}
+          />
+        </FR>
+        {(cm as string) === 'solid' && (
+          <FR label="Color"><CP value={sc as string} onChange={sSc} /></FR>
+        )}
+        {(cm as string) === 'custom' && <CustomColorEditor group="bars" />}
+      </Acc>
+
+      <Acc label="Shape">
+        <FR label="Thickness" hint={`${th}px`}>
+          <Sl value={th as number} min={1} max={12} step={0.5} onChange={sTh} />
+        </FR>
+        <FR label="Gap" hint={`${Math.round((gap as number) * 100)}%`}>
+          <Sl value={gap as number} min={0} max={0.9} step={0.05} onChange={sGap} />
+        </FR>
+        <FR label="Min height" hint={`${mh}px`}>
+          <Sl value={mh as number} min={0} max={10} step={0.5} onChange={sMh} />
+        </FR>
+        <FR label="Opacity" hint={`${Math.round((op as number) * 100)}%`}>
+          <Sl value={op as number} min={0} max={1} step={0.01} onChange={sOp} />
+        </FR>
+      </Acc>
+
+      <Acc label="Frequency range">
+        <FR label="Low cut" hint={`~${(binToHz(fs as number) / 1000).toFixed(1)} kHz`}>
+          <Sl value={fs as number} min={0} max={120} step={1} onChange={sFs} />
+        </FR>
+        <FR label="High cut" hint={`~${(binToHz(fe as number) / 1000).toFixed(1)} kHz`}>
+          <Sl value={fe as number} min={8} max={128} step={1} onChange={sFe} />
+        </FR>
+      </Acc>
+
+      <Acc label="Animation">
+        <FR label="Rotation speed">
+          <Sl value={rs as number} min={0} max={2} step={0.05} onChange={sRs} />
+        </FR>
+        <FR label="Rotation burst on beat">
+          <Sl value={rob as number} min={0} max={5} step={0.1} onChange={sRob} />
+        </FR>
+        <FR label="Smoothing" hint={`${(sm as number).toFixed(2)}`} sub="Lower = slower/smoother">
+          <Sl value={sm as number} min={0.05} max={0.5} step={0.01} onChange={sSm} />
+        </FR>
+      </Acc>
+
+      <Acc label="Size & Radius">
+        <FR label="Inner radius" hint={`${ir}px`}>
+          <Sl value={ir as number} min={60} max={400} step={5} onChange={sIr} />
+        </FR>
+        <FR label="Length scale" hint={`${(ls as number).toFixed(2)}×`}>
+          <Sl value={ls as number} min={0.2} max={3.0} step={0.05} onChange={sLs} />
+        </FR>
+        <FR label="Reactivity" hint={`${(re as number).toFixed(2)}×`}>
+          <Sl value={re as number} min={0.1} max={3.0} step={0.05} onChange={sRe} />
+        </FR>
+      </Acc>
+
+      <Acc label="Peak indicators">
+        <Tg value={pe as boolean} onChange={sPe} label="Show peaks" />
+        {!!pe && (
+          <div className="mt-2">
+            <FR label="Decay" hint={`${(pd as number).toFixed(3)}`}>
+              <Sl value={pd as number} min={0.980} max={0.999} step={0.001} onChange={sPd} />
+            </FR>
+          </div>
+        )}
+      </Acc>
+    </div>
+  );
+}
+
+// ── Particles Section ─────────────────────────────────────────────────────────
+
+function ParticlesSection() {
+  const [en,   sEn]  = useF('particles', 'enabled');
+  const [cnt,  sCnt] = useF('particles', 'count');
+  const [cm,   sCm]  = useF('particles', 'colorMode');
+  const [sc,   sSc]  = useF('particles', 'solidColor');
+  const [sh,   sSh]  = useF('particles', 'particleShape');
+  const [sz,   sSz]  = useF('particles', 'size');
+  const [sob,  sSob] = useF('particles', 'sizeOnBeat');
+  const [bm,   sBm]  = useF('particles', 'blendMode');
+  const [or,   sOr]  = useF('particles', 'orbitRadius');
+  const [om,   sOm]  = useF('particles', 'orbitMode');
+  const [er,   sEr]  = useF('particles', 'ellipseRatio');
+  const [sp,   sSp]  = useF('particles', 'speed');
+  const [spr,  sSpr] = useF('particles', 'spread');
+  const [kb,   sKb]  = useF('particles', 'kickBurstStrength');
+  const [rFS,  sRFS] = useF('particles', 'reactiveFreqStart');
+  const [rFE,  sRFE] = useF('particles', 'reactiveFreqEnd');
+  const [cl,   sCl]  = useF('particles', 'connectionLines');
+  const [cd,   sCd]  = useF('particles', 'connectionDistance');
+  const [co,   sCo]  = useF('particles', 'connectionOpacity');
+  const [tw,   sTw]  = useF('particles', 'twinkle');
+  const [tws,  sTws] = useF('particles', 'twinkleSpeed');
+  const [op,   sOp]  = useF('particles', 'opacity');
+
+  return (
+    <div>
+      <FR label=""><Tg value={en as boolean} onChange={sEn} label="Particles" /></FR>
+
+      <Acc label="General" defaultOpen>
+        <FR label="Count" hint={`${cnt}`}>
+          <Sl value={cnt as number} min={0} max={400} step={10} onChange={sCnt} />
+        </FR>
+        <FR label="Color mode">
+          <CB value={cm as string}
+            options={[
+              { value: 'solid',   label: 'Solid' },
+              { value: 'rainbow', label: 'Rainbow' },
+              { value: 'custom',  label: 'Custom' },
+              { value: 'random',  label: 'Random' },
+            ]}
+            onChange={sCm as (v: string) => void}
+          />
+        </FR>
+        {(cm as string) === 'solid' && (
+          <FR label="Color"><CP value={sc as string} onChange={sSc} /></FR>
+        )}
+        {(cm as string) === 'custom' && <CustomColorEditor group="particles" />}
+      </Acc>
+
+      <Acc label="Shape & Size">
+        <FR label="Shape">
+          <CB value={sh as string}
+            options={[
+              { value: 'circle',  label: 'Circle' },
+              { value: 'star',    label: 'Star' },
+              { value: 'diamond', label: 'Diamond' },
+            ]}
+            onChange={sSh as (v: string) => void}
+          />
+        </FR>
+        <FR label="Size" hint={`${(sz as number).toFixed(1)}px`}>
+          <Sl value={sz as number} min={0.5} max={8} step={0.1} onChange={sSz} />
+        </FR>
+        <FR label="Size burst on beat">
+          <Sl value={sob as number} min={0} max={3} step={0.05} onChange={sSob} />
+        </FR>
+        <FR label="Blend mode">
+          <CB value={bm as string}
+            options={[
+              { value: 'additive', label: 'Additive' },
+              { value: 'normal',   label: 'Normal' },
+            ]}
+            onChange={sBm as (v: string) => void}
+          />
+        </FR>
+        <FR label="Opacity" hint={`${Math.round((op as number) * 100)}%`}>
+          <Sl value={op as number} min={0} max={1} step={0.01} onChange={sOp} />
+        </FR>
+      </Acc>
+
+      <Acc label="Orbit">
+        <FR label="Orbit radius" hint={`${or}px`}>
+          <Sl value={or as number} min={80} max={500} step={5} onChange={sOr} />
+        </FR>
+        <FR label="Orbit mode">
+          <CB value={om as string}
+            options={[
+              { value: 'circular',   label: 'Circle' },
+              { value: 'elliptical', label: 'Ellipse' },
+              { value: 'scatter',    label: 'Scatter' },
+            ]}
+            onChange={sOm as (v: string) => void}
+          />
+        </FR>
+        {(om as string) === 'elliptical' && (
+          <FR label="Y/X ratio" hint={`${(er as number).toFixed(2)}`}>
+            <Sl value={er as number} min={0.3} max={1.0} step={0.05} onChange={sEr} />
+          </FR>
+        )}
+        <FR label="Speed">
+          <Sl value={sp as number} min={0} max={3} step={0.05} onChange={sSp} />
+        </FR>
+        <FR label="Spread">
+          <Sl value={spr as number} min={0} max={3} step={0.05} onChange={sSpr} />
+        </FR>
+      </Acc>
+
+      <Acc label="Physics">
+        <FR label="Kick burst">
+          <Sl value={kb as number} min={0} max={3} step={0.05} onChange={sKb} />
+        </FR>
+        <FR label="React freq start" hint={`${rFS} Hz`}>
+          <Sl value={rFS as number} min={20} max={20000} step={10} onChange={sRFS} />
+        </FR>
+        <FR label="React freq end" hint={`${rFE} Hz`}>
+          <Sl value={rFE as number} min={20} max={20000} step={10} onChange={sRFE} />
+        </FR>
+      </Acc>
+
+      <Acc label="Connections">
+        <Tg value={cl as boolean} onChange={sCl} label="Connection lines" />
+        {!!cl && (
+          <div className="mt-3 space-y-2">
+            <FR label="Max distance" hint={`${cd}px`} sub="Capped at 200 particles when enabled">
+              <Sl value={cd as number} min={20} max={200} step={5} onChange={sCd} />
+            </FR>
+            <FR label="Line opacity" hint={`${Math.round((co as number) * 100)}%`}>
+              <Sl value={co as number} min={0} max={1} step={0.01} onChange={sCo} />
+            </FR>
+          </div>
+        )}
+      </Acc>
+
+      <Acc label="Flicker">
+        <Tg value={tw as boolean} onChange={sTw} label="Twinkle" />
+        {!!tw && (
+          <div className="mt-2">
+            <FR label="Speed">
+              <Sl value={tws as number} min={0.5} max={3} step={0.1} onChange={sTws} />
+            </FR>
+          </div>
+        )}
+      </Acc>
+    </div>
+  );
+}
+
+function EffectCard({
+  label, enabled, onToggle, children,
+}: {
+  label: string; enabled: boolean; onToggle: (v: boolean) => void; children?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-2 rounded-lg border p-3" style={{ borderColor: 'var(--border)', background: 'var(--bg-elev-2)' }}>
+      <Tg value={enabled} onChange={onToggle} label={label} />
+      {enabled && children && <div className="mt-3">{children}</div>}
+    </div>
+  );
+}
+
+// ── Icons ─────────────────────────────────────────────────────────────────
+
+function SettingsIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden
+    >
+      <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  );
+}
+
+void getSettings;
+
+function SaveIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  );
+}
