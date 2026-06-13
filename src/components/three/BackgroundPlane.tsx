@@ -11,7 +11,7 @@
  */
 
 import { useRef, useMemo } from 'react';
-import { useThree, useFrame } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAudioStore } from '@/lib/audioStore';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
@@ -382,7 +382,13 @@ void main() {
 
 // ── React component ──────────────────────────────────────────────────────────
 export function BackgroundPlane() {
-  const { width, height } = useThree((s) => s.size);
+  // NOTE: we deliberately do NOT call useThree((s) => s.size) at component
+  // scope. Doing so captures width/height into a closure that the export
+  // pipeline cannot update synchronously — the React re-render that would
+  // refresh the closure is async (zustand set inside exportMP4 schedules
+  // it), so useFrame would see stale preview dimensions and produce a
+  // stretched/squashed image. Width/height are read live from the
+  // useFrame callback's state.size parameter instead.
   const bgObjectUrl = useAudioStore((s) => s.bgObjectUrl);
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef  = useRef<THREE.ShaderMaterial>(null);
@@ -487,13 +493,23 @@ export function BackgroundPlane() {
   // (grid pulse, scanline beat, noise boost) trigger at the wrong cadence.
   const beatDetector = useMemo(() => new FreqBeatDetector(48000), []);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     const mat = matRef.current;
     if (!mat) return;
     const s  = getSettings();
     const bg = s.background;
     beatDetector.setSensitivity(bg.beatFxSensitivity ?? 1.0);
     const beatPhase = beatDetector.update(audioAnalysis.rawFreqData, bg.beatFxFreqStart, bg.beatFxFreqEnd);
+
+    // Read width/height from the live R3F state, NOT from the
+    // component-level useThree() closure. The export pipeline updates
+    // state.size synchronously (zustand set), but the React re-render
+    // that re-evaluates useThree() is async — using the closure here
+    // would mean the background plane, mesh scale, and uResolution uniform
+    // all see the PREVIEW size for the duration of the export, producing
+    // a stretched/squashed image when the export aspect differs from the
+    // preview aspect.
+    const { width, height } = state.size;
 
     mat.uniforms.uTime.value       += delta;
     mat.uniforms.uTexture.value     = texture;

@@ -3,7 +3,7 @@
  */
 
 import { useRef, useMemo } from 'react';
-import { useThree, useFrame } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { getSettings } from '@/lib/settingsStore';
@@ -12,7 +12,10 @@ import nebulaVert from './shaders/nebula.vert';
 import nebulaFrag from './shaders/nebula.frag';
 
 export function NebulaPlane() {
-  const { width, height } = useThree((s) => s.size);
+  // NOTE: do NOT read state.size into a component-scope closure via
+  // useThree() — see BackgroundPlane for the same comment. Width/height
+  // are read live from useFrame's state.size parameter instead, so the
+  // export pipeline sees the export dimensions synchronously.
   const matRef = useRef<THREE.ShaderMaterial>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const nebulaBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
@@ -28,7 +31,7 @@ export function NebulaPlane() {
     uColor2:      { value: new THREE.Color('#22D3EE') },
   }), []);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     const mat = matRef.current;
     if (!mat) return;
     const bg = getSettings().background;
@@ -39,6 +42,7 @@ export function NebulaPlane() {
     }
     if (meshRef.current) meshRef.current.visible = true;
 
+    const { width, height } = state.size;  // live from R3F state, not closure
     const { bass, loudness } = audioAnalysis;
     const energy = Math.min(1, bass * 2 + loudness);
 

@@ -129,6 +129,17 @@ export async function exportMP4(
 
     const canvas = gl.domElement;
 
+    // Pin the canvas CSS size to the export resolution so that
+    // react-use-measure's ResizeObserver reports the export size back
+    // to R3F's state.size — not the preview's container-clipped size.
+    // Without this, the canvas backing buffer is the right size but the
+    // CSS box (and therefore all mesh scales that derive from state.size
+    // in useFrame) is still the preview size, producing a stretched /
+    // squashed image (the camera frustum is 1920x1080 but the logo mesh
+    // is sized for the preview's smaller viewport).
+    canvas.style.width  = `${width}px`;
+    canvas.style.height = `${height}px`;
+
     // Create Mediabunny output
     const target = new BufferTarget();
     const videoSource = new CanvasSource(canvas, {
@@ -195,24 +206,34 @@ export async function exportMP4(
 
       // Advance R3F frame — runs all useFrame callbacks (bars, particles, etc.) then renders
       const timestamp = i * frameDuration;
+
+      // Re-pin R3F's state.size + canvas backing buffer to the export target
+      // BEFORE running useFrame callbacks. R3F's react-use-measure
+      // ResizeObserver fires async and can write a clipped size (parent's
+      // overflow-hidden / scrollbar) back into state.size — which would
+      // then be picked up by all useFrame callbacks that derive mesh
+      // scale from state.size, producing a stretched/squashed render
+      // (camera frustum = export size, mesh scale = preview size).
+      if (sceneRegistry.setSize) {
+        sceneRegistry.setSize(width, height);
+      }
+      if (canvas.width !== width || canvas.height !== height) {
+        gl.setSize(width, height, false);
+      }
+
       if (sceneRegistry.advance) {
         sceneRegistry.advance(timestamp);
       } else {
         gl.render(scene, camera);
       }
 
-      // Force the canvas backing buffer back to the target export size.
-      // R3F's resize-pipeline (react-use-measure + subscribe block) sets the
-      // canvas CSS size, then the browser's ResizeObserver fires async and
-      // reports the actual rendered size — which can be clipped by the
-      // preview's parent container (overflow-hidden / scrollbar width) and
-      // differ from the export target by a few pixels. R3F's subscribe then
-      // calls gl.setSize() with the wrong size, shrinking the canvas buffer
-      // mid-export. Mediabunny's video encoder then sees a different
-      // canvas size than the first frame and refuses to encode.
-      // We pin canvas.width/height directly here, AFTER advance() and BEFORE
-      // videoSource.add() reads them. updateStyle=false leaves the CSS box
-      // alone, so the ResizeObserver won't immediately re-fire.
+      // Re-pin AGAIN after advance(): gl.render() reads canvas.width/height
+      // to set the viewport, and if anything (e.g. the subscribe block, a
+      // re-fired ResizeObserver between advance() and now) shrank the
+      // backing buffer, the captured frame would be the wrong size and
+      // Mediabunny would abort with 'Video sample size must remain
+      // constant'. updateStyle=false keeps the CSS box stable so the
+      // observer does not immediately undo this.
       if (canvas.width !== width || canvas.height !== height) {
         gl.setSize(width, height, false);
       }
