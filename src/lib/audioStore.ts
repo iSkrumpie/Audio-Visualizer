@@ -35,7 +35,6 @@ export type AudioFileState = {
   energy: number;
   beatPhase: number;
   rawFreq: Uint8Array | null;
-  rawWave: Uint8Array | null;
 };
 
 type AudioStore = AudioFileState & {
@@ -67,7 +66,6 @@ export const useAudioStore = create<AudioStore>((set) => ({
   energy: 0,
   beatPhase: 0,
   rawFreq: null,
-  rawWave: null,
 
   setAudio: (file) =>
     set((s) => {
