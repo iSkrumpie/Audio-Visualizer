@@ -163,8 +163,18 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
   const glowRef    = useRef<THREE.Mesh>(null);
   const fireRef    = useRef<THREE.Mesh>(null);
   const logoMatRef = useRef<THREE.MeshBasicMaterial>(null);
-  const rotRef     = useRef(0);
-  const timeRef    = useRef(0);
+  const rotRef          = useRef(0);
+  const timeRef         = useRef(0);
+  const rainbowHueRef   = useRef(0);
+
+  // 4 random hues generated once at session start, for 'random' glow color mode
+  const glowRandomColors = useMemo(() =>
+    [0, 0.25, 0.5, 0.75].map((base) =>
+      new THREE.Color().setHSL((base + Math.random() * 0.2) % 1, 0.9, 0.55)
+    )
+  , []);
+  // Scratch colors for smooth lerping in custom/random mode (avoids per-frame allocation)
+  const glowScratch = useMemo(() => [new THREE.Color(), new THREE.Color()], []);
 
   const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null);
   useEffect(() => {
@@ -282,8 +292,6 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     const logoSize  = s.size * scale;
     const beatScale = 1 + logoBeat * s.beatScaleStrength * 0.15;
 
-    rotRef.current += logoBeat * s.beatRotationBurst * 0.02;
-
     if (meshRef.current) {
       meshRef.current.position.set(0, 0, 0);
       meshRef.current.scale.set(logoSize * beatScale, logoSize * beatScale, 1);
@@ -304,8 +312,32 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
       }
     }
 
-    const glowColor = s.glowColor || getSettings().theme.accent;
-    glowUniforms.uGwColor.value.set(glowColor);
+    // ── Glow color mode ───────────────────────────────────────────────────────
+    const glowColorMode  = s.glowColorMode  ?? 'solid';
+    const glowCycleSpeed = s.glowCycleSpeed ?? 0.3;
+    const gwCol          = glowUniforms.uGwColor.value;
+    if (glowColorMode === 'solid') {
+      gwCol.set(s.glowColor || getSettings().theme.accent);
+    } else if (glowColorMode === 'rainbow') {
+      rainbowHueRef.current = (rainbowHueRef.current + delta * glowCycleSpeed * 0.05) % 1;
+      gwCol.setHSL(rainbowHueRef.current, 0.9, 0.55);
+    } else if (glowColorMode === 'custom') {
+      const cols = (s.glowCustomColors?.length ?? 0) > 0
+        ? s.glowCustomColors
+        : ['#6366F1', '#22D3EE', '#F472B6', '#F59E0B'];
+      const fi   = ((timeRef.current * glowCycleSpeed * 0.05) % 1) * cols.length;
+      const i0   = Math.floor(fi) % cols.length;
+      const i1   = (i0 + 1) % cols.length;
+      glowScratch[0].set(cols[i0]);
+      glowScratch[1].set(cols[i1]);
+      gwCol.lerpColors(glowScratch[0], glowScratch[1], fi - Math.floor(fi));
+    } else {
+      // random
+      const fi = ((timeRef.current * glowCycleSpeed * 0.05) % 1) * glowRandomColors.length;
+      const i0 = Math.floor(fi) % glowRandomColors.length;
+      const i1 = (i0 + 1) % glowRandomColors.length;
+      gwCol.lerpColors(glowRandomColors[i0], glowRandomColors[i1], fi - Math.floor(fi));
+    }
     glowUniforms.uGwIntensity.value = (s.glowIntensity / 100) * (1 + logoBeat * 0.4);
     glowUniforms.uGwSize.value      = s.glowSize;
     glowUniforms.uGwBlur.value      = s.glowBlur;
@@ -327,8 +359,10 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
         }
 
         // Scale fire ring to match logo size (same beat scale for cohesion)
-        const fireScale = logoSize * beatScale * 2; // ×2 because ring is built in -0.5..0.5 local space
-        fireRef.current.position.set(0, 0, -0.05);
+        // Ring innerR=0.5 in local space; scaled by logoSize → inner world radius = 0.5*logoSize
+        // which matches the logo circle edge (PlaneGeometry 1×1 scaled by logoSize → radius 0.5*logoSize)
+        const fireScale = logoSize * beatScale;
+        fireRef.current.position.set(0, 0, 0.1);
         fireRef.current.scale.set(fireScale, fireScale, 1);
         fireRef.current.rotation.z = rotRef.current;
       }
@@ -353,7 +387,7 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
       </mesh>
 
       {/* Fire ring — procedural fBm flames around logo edge */}
-      <mesh ref={fireRef} renderOrder={5}>
+      <mesh ref={fireRef} renderOrder={7}>
         {/* Initial geometry — rebuilt in useFrame when fireHeight changes */}
         <ringGeometry args={[0.5, 0.5 + 0.3, 128, 32]} />
         <primitive object={fireMat} attach="material" />
