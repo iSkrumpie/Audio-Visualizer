@@ -67,16 +67,21 @@ export async function precomputeFFT(
   const source = offlineCtx.createBufferSource();
   source.buffer = audioBuffer;
 
-  // Graph: source → analyserVisual → destination (audible path)
-  //        source → analyserKick   → silentGain(0) → destination (kick, silent)
-  source.connect(analyserVisual);
-  analyserVisual.connect(offlineCtx.destination);
-
-  const silentGain = offlineCtx.createGain();
-  silentGain.gain.value = 0;
+  // Graph (series chain): source → analyserKick → analyserVisual → destination
+  //
+  // Both analysers are in the active pull-model path to destination, so
+  // Chrome's OfflineAudioContext is guaranteed to process them.
+  //
+  // IMPORTANT: Do NOT route kick through a GainNode with gain=0.
+  // Chrome's OfflineAudioContext can apply dead-branch optimisation and
+  // skip nodes whose entire output chain reaches gain=0, causing the
+  // kick AnalyserNode to accumulate no samples and return all-zeros.
+  //
+  // AnalyserNode is a pure pass-through (output ≡ input), so chaining
+  // kick → visual does not alter the signal seen by either analyser.
   source.connect(analyserKick);
-  analyserKick.connect(silentGain);
-  silentGain.connect(offlineCtx.destination);
+  analyserKick.connect(analyserVisual);
+  analyserVisual.connect(offlineCtx.destination);
 
   source.start(0);
 

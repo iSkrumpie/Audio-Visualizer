@@ -207,6 +207,16 @@ export async function exportMP4(
       audioAnalysis.highs = frame.highs;
       audioAnalysis.energy = frame.energy;
 
+      // [EXPORT DEBUG] Log first 5 frames to verify OfflineAudioContext data quality.
+      // Check browser console: rawFreqData_max should be >> 0 for music with bass.
+      // If max = 0 → OfflineAudioContext AnalyserNode not receiving audio.
+      if (i < 5) {
+        let rawMax = 0, freqMax = 0;
+        for (let _d = 0; _d < frame.rawFreqData.length; _d++) if (frame.rawFreqData[_d] > rawMax) rawMax = frame.rawFreqData[_d];
+        for (let _d = 0; _d < frame.freqData.length; _d++) if (frame.freqData[_d] > freqMax) freqMax = frame.freqData[_d];
+        console.log(`[EXPORT DEBUG] Frame ${i}: rawFreqData.max=${rawMax} freqData.max=${freqMax} bass=${frame.bass.toFixed(3)} loudness=${frame.loudness.toFixed(3)}`);
+      }
+
       // Drive the global beat detector with the same settings as live preview
       globalBeatDetector.setSensitivity(audioSettings.globalBeatSensitivity ?? 1.0);
       const globalBeat = globalBeatDetector.update(
