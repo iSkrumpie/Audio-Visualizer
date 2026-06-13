@@ -246,9 +246,45 @@ export function useAudioReactive() {
   const play = useCallback(async () => {
     const ctx = audioCtxRef.current;
     if (ctx && ctx.state === 'suspended') await ctx.resume();
+    // Make sure the rAF analysis loop is running (it may have been stopped
+    // by a previous export — see stopAndPause / startAndPlay below).
+    if (rafRef.current === null) start();
     await audioRef.current?.play();
+  }, [start]);
+
+  /**
+   * User-facing pause: stops audio playback but KEEPS the rAF analysis loop
+   * running so the visualizer still shows the last-frame waveform / beat
+   * decay. Required for the TransportBar pause button — pausing visuals
+   * completely would freeze the canvas, which is not what users want.
+   */
+  const pause = useCallback(() => {
+    audioRef.current?.pause();
   }, []);
-  const pause = useCallback(() => audioRef.current?.pause(), []);
+
+  /**
+   * Export-facing pause: stops the audio element AND the rAF analysis loop.
+   * Required for export: while the export pipeline writes precomputed
+   * FFT data into `audioAnalysis` per frame, the live rAF loop would
+   * race it and overwrite the precomputed data with stale live-analyser
+   * samples — corrupting the FreqBeatDetector state and breaking all
+   * beat-driven animations in the rendered MP4.
+   */
+  const stopAndPause = useCallback(() => {
+    audioRef.current?.pause();
+    stop();
+  }, [stop]);
+
+  /**
+   * Resume the rAF analysis loop + audio playback.
+   * Symmetric counterpart to stopAndPause() — used after export finishes
+   * to restore the live preview.
+   */
+  const startAndPlay = useCallback(async () => {
+    if (rafRef.current === null) start();
+    await audioRef.current?.play();
+  }, [start]);
+
   const togglePlay = useCallback(async () => {
     const a = audioRef.current;
     if (!a) return;
@@ -262,6 +298,10 @@ export function useAudioReactive() {
     play,
     pause,
     togglePlay,
+    /** Stop rAF loop + pause audio. Use before export to avoid race with the export pipeline. */
+    stopAndPause,
+    /** Start rAF loop + resume audio. Use after export to restore live preview. */
+    startAndPlay,
     seek: (t: number) => {
       if (audioRef.current) audioRef.current.currentTime = Math.max(0, t);
     },

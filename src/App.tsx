@@ -26,7 +26,7 @@ function App() {
   const audioObjectUrl = useAudioStore((s) => s.audioObjectUrl);
   const setError = useAudioStore((s) => s.setError);
 
-  const { isPlaying, togglePlay, play, pause } = useAudioReactive();
+  const { isPlaying, togglePlay, play, pause, stopAndPause, startAndPlay } = useAudioReactive();
 
   // Resolve audio duration once metadata loads
   useEffect(() => {
@@ -86,8 +86,12 @@ function App() {
     setExportProgress({ phase: 'decoding', progress: 0, message: 'Starting...' });
 
     try {
-      // Pause playback during export
-      pause();
+      // CRITICAL: stop the rAF analysis loop during export.
+      // The live loop would otherwise race the export pipeline and overwrite
+      // the precomputed FFT data in `audioAnalysis` with stale live-analyser
+      // samples — corrupting FreqBeatDetector state and breaking all
+      // beat-driven animations in the rendered MP4.
+      stopAndPause();
 
       const blob = await exportMP4(audioFile, {
         width: preset.width,
@@ -105,8 +109,12 @@ function App() {
       downloadBlob(blob, `${baseName}-${tag}-${date}.mp4`);
     } catch (e) {
       console.error('Export failed:', e);
+    } finally {
+      // Always restore the live preview, even if the export failed.
+      // The user can then press Play again to continue listening.
+      void startAndPlay();
     }
-  }, [audioFile, pause]);
+  }, [audioFile, stopAndPause, startAndPlay]);
 
   const handleCancelExport = useCallback(() => {
     setExportMode('idle');
