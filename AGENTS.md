@@ -190,7 +190,10 @@ Der Canvas läuft auf `frameloop="never"`. Das bedeutet:
 - R3F rendert **nur** wenn explizit `advance(timestamp)` aufgerufen wird.
 - **Live-Preview**: `useAudioReactive`-rAF-Tick ruft `sceneRegistry.advance(performance.now()/1000)` am Ende jedes Ticks.
 - **Export**: `exportEngine.ts` ruft `sceneRegistry.advance(timestamp)` pro Frame - dadurch laufen alle `useFrame`-Callbacks (Bars, Particles, etc.) mit den precomputed FFT-Daten.
-- `sceneRegistry` hat vier Felder: `gl`, `scene`, `camera`, `advance`.
+- `sceneRegistry` hat Felder: `gl`, `scene`, `camera`, `advance`, `setSize`, `beatDetectors: Set<{reset: () => void}>`.
+- **`sceneRegistry.setSize(w, h)`** ruft intern `gl.setSize(w, h, false)` (kein Style-Update) + R3F's `r3fSetSize(w, h)`. R3F's subscribe triggert daraufhin `gl.setSize(w, h, true)` mit Style-Update. Im Export-Loop `gl.setSize(w, h, false)` **nach** `advance()` erneut aufrufen, falls ResizeObserver die Canvas-Größe zwischendurch verändert hat. Siehe §6.
+
+**R3F-State-Sync:** Components dürfen `useFrame`-intern `width/height` aus dem `state.size`-Parameter des Callbacks lesen — **NICHT** aus einem `useThree((s) => s.size)`-Subscription, weil die Closure bei `r3fSetSize` **asynchron** (React-Re-Render) re-evaluiert wird, der `useFrame`-Callback aber im selben synchronen Block schon läuft. Siehe §6.
 
 ### 4.4 Datendfluss Audio
 
@@ -221,22 +224,36 @@ Jeder rAF-Tick:
 ```
 exportMP4(file, options)
   1. AAC-Bitrate-Probe  → AudioEncoder.isConfigSupported() mit [audioBitrate, 320k, 256k, 192k, 128k]
-  2. decode   → AudioBuffer (48kHz)
-  3. analyze  → precomputeFFT() → Array<{freqData (128), rawFreqData (1024), bass, loudness, highs}> (1/frame)
+  2. decode   → AudioBuffer (Original-Sample-Rate des Files, z.B. 44100 oder 48000)
+  3. analyze  → precomputeFFT(audioBuffer, fps) → Array<{freqData, rawFreqData, bass, loudness, highs, energy}>
+                precomputeFFT: Blackman-Window + 1/N-Scaling + [-100,-30] dB → byte + Trailing-Window
+                              + Inter-Frame-EMA-Smoothing (0.55 für visual, 0.0 für kick) + Mono-Downmix
   4. Renderer resize auf Zielauflösung, Camera anpassen
-  5. render   → pro Frame:
+     - sceneRegistry.setSize(w, h) — synced R3F state.size mit Canvas-Buffer
+     - gl.setPixelRatio(1) — keine DPR-Skalierung im Export
+     - canvas.style.width/height = `${w}px` / `${h}px` (CSS-Size pinnen, sonst ResizeObserver-Clipping)
+  5. **DETECTOR-RESET** (KRITISCH): for each detector in sceneRegistry.beatDetectors: detector.reset()
+     — setzt prevBins, fluxHistory, phase auf 0. Sonst reagieren die ersten ~40 Frames auf den
+       Live-Stream-trainierten Detector-State und nicht auf die precomputed Daten.
+  6. render   → pro Frame:
                   audioAnalysis.freqData.set(...)
                   audioAnalysis.rawFreqData.set(...)   ← KRITISCH: ohne das feuert KEIN FreqBeatDetector
                   global FreqBeatDetector(settings.audio.globalBeat*).update(rawFreqData, ...)
                   audioAnalysis.beatPhase = globalBeat
+                  if (sceneRegistry.setSize) sceneRegistry.setSize(w, h)   ← state.size pro Frame syncen
+                  if (canvas.width !== w || canvas.height !== h) gl.setSize(w, h, false)  ← Buffer-Size pinnen
                   sceneRegistry.advance(timestamp)
+                  if (canvas.width !== w || canvas.height !== h) gl.setSize(w, h, false)  ← nochmal nach advance()
                   videoSource.add(timestamp, 1/fps)
-  6. audio    → audioSource.add(audioBuffer)
-  7. finalize → output.finalize() → Blob
-  8. restore  → Renderer-Size + Camera zurücksetzen
+                  if (i % 30 === 0) await new Promise(r => setTimeout(r, 0))  ← Event-Loop yield
+  7. audio    → audioSource.add(audioBuffer)
+  8. finalize → output.finalize() → Blob
+  9. restore  → sceneRegistry.setSize(origSize.x, origSize.y) + gl.setPixelRatio(orig) + Camera reset
 ```
 
-**KRITISCH** (v11-Fix): `audioAnalysis.rawFreqData` muss pro Frame gesetzt werden. Sonst sehen alle 5+ `FreqBeatDetector`-Instanzen (Background, Logo×2, Particles, Bars, Nebula-Pulse) leere Daten und **nur Bars animieren sich** im Export (über `freqData`). Hardcoded 60-120 Hz Kick-Detection wurde entfernt - der globale `FreqBeatDetector` läuft mit den **gleichen** Settings wie das Live-Preview.
+**KRITISCH (v11-Fix):** `audioAnalysis.rawFreqData` muss pro Frame gesetzt werden. Sonst sehen alle 5+ `FreqBeatDetector`-Instanzen (Background, Logo×2, Particles, Bars, Nebula-Pulse) leere Daten und **nur Bars animieren sich** im Export (über `freqData`). Hardcoded 60-120 Hz Kick-Detection wurde entfernt - der globale `FreqBeatDetector` läuft mit den **gleichen** Settings wie das Live-Preview.
+
+**Live/Export-Sync (Session 9 Fixes):** `useAudioReactive.stopAndPause()` wird in `App.tsx:handleStartExport` aufgerufen, BEVOR `exportMP4` läuft. Nach Export (success oder error) wird `startAndPlay()` in `finally` aufgerufen. Sonst race-bedingt beide Loops schreiben in `audioAnalysis`.
 
 **Export-Presets** (`src/lib/exportPresets.ts`):
 - YouTube: 1080p@60 (12Mbps), 1080p@30 (8Mbps), 1440p@60 (24Mbps), 1440p@30 (16Mbps), 4K@30 (45Mbps)
@@ -336,6 +353,10 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 
 **7 Instanzen gesamt** (1 global, 6 komponenten-spezifisch). Alle nutzen `setSensitivity()` VOR `update()` im useFrame.
 
+**Detektor-Konstruktion:** Alle Component-Instanzen: `new FreqBeatDetector(48000)` mit hartcodiertem 48 kHz sampleRate. Constructor-Param `sampleRate` ist Pflicht (default 48000), weil die Hz→bin-Map sonst bei 44.1 kHz vs. 48 kHz Contexts driften würde. Tatsächliche Sample-Rate im Live-Stream hängt vom `AudioContext` ab (Browser-Default, meist 48 kHz); im Export ist es hartcodiert 48 kHz (`new AudioContext({ sampleRate: 48000 })` in `exportEngine.ts:88`).
+
+**Detektor-Reset (Session 9):** `FreqBeatDetector.reset()` Methode löscht `prevBins`, `fluxHistory`, `phase`, `lastEnergy`. Jede Component registriert ihre Instanz via `useBeatDetectorRegistration(detector)` in `sceneRegistry.beatDetectors` Set. `exportEngine.ts` ruft `for (const d of sceneRegistry.beatDetectors) d.reset()` einmalig vor Frame 0, damit die ersten ~40 Frames des Exports nicht gegen den Live-Stream-trainierten Detector-State vergleichen. Siehe `bug.md` H3 für Details, warum das nötig ist.
+
 ---
 
 ## 5. Konventionen
@@ -382,6 +403,11 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 - **ThemeToggle.tsx** ist **aktiv in Verwendung** (gerendert in `Uploader.tsx:75`, importiert in `Uploader.tsx:13`). NICHT löschen. Frühere AGENTS.md-Behauptung "wird nicht mehr verwendet" war veraltet — wurde in Session 8 korrigiert.
 - **EyeDropper-API**: Typ-Deklaration in `vite-env.d.ts` (nicht in TypeScript DOM lib enthalten). Nur Chrome 95+.
 - **Session 8 Cleanup**: `workflowGradient.ts` (komplette Datei, 116 Zeilen) und `audioStore.rawWave`-Feld entfernt — beides war Dead Code seit dem colorMode 'workflow-gradient'-Removal. Typecheck + Build bleiben grün.
+- **🔴 R3F `useFrame` darf NICHT aus `useThree((s) => s.size)`-Closure lesen** (Session 9): `r3fSetSize` updated `state.size` synchron via zustand `set`, aber der React-Re-Render, der die Closure re-evaluiert, ist **async**. Im selben synchronen Block des Export-Loops (`sceneRegistry.setSize(w, h)` → `sceneRegistry.advance()`) läuft `useFrame` mit der **alten** Closure. **Fix:** `useFrame((state, delta) => { const {width, height} = state.size; ... })` — liest `state.size` live aus dem `state`-Parameter des Callbacks, nicht aus der Component-Closure. Aktuell: `BackgroundPlane` und `NebulaPlane` wurden so umgebaut, `InstancedBars` / `GPUParticles` / `CenterLogo` waren bereits korrekt.
+- **🔴 R3F-subscribe-Block ruft `gl.setSize(w, h, true)` mit Style-Update** (Session 9): Jeder `state.size`-Change triggert R3F-subscribe, das `gl.setSize(w, h, true)` ruft und damit `canvas.style.width/height` auf konkrete Pixel setzt. Das triggert `react-use-measure` ResizeObserver. Wenn Parent clippt (`overflow-hidden`, Scrollbar-Breite, subpixel-Rounding), misst Observer eine **kleinere** Größe und schreibt sie zurück in `state.size`. Im Export-Loop entsteht so ein Bounce-Loop zwischen gewünschter Export-Größe und clipped gemessener Größe. Mediabunny wirft dann `Video sample size must remain constant`. **Workaround:** Im Export-Loop `gl.setSize(w, h, false)` **vor UND nach** `sceneRegistry.advance()` aufrufen, um die Canvas-Backing-Buffer-Größe zu pinnen. CSS-Style wird trotzdem von R3F-subscribe gesetzt; für Components ist das OK, weil sie `state.size` aus dem useFrame-`state`-Parameter lesen (nicht aus dem CSS-Style).
+- **🔴 FFT-Pipeline muss Web-Audio-konform sein** (Session 9): Wenn die Export-FFT vom Web-Audio-Algorithmus abweicht, reagieren alle Spektrum-basierten Animationen im MP4 anders als im Preview. Die 6 kritischen Übereinstimmungen sind in `bug.md` § 1 aufgelistet — **die Web Audio Reference-Implementation ist Chromium `third_party/blink/renderer/modules/webaudio/realtime_analyser.cc`**. Insbesondere: Blackman-Window (nicht Hann), 1/N-Scaling (NICHT vergessen — mein Commit `9fe1ec7` hatte das fälschlich entfernt), `[-100, -30] dB` → `[0, 255]` Mapping (nicht `[-100, 0]`), Trailing-Window (nicht centered), Inter-Frame-EMA-Smoothing, Mono-Downmix über alle Kanäle.
+- **🔴 `useAudioReactive` rAF-Loop muss im Export gestoppt sein** (Session 9): Der Live-rAF-Loop schreibt kontinuierlich Live-Analyser-Daten in `audioAnalysis` und ruft `sceneRegistry.advance()`. Im Export überschreibt das die precomputed Daten und triggert useFrame-Callbacks mit falschen Werten. `App.tsx:handleStartExport` ruft `stopAndPause()` (neu in `useAudioReactive`, ruft `audioRef.current.pause()` + `stop()`), `startAndPlay()` in `finally`. User-Pause-Button ruft weiterhin nur `pause()` (nur Audio, kein rAF-Stop → Visuals animieren weiter mit Last-Frame-Werten).
+- **`FreqBeatDetector.reset()` Pflicht vor Export** (Session 9): Component-Detectoren laufen seit Stage-Wechsel zu 'visualize' kontinuierlich gegen den Live-Stream. Ihre `prevBins` und `fluxHistory` sind auf Live-Daten trainiert. Im Export-Loop bekommen sie precomputed Daten, die **nicht aligned** sind. Erste ~40 Frames (~0.67s) hätten falsche Beat-Trigger. `exportEngine.ts` ruft `for (const d of sceneRegistry.beatDetectors) d.reset()` einmalig vor Frame 0. Pattern: `useBeatDetectorRegistration(detector)` Hook in jeder Component, die einen `FreqBeatDetector` via `useMemo` instanziiert.
 
 ---
 
@@ -438,11 +464,26 @@ node scripts/measure-logo-real.mjs       # Echtes User-Logo (braucht tmp/Logo.pn
 - *"Fire-Ring sitzt nicht am Logo-Rand"* → `CenterLogo.tsx` → `fireScale = logoSize * beatScale` (nicht `* 2`), z=0.1, renderOrder=7
 - *"Logo Glow zeigt falsche Farbe / wird schwarz beim Color-Mode-Wechsel"* → Altes Preset geladen? `useF` defensive Default prüfen, `CenterLogo` `??`-Fallbacks prüfen
 - *"Hz-Slider zu ungenau / klemmt in der Mitte"* → Logarithmisches Mapping (sliderToHz/hzToSlider) ist Standard. Linearer Slider 20-20000 Hz ist unbrauchbar → HzRangePicker statt Sl für Frequenz-Bereiche verwenden.
-- *"Neue Beat-Reactivity in Komponente X einbauen"* → Pattern: 1) Settings-Felder in settingsStore.ts hinzufügen (schema-bump nicht vergessen), 2) `useMemo(() => new FreqBeatDetector(), [])` in Komponente, 3) `setSensitivity()` VOR `update()` im useFrame, 4) HzRangePicker + Sensitivity-Slider in SettingsPanel via `useF`-Hook, 5) update §4.11 in AGENTS.md
+- *"Neue Beat-Reactivity in Komponente X einbauen"* → Pattern: 1) Settings-Felder in settingsStore.ts hinzufügen (schema-bump nicht vergessen), 2) `useMemo(() => new FreqBeatDetector(48000), [])` in Komponente, 3) `useBeatDetectorRegistration(detector)` aus `AudioScene.tsx` aufrufen, 4) `setSensitivity()` VOR `update()` im useFrame, 5) HzRangePicker + Sensitivity-Slider in SettingsPanel via `useF`-Hook, 6) update §4.11 in AGENTS.md
+- *"Export-Bild ist gequetscht / Logo elliptisch"* → Components dürfen NICHT `useThree((s) => s.size)` für Closure-basierte Skalierung nutzen, sondern `useFrame((state, delta) => { const {width, height} = state.size; ... })`. Siehe `bug.md` H1 und AGENTS.md §6.
+- *"Mediabunny Error: Video sample size must remain constant"* → `gl.setSize(w, h, false)` nach `advance()` im Export-Loop. ResizeObserver clipped sonst die Canvas-Größe. Siehe `bug.md` und AGENTS.md §6.
+- *"Beat-Animationen reagieren im MP4 schwächer als im Preview"* (OFFEN seit Session 9) → Siehe `bug.md` H1-H6 für systematische Hypothesen. Wahrscheinlichste Ursachen: (H1) `state.size` ist im useFrame-Loop nicht synchron zur Export-Größe, (H2) `audioAnalysis.rawFreqData` ist im Export systematisch leiser als Live. Debug-Schritte in `bug.md` §3.
 
 ---
 
-*Stand: Session 8 — Cleanup. `workflowGradient.ts` (116 Zeilen Dead Code) + `audioStore.rawWave`-Feld + `scripts/smoke-stage-redesign.mjs` (veraltet — referenzierte nicht mehr existente colorModes 'workflow-gradient' und 'spectrum') entfernt. settingsStore weiterhin v11. AGENTS.md §6 ThemeToggle-Aussage korrigiert (wird doch noch in Uploader.tsx verwendet). Verbleibende Scripts: `test-e2e-v2.mjs` (generalistisch), `measure-logo-fit.mjs`, `measure-logo-real.mjs`.*
+*Stand: Session 9 — **OFFENER EXPORT-BUG** (siehe `bug.md`). Background, Bars und Particles reagieren im MP4 weiterhin schwächer als im Preview. Mehrere systematische Abweichungen wurden bereits gefixt (siehe unten), aber das Problem besteht. AGENTS.md-Update dieser Session: §4.5 (Export-Pipeline), §4.3 (R3F-State-Sync), §4.11 (FreqBeatDetector) und §6 (bekannte Stolpersteine) wurden mit den neuen Hooks und Methoden aus den Fixes ergänzt. settingsStore weiterhin v11.*
+
+*Session 9 — Export-Pipeline-Fixes (6 Commits, alle auf settingsStore v11):*
+- *`c109b84` — Race-Condition: `useAudioReactive` rAF-Loop überschrieb im Export die precomputed FFT-Daten. Fix: `stopAndPause()` / `startAndPlay()` Methoden, `App.tsx:handleStartExport` ruft `stopAndPause()` vor `exportMP4`, `startAndPlay()` in `finally`.*
+- *`9fe1ec7` — 4 systematische Unterschiede zur Web Audio API: 1/N-Scaling (zunächst falsch entfernt, dann korrigiert), `binHz` hartcodiertes 44100 (jetzt Constructor-Parameter), `extractFFTFrame` Window-Center (später zu Trailing korrigiert), R3F-Resolution-Sync via `sceneRegistry.setSize`.*
+- *`cc53978` — `Mediabunny`-Fehler "Video sample size must remain constant": R3F's react-use-measure ResizeObserver schreibt clipped Size in `state.size`, R3F-subscribe ruft `gl.setSize(clipped)`, Canvas-Buffer schrumpft mitten im Export. Fix: `gl.setSize(width, height, false)` nach `advance()`, ohne Style-Update.*
+- *`dde5c3c` — Bild gequetscht / Logo elliptisch: `BackgroundPlane` + `NebulaPlane` lasen `width/height` aus `useThree((s) => s.size)` Closure, die **async** re-evaluiert wird. Im selben synchronen Block des Export-Loops sah `useFrame` die Preview-Größe, während Camera-Frustum schon Export-Größe hatte. Fix: `useFrame((state, delta) => { const {width, height} = state.size; })`.*
+- *`d2a3274` — Beat-Reaktion inkonsistent: Component-Detector-Instanzen liefen seit Stage-Wechsel gegen Live-Stream, ihre `prevBins` und `fluxHistory` waren auf Live-Daten trainiert. Erste ~40 Frames des Exports hatten falsche Beat-Trigger. Fix: `FreqBeatDetector.reset()` Methode + `sceneRegistry.beatDetectors: Set` + `useBeatDetectorRegistration(detector)` Hook, alle 6 Component-Detectoren registrieren sich, `exportEngine` ruft `reset()` auf alle vor Frame 0.*
+- *`1704883` — FFT-Pipeline Web-Audio-konform: Blackman-Window (alpha=0.16, war Hann), 1/N-Scaling wieder eingeführt (war fälschlich entfernt), dB→byte Range `[-100, -30]` (war `[-100, 0]`), Trailing-Window (war centered), Inter-Frame EMA-Smoothing auf magnitude_buffer, Mono-Downmix über alle Kanäle (war nur Kanal 0). Quelle: Chromium `third_party/blink/renderer/modules/webaudio/realtime_analyser.cc`.*
+
+*Trotz dieser 6 Fixes: User meldet weiterhin, dass Background, Bars, Particles im MP4 weniger reagieren als im Preview. Siehe `bug.md` für Hypothesen (H1-H6) und Debug-Schritte für die nächste Session.*
+
+*Session 8 — Cleanup. `workflowGradient.ts` (116 Zeilen Dead Code) + `audioStore.rawWave`-Feld + `scripts/smoke-stage-redesign.mjs` (veraltet — referenzierte nicht mehr existente colorModes 'workflow-gradient' und 'spectrum') entfernt. settingsStore weiterhin v11. AGENTS.md §6 ThemeToggle-Aussage korrigiert (wird doch noch in Uploader.tsx verwendet). Verbleibende Scripts: `test-e2e-v2.mjs` (generalistisch), `measure-logo-fit.mjs`, `measure-logo-real.mjs`.*
 
 *Session 7 — settingsStore **v11**. Komplettes Audio-Reactivity-Refactoring abgeschlossen:*
 - *Session 6 (Audio-Reactivity Refactor): settingsStore v9 (Foundation: `FREQ_PRESETS`, log Hz-slider helpers, adaptive `FreqBeatDetector` mit bandwidth-aware threshold + `setSensitivity()`, neuer `audio`-Group für globalen Beat). v10 (UI: `HzRangePicker` mit 10 Preset-Buttons + log Dual-Slider + Bin-Quality-Indicator, alle 5 Komponenten + Nebula-Optional wiederverwenden HzRangePicker, per-Trigger Sensitivity). **7 FreqBeatDetector-Instanzen** gesamt (1 global + 6 komponenten-spezifisch).*
