@@ -739,7 +739,7 @@ function BackgroundSection() {
         <EffectCard label="Color average" enabled={colAvg as boolean} onToggle={sColAvg} />
       </Acc>
 
-      <Acc label="Stylize">
+      <Acc label="Effects">
         <EffectCard label="Noise / grain" enabled={noise as boolean} onToggle={sNoise}>
           <FR label="Intensity">
             <Sl value={noiseI as number} min={0} max={1} step={0.01} onChange={sNoiseI} />
