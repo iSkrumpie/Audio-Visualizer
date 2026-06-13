@@ -178,6 +178,30 @@ export class FreqBeatDetector {
   }
 
   /**
+   * Export-specific reset: clears prevBins and phase like reset(), but
+   * pre-fills fluxHistory with minFlux instead of zeros.
+   *
+   * WHY: reset() zeroes the history, so the first audio spike after silence
+   * (e.g. the track intro transitioning to music) dominates all 40 history
+   * slots and raises avgFlux far above the actual beat-flux level. Every
+   * subsequent beat fails to exceed the inflated adaptive threshold and
+   * beatPhase stays near 0 for the rest of the export.
+   *
+   * Pre-filling with minFlux keeps avgFlux at a stable low baseline.
+   * Any early spike (flux <= ~0.7) only raises avgFlux to ~0.02, so that
+   * real beats (flux >= 0.05–0.15) still comfortably exceed the threshold.
+   */
+  resetForExport(): void {
+    this.prevBins = new Float32Array(1024);
+    // Pre-fill with minFlux so a single early spike can’t dominate the history.
+    this.fluxHistory = new Array(this.historyLen).fill(this.minFlux);
+    this.historyIdx = 0;
+    this.historyFull = true; // treat as if the history window is already filled
+    this.phase = 0;
+    this.lastEnergy = 0;
+  }
+
+  /**
    * Call once per frame with the RAW (unsmoothed) FFT data and Hz range.
    *
    * @param rawFreqData  audioAnalysis.rawFreqData (1024 bins, kick analyser)

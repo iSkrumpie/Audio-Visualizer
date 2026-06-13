@@ -44,7 +44,7 @@ export const sceneRegistry: {
    * beat cadences. Components register their detector here on mount
    * and unregister on unmount.
    */
-  beatDetectors: Set<{ reset: () => void }>;
+  beatDetectors: Set<{ reset: () => void; resetForExport?: () => void }>;
 } = {
   gl: null,
   scene: null,
@@ -82,7 +82,7 @@ function SceneCapture() {
  * scene-wide registry on mount and unregisters on unmount, so the export
  * pipeline can reset every detector to a clean first-frame state.
  */
-export function useBeatDetectorRegistration(detector: { reset: () => void } | null) {
+export function useBeatDetectorRegistration(detector: { reset: () => void; resetForExport?: () => void } | null) {
   useEffect(() => {
     if (!detector) return;
     sceneRegistry.beatDetectors.add(detector);

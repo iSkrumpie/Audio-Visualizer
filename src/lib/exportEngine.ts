@@ -223,7 +223,11 @@ export async function exportMP4(
     // visibly inconsistent beat-driven animations (grid pulse, scanline
     // beat, logo fire, particle kick, etc.).
     for (const detector of sceneRegistry.beatDetectors) {
-      detector.reset();
+      // Use resetForExport() instead of reset(): pre-fills fluxHistory with
+      // minFlux so a single early spike (silence → music transition) can’t
+      // dominate the adaptive threshold and suppress all subsequent beats.
+      // Falls back to reset() if the method is not present.
+      (detector.resetForExport ?? detector.reset).call(detector);
     }
 
     onProgress({ phase: 'rendering', progress: 0, message: `Rendering 0/${fftFrames.length} frames...` });
