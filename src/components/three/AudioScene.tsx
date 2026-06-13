@@ -24,23 +24,37 @@ export const sceneRegistry: {
   camera: THREE.Camera | null;
   /** Advance one R3F frame: runs all useFrame callbacks then renders. */
   advance: ((timestamp: number) => void) | null;
-} = { gl: null, scene: null, camera: null, advance: null };
+  /**
+   * Resize the renderer AND R3F's internal state.size in sync.
+   * Components read width/height from useThree(s => s.size) — if the
+   * renderer is resized without updating R3F's size, the export pipeline
+   * would render with mismatched canvas size vs. mesh scale vs.
+   * shader resolution, causing the background plane to be sized for the
+   * preview window and not the export frame.
+   */
+  setSize: ((width: number, height: number) => void) | null;
+} = { gl: null, scene: null, camera: null, advance: null, setSize: null };
 
 /** Captures Three.js internals for the export pipeline */
 function SceneCapture() {
-  const { gl, scene, camera, advance } = useThree();
+  const { gl, scene, camera, advance, setSize: r3fSetSize } = useThree();
   useEffect(() => {
     sceneRegistry.gl = gl;
     sceneRegistry.scene = scene;
     sceneRegistry.camera = camera;
     sceneRegistry.advance = advance;
+    sceneRegistry.setSize = (width: number, height: number) => {
+      gl.setSize(width, height, false);
+      r3fSetSize(width, height);
+    };
     return () => {
       sceneRegistry.gl = null;
       sceneRegistry.scene = null;
       sceneRegistry.camera = null;
       sceneRegistry.advance = null;
+      sceneRegistry.setSize = null;
     };
-  }, [gl, scene, camera, advance]);
+  }, [gl, scene, camera, advance, r3fSetSize]);
   return null;
 }
 

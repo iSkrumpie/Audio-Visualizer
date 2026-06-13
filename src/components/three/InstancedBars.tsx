@@ -27,7 +27,7 @@ export function InstancedBars() {
   const rotationRef     = useRef(0);
   const timeRef         = useRef(0);
   const colorObj        = useMemo(() => new THREE.Color(), []);
-  const barsBeatDetector = useMemo(() => new FreqBeatDetector(), []);
+  const barsBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
 
   // 4 random colors generated once per session for 'random' color mode
   const randomColors = useMemo(() => {

@@ -15,7 +15,7 @@ export function NebulaPlane() {
   const { width, height } = useThree((s) => s.size);
   const matRef = useRef<THREE.ShaderMaterial>(null);
   const meshRef = useRef<THREE.Mesh>(null);
-  const nebulaBeatDetector = useMemo(() => new FreqBeatDetector(), []);
+  const nebulaBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
 
   const uniforms = useMemo(() => ({
     uTime:        { value: 0 },

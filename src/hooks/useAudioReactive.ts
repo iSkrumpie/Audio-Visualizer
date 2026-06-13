@@ -36,7 +36,7 @@ const BEAT_GLOW_MAX = 55; // px, mirrors skrumpie.de CSS var
 // ── Global beat detector (configurable Hz range + sensitivity) ─────────────
 // Module-level singleton — lives for the lifetime of the page.
 // The Hz range and sensitivity are read live from settings each rAF tick.
-const globalBeatDetector = new FreqBeatDetector();
+const globalBeatDetector = new FreqBeatDetector(48000);
 
 // ── Shared mutable analysis (read by canvas/Three.js render loops) ─────────
 export const audioAnalysis = {

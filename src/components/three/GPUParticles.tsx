@@ -149,7 +149,7 @@ export function GPUParticles() {
   const pointsRef = useRef<THREE.Points>(null);
   const linesRef  = useRef<THREE.LineSegments>(null);
   const timeRef   = useRef(0);
-  const particleBeatDetector = useMemo(() => new FreqBeatDetector(), []);
+  const particleBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
 
   const particles = useMemo(() => {
     const accentHue    = hexToHue(getSettings().theme.accent);

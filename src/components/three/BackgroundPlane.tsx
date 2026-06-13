@@ -482,7 +482,10 @@ export function BackgroundPlane() {
     uBeatPhase:         { value: 0 },
   }), []);
 
-  const beatDetector = useMemo(() => new FreqBeatDetector(), []);
+  // Sample rate 48000 matches the live AnalyserNode context — without this,
+  // the Hz→bin mapping drifts and the background-shader beat animations
+  // (grid pulse, scanline beat, noise boost) trigger at the wrong cadence.
+  const beatDetector = useMemo(() => new FreqBeatDetector(48000), []);
 
   useFrame((_, delta) => {
     const mat = matRef.current;

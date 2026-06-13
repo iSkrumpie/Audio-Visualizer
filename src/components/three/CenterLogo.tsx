@@ -267,8 +267,8 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
   // We track fireHeight via a ref to detect changes without store subscription.
   const fireHeightRef  = useRef<number>(-1);
   const fireGeoRef     = useRef<THREE.RingGeometry | null>(null);
-  const logoBeatDetector = useMemo(() => new FreqBeatDetector(), []);
-  const fireBeatDetector = useMemo(() => new FreqBeatDetector(), []);
+  const logoBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
+  const fireBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
 
   // ── useFrame: update all reactive state ─────────────────────────────────────
   useFrame((state, delta) => {

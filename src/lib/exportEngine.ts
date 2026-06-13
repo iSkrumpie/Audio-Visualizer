@@ -105,8 +105,16 @@ export async function exportMP4(
     const origSize = gl.getSize(new THREE.Vector2());
     const origPixelRatio = gl.getPixelRatio();
 
-    // Resize renderer for export
-    gl.setSize(width, height);
+    // Resize renderer + R3F's internal state.size for export.
+    // CRITICAL: must use sceneRegistry.setSize (not just gl.setSize) so
+    // components that read width/height from useThree(s => s.size) — like
+    // the background plane scale, shader uResolution, and bars/particle
+    // scaling — see the export resolution and not the preview-window size.
+    if (sceneRegistry.setSize) {
+      sceneRegistry.setSize(width, height);
+    } else {
+      gl.setSize(width, height, false);
+    }
     gl.setPixelRatio(1);
 
     // Update camera for new aspect ratio
@@ -155,7 +163,9 @@ export async function exportMP4(
 
     // Global beat detector — mirrors useAudioReactive's live detector so the
     // exported video matches the live preview's audio reactivity exactly.
-    const globalBeatDetector = new FreqBeatDetector();
+    // Sample rate is hard-pinned to 48 kHz (the AudioContext above) for
+    // correct Hz→bin mapping.
+    const globalBeatDetector = new FreqBeatDetector(audioBuffer.sampleRate);
 
     onProgress({ phase: 'rendering', progress: 0, message: `Rendering 0/${fftFrames.length} frames...` });
 
@@ -222,7 +232,11 @@ export async function exportMP4(
     await output.finalize();
 
     // Restore renderer state
-    gl.setSize(origSize.x, origSize.y);
+    if (sceneRegistry.setSize) {
+      sceneRegistry.setSize(origSize.x, origSize.y);
+    } else {
+      gl.setSize(origSize.x, origSize.y, false);
+    }
     gl.setPixelRatio(origPixelRatio);
     if (cam.isOrthographicCamera) {
       cam.left = -origSize.x / 2;

@@ -113,19 +113,27 @@ export class FreqBeatDetector {
   private readonly baseThresholdMul: number;
   private readonly minFlux: number;
   private readonly decay: number;
+  /** Bin width in Hz — required for accurate Hz → bin mapping.
+   *  Defaults to 48000/2048 (export's AudioContext). The live-preview
+   *  AnalyserNode runs in a 48 kHz context too, but some browsers pick
+   *  44.1 kHz — callers MUST pass the actual sampleRate for accuracy. */
+  private readonly binHz: number;
 
   /**
+   * @param sampleRate        AnalyserNode sample rate in Hz (default 48000)
    * @param historyLen        Frames for rolling flux average (default 40 ≈ 0.67s at 60fps)
    * @param baseThresholdMul  Flux must exceed avg × this to trigger (default 1.8)
    * @param minFlux           Absolute minimum flux to prevent silence triggers (default 0.005)
    * @param decay             Phase decay per frame (default 0.04 → ~25 frames full decay)
    */
   constructor(
+    sampleRate = 48000,
     historyLen = 40,
     baseThresholdMul = 1.8,
     minFlux = 0.005,
     decay = 0.04,
   ) {
+    this.binHz = sampleRate / 2048;
     this.historyLen = historyLen;
     this.baseThresholdMul = baseThresholdMul;
     this.minFlux = minFlux;
@@ -158,10 +166,13 @@ export class FreqBeatDetector {
    * @returns Current beat phase (0..1, decaying pulse)
    */
   update(rawFreqData: Uint8Array, freqStartHz: number, freqEndHz: number): number {
-    // Kick analyser: fftSize=2048 → 1024 bins, ~21.53 Hz per bin
-    const binHz = 44100 / 2048;
-    const startBin = Math.max(0, Math.floor(freqStartHz / binHz));
-    const endBin = Math.min(rawFreqData.length - 1, Math.ceil(freqEndHz / binHz));
+    // Kick analyser: fftSize=2048 → 1024 bins. Use the actual sample rate
+    // (constructor-injected) for Hz→bin mapping — hardcoding 44100 here
+    // would mis-target bins when the AudioContext runs at 48 kHz, which
+    // silently weakens beat detection in the background-shader
+    // animations (grid pulse, scanline beat, noise boost, etc.).
+    const startBin = Math.max(0, Math.floor(freqStartHz / this.binHz));
+    const endBin = Math.min(rawFreqData.length - 1, Math.ceil(freqEndHz / this.binHz));
     const binCount = Math.max(1, endBin - startBin + 1);
 
     // ── Adaptive threshold: narrow bands need stricter thresholds ─────

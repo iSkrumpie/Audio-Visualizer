@@ -51,11 +51,18 @@ export function fftMagnitude(samples: Float32Array): Float32Array {
     }
   }
 
-  // Magnitude spectrum (first half)
+  // Magnitude spectrum (first half).
+  // IMPORTANT: do NOT divide by N here. Web Audio API's getByteFrequencyData
+  // returns raw magnitudes (no 1/N normalization) before mapping to 0..255
+  // via dB. We must match that scale exactly so the export pipeline produces
+  // the same dB distribution as the live AnalyserNode — otherwise the
+  // FreqBeatDetector's spectral-flux threshold triggers at different
+  // cadences in live vs. export, breaking beat-driven background
+  // animations (grid pulse, scanline beat, noise boost, etc.).
   const halfN = N / 2;
   const magnitudes = new Float32Array(halfN);
   for (let i = 0; i < halfN; i++) {
-    magnitudes[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]) / N;
+    magnitudes[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
   }
   return magnitudes;
 }
@@ -70,12 +77,18 @@ export function extractFFTFrame(
   fftSize: number = 256,
 ): Uint8Array {
   const sampleRate = audioBuffer.sampleRate;
-  const startSample = Math.floor(timeSeconds * sampleRate);
   const channelData = audioBuffer.getChannelData(0); // mono or left channel
 
-  // Extract fftSize samples centered at time
+  // Extract fftSize samples centered at time.
+  // samples[0] is the audio at (timeSeconds - fftSize/(2*sampleRate)),
+  // samples[fftSize-1] is the audio at (timeSeconds + fftSize/(2*sampleRate))
+  // — i.e. the window is symmetric around timeSeconds. This matches the
+  // visual mental model of "what does the spectrum look like *at* this
+  // moment?" used by the live AnalyserNode (which presents its snapshot
+  // at the current playhead, not 21 ms behind it).
+  const centerSample = timeSeconds * sampleRate;
+  const offset = Math.round(centerSample - fftSize / 2);
   const samples = new Float32Array(fftSize);
-  const offset = startSample - Math.floor(fftSize / 2);
   for (let i = 0; i < fftSize; i++) {
     const idx = offset + i;
     samples[i] = idx >= 0 && idx < channelData.length ? channelData[idx] : 0;
