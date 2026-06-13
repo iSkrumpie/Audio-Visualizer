@@ -139,7 +139,6 @@ export type Settings = {
     opacity: number;            // 0..1
     // ── Beat scale ─────────────────────────────────────────────────────
     beatScaleStrength: number;  // 0..1
-    beatRotationBurst: number;  // 0..2
     beatFxFreqStart: number;      // 20..20000 Hz
     beatFxFreqEnd: number;        // 20..20000 Hz
     beatFxSensitivity: number;    // 0.1..5.0 detector sensitivity multiplier
@@ -149,6 +148,9 @@ export type Settings = {
     glowColor: string;
     glowSize: number;           // 1.0..5.0 (relative to logo)
     glowBlur: number;           // 0..50, softness of glow spread
+    glowColorMode: 'solid' | 'rainbow' | 'custom' | 'random';
+    glowCycleSpeed: number;     // 0..2 (rainbow/custom/random cycle speed)
+    glowCustomColors: string[]; // custom mode: list of colors to cycle through
     // ── Fire effect ────────────────────────────────────────────────────
     fireEnabled: boolean;
     fireIntensity: number;      // 0..2
@@ -332,7 +334,6 @@ const DEFAULT_SETTINGS: Settings = {
     size: 240,
     opacity: 1.0,
     beatScaleStrength: 0.5,
-    beatRotationBurst: 0,
     beatFxFreqStart: 20,
     beatFxFreqEnd: 200,
     beatFxSensitivity: 1.0,
@@ -341,6 +342,9 @@ const DEFAULT_SETTINGS: Settings = {
     glowColor: '#6366F1',
     glowSize: 1.15,
     glowBlur: 15,
+    glowColorMode: 'solid',
+    glowCycleSpeed: 0.3,
+    glowCustomColors: ['#6366F1', '#22D3EE', '#F472B6', '#F59E0B'],
     fireEnabled: false,
     fireIntensity: 1.0,
     fireHeight: 0.3,
@@ -434,9 +438,9 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v10',
+      name: 'audiovisualizer:settings:v11',
       storage: createJSONStorage(() => localStorage),
-      version: 10,
+      version: 11,
       migrate: () => ({ settings: DEFAULT_SETTINGS }),
     },
   ),

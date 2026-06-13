@@ -885,7 +885,6 @@ function LogoSection_() {
   const [en,    sEn]    = useF('logo', 'enabled');
   const [size,  sSize]  = useF('logo', 'size');
   const [op,    sOp]    = useF('logo', 'opacity');
-  const [rotB,  sRotB]  = useF('logo', 'beatRotationBurst');
   const [bsc,   sBsc]   = useF('logo', 'beatScaleStrength');
   const [bFS,   sBFS]   = useF('logo', 'beatFxFreqStart');
   const [bFE,   sBFE]   = useF('logo', 'beatFxFreqEnd');
@@ -895,6 +894,9 @@ function LogoSection_() {
   const [gC,    sGC]    = useF('logo', 'glowColor');
   const [gS,    sGS]    = useF('logo', 'glowSize');
   const [gB,    sGB]    = useF('logo', 'glowBlur');
+  const [gCM,   sGCM]  = useF('logo', 'glowColorMode');
+  const [gCS,   sGCS]  = useF('logo', 'glowCycleSpeed');
+  const [gCC,   sGCC]  = useF('logo', 'glowCustomColors');
   const [fireE,  sFireE]  = useF('logo', 'fireEnabled');
   const [fireI,  sFireI]  = useF('logo', 'fireIntensity');
   const [fireH,  sFireH]  = useF('logo', 'fireHeight');
@@ -924,7 +926,63 @@ function LogoSection_() {
         <Tg value={gE as boolean} onChange={sGE} label="Enabled" />
         {!!gE && (
           <div className="mt-3 space-y-2">
-            <FR label="Color"><CP value={gC as string} onChange={sGC} /></FR>
+            <FR label="Color mode">
+              <CB
+                value={gCM as string}
+                options={[
+                  { value: 'solid',   label: 'Solid' },
+                  { value: 'rainbow', label: 'Rainbow' },
+                  { value: 'custom',  label: 'Custom' },
+                  { value: 'random',  label: 'Random' },
+                ]}
+                onChange={sGCM as (v: string) => void}
+              />
+            </FR>
+            {(gCM as string) === 'solid' && (
+              <FR label="Color"><CP value={gC as string} onChange={sGC} /></FR>
+            )}
+            {((gCM as string) === 'rainbow') && (
+              <FR label="Cycle speed" hint={`${(gCS as number).toFixed(2)}×`}>
+                <Sl value={gCS as number} min={0} max={2} step={0.05} onChange={sGCS} />
+              </FR>
+            )}
+            {((gCM as string) === 'custom') && (
+              <div className="mt-2 space-y-1">
+                <p className="font-ui text-xs" style={{ color: 'var(--text-muted)' }}>Colors (cycled)</p>
+                {(gCC as string[]).map((col, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <CP
+                      value={col}
+                      onChange={(v) => {
+                        const next = [...(gCC as string[])];
+                        next[idx] = v;
+                        sGCC(next);
+                      }}
+                    />
+                    {(gCC as string[]).length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = (gCC as string[]).filter((_, i) => i !== idx);
+                          sGCC(next);
+                        }}
+                        className="rounded px-1.5 py-0.5 font-ui text-xs"
+                        style={{ color: 'var(--danger)', border: '1px solid var(--border)' }}
+                      >−</button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => sGCC([...(gCC as string[]), '#ffffff'])}
+                  className="mt-1 rounded px-2 py-1 font-ui text-xs"
+                  style={{ color: 'var(--accent)', border: '1px solid var(--border)' }}
+                >+ Add color</button>
+                <FR label="Cycle speed" hint={`${(gCS as number).toFixed(2)}×`}>
+                  <Sl value={gCS as number} min={0} max={2} step={0.05} onChange={sGCS} />
+                </FR>
+              </div>
+            )}
             <FR label="Intensity" hint={`${gI}%`}>
               <Sl value={gI as number} min={0} max={100} step={1} onChange={sGI} />
             </FR>
@@ -977,9 +1035,6 @@ function LogoSection_() {
       <Acc label="Animation">
         <FR label="Beat scale" hint={`${Math.round((bsc as number) * 100)}%`}>
           <Sl value={bsc as number} min={0} max={1} step={0.05} onChange={sBsc} />
-        </FR>
-        <FR label="Rotation burst on beat" hint={`${(rotB as number).toFixed(2)}`}>
-          <Sl value={rotB as number} min={0} max={2} step={0.05} onChange={sRotB} />
         </FR>
         <div className="mt-2">
           <HzRangePicker
