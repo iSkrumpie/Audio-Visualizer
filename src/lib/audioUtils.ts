@@ -202,6 +202,24 @@ export class FreqBeatDetector {
   }
 
   /**
+   * Soft reset: clears phase and prevBins but keeps the calibrated
+   * fluxHistory.
+   *
+   * Used after the export pre-warm pass: the pre-warm runs representative
+   * frames through the detector to calibrate avgFlux to the song’s typical
+   * beat-flux level. After pre-warm, only phase (to avoid a false-beat
+   * spike at the start of the render) and prevBins (to match the actual
+   * first frame of the export) need to be cleared. Resetting fluxHistory
+   * too would throw away the calibration.
+   */
+  resetPhaseAndPrevBins(): void {
+    this.prevBins = new Float32Array(1024);
+    this.phase = 0;
+    this.lastEnergy = 0;
+    // fluxHistory intentionally kept — holds the pre-warm calibration
+  }
+
+  /**
    * Call once per frame with the RAW (unsmoothed) FFT data and Hz range.
    *
    * @param rawFreqData  audioAnalysis.rawFreqData (1024 bins, kick analyser)

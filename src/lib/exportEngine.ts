@@ -1,5 +1,5 @@
 /**
- * Export Engine — renders the Three.js scene frame-by-frame and encodes to MP4
+ * Export Engine - renders the Three.js scene frame-by-frame and encodes to MP4
  *
  * Uses Mediabunny (WebCodecs wrapper) for H.264/AAC encoding.
  * YouTube-spec: 1080p60, 12 Mbps, AAC-LC 384kbps Stereo 48kHz, BT.709.
@@ -61,7 +61,7 @@ async function findSupportedAacBitrate(
       });
       if (result.supported) return bitrate;
     } catch {
-      // isConfigSupported not available or threw — skip
+      // isConfigSupported not available or threw - skip
     }
   }
   // Last resort: return smallest candidate and let the encoder fail naturally
@@ -96,10 +96,10 @@ export async function exportMP4(
     const audioCtx = new AudioContext({ sampleRate: 48000 });
     console.log('[EXPORT DEBUG] AudioContext state before decode:', audioCtx.state);
 
-    // Ensure AudioContext is running — a suspended context may fail to decode
+    // Ensure AudioContext is running - a suspended context may fail to decode
     // correctly on some Chrome versions (autoplay-policy timing).
     if (audioCtx.state === 'suspended') {
-      try { await audioCtx.resume(); } catch { /* ignore — decode usually still works */ }
+      try { await audioCtx.resume(); } catch { /* ignore - decode usually still works */ }
     }
 
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
@@ -143,9 +143,9 @@ export async function exportMP4(
 
     // Resize renderer + R3F's internal state.size for export.
     // CRITICAL: must use sceneRegistry.setSize (not just gl.setSize) so
-    // components that read width/height from useThree(s => s.size) — like
+    // components that read width/height from useThree(s => s.size) - like
     // the background plane scale, shader uResolution, and bars/particle
-    // scaling — see the export resolution and not the preview-window size.
+    // scaling - see the export resolution and not the preview-window size.
     if (sceneRegistry.setSize) {
       sceneRegistry.setSize(width, height);
     } else {
@@ -167,7 +167,7 @@ export async function exportMP4(
 
     // Pin the canvas CSS size to the export resolution so that
     // react-use-measure's ResizeObserver reports the export size back
-    // to R3F's state.size — not the preview's container-clipped size.
+    // to R3F's state.size - not the preview's container-clipped size.
     // Without this, the canvas backing buffer is the right size but the
     // CSS box (and therefore all mesh scales that derive from state.size
     // in useFrame) is still the preview size, producing a stretched /
@@ -183,7 +183,7 @@ export async function exportMP4(
       bitrate: videoBitrate,
       keyFrameInterval: 2,
     });
-    // Probe for supported AAC bitrate — Chrome WebCodecs often rejects high values
+    // Probe for supported AAC bitrate - Chrome WebCodecs often rejects high values
     const aacCandidates = [audioBitrate, 320_000, 256_000, 192_000, 128_000].filter(
       (v, i, a) => a.indexOf(v) === i, // deduplicate
     );
@@ -205,30 +205,14 @@ export async function exportMP4(
     output.addVideoTrack(videoSource);
     output.addAudioTrack(audioSource);
 
-    // Start the output — required before any frames can be added
+    // Start the output - required before any frames can be added
     await output.start();
 
-    // Global beat detector — mirrors useAudioReactive's live detector so the
+    // Global beat detector - mirrors useAudioReactive's live detector so the
     // exported video matches the live preview's audio reactivity exactly.
     // Sample rate is hard-pinned to 48 kHz (the AudioContext above) for
     // correct Hz→bin mapping.
     const globalBeatDetector = new FreqBeatDetector(audioBuffer.sampleRate);
-
-    // Reset every per-component FreqBeatDetector instance to a clean
-    // first-frame state. They have been running against the live audio
-    // stream in the preview and their prevBins / fluxHistory are trained
-    // on that data — without a reset, the first ~40 frames (~0.67s) of
-    // the export would compare precomputed spectral flux against
-    // live-trained flux averages, producing wrong beat cadences and
-    // visibly inconsistent beat-driven animations (grid pulse, scanline
-    // beat, logo fire, particle kick, etc.).
-    for (const detector of sceneRegistry.beatDetectors) {
-      // Use resetForExport() instead of reset(): pre-fills fluxHistory with
-      // minFlux so a single early spike (silence → music transition) can’t
-      // dominate the adaptive threshold and suppress all subsequent beats.
-      // Falls back to reset() if the method is not present.
-      (detector.resetForExport ?? detector.reset).call(detector);
-    }
 
     onProgress({ phase: 'rendering', progress: 0, message: `Rendering 0/${fftFrames.length} frames...` });
 
@@ -251,6 +235,50 @@ export async function exportMP4(
     const exportPerfBase = origPerfNow();
     let exportFrameNow = exportPerfBase; // will be advanced per frame
     (performance as unknown as { now: () => number }).now = () => exportFrameNow;
+
+    // ── Beat-detector pre-warm pass ─────────────────────────────────────────────────────
+    // Run ~80 frames from the MID-POINT of the song through the render
+    // pipeline without capturing any video frames. Each advance() call
+    // triggers all useFrame callbacks, which call detector.update() with
+    // real song data — filling fluxHistory with the song’s typical
+    // beat-flux level.
+    //
+    // WHY: After detector.reset() or resetForExport(), the first real
+    // audio event (even a tiny one) fires the beat and raises avgFlux.
+    // That inflated threshold then suppresses all subsequent real beats
+    // for the entire export. Pre-warming with 80 representative frames
+    // calibrates the adaptive threshold BEFORE the render loop starts,
+    // so the detector behaves identically to the live preview.
+    //
+    // After pre-warm: resetPhaseAndPrevBins() clears the phase (no false
+    // beat spike at frame 0) and prevBins (so frame 0’s flux is computed
+    // correctly from silence) while keeping the calibrated fluxHistory.
+    {
+      const PREWARM_FRAMES = 80; // two full fluxHistory windows—enough to calibrate
+      const pwStart = Math.max(0, Math.floor(totalFrames / 2) - Math.floor(PREWARM_FRAMES / 2));
+      for (let pw = 0; pw < PREWARM_FRAMES && pwStart + pw < totalFrames; pw++) {
+        const pwFrame = fftFrames[pwStart + pw];
+        audioAnalysis.freqData.set(pwFrame.freqData.subarray(0, 128));
+        audioAnalysis.rawFreqData.set(pwFrame.rawFreqData.subarray(0, 1024));
+        audioAnalysis.bass      = pwFrame.bass;
+        audioAnalysis.loudness  = pwFrame.loudness;
+        audioAnalysis.highs     = pwFrame.highs;
+        audioAnalysis.energy    = pwFrame.energy;
+        // Advance the fake clock so each pre-warm frame also has correct delta.
+        exportFrameNow = exportPerfBase + (pw + 1) * frameDuration * 1000;
+        (performance as unknown as { now: () => number }).now = () => exportFrameNow;
+        if (sceneRegistry.advance) sceneRegistry.advance(pw * frameDuration);
+        (performance as unknown as { now: () => number }).now = origPerfNow;
+        if (pw % 30 === 0) await new Promise((r) => setTimeout(r, 0));
+      }
+      // Reset the fake clock base so the real render loop starts cleanly.
+      exportFrameNow = exportPerfBase;
+    }
+
+    // After pre-warm: zero phase + prevBins but keep the calibrated fluxHistory.
+    for (const detector of sceneRegistry.beatDetectors) {
+      (detector.resetPhaseAndPrevBins ?? detector.resetForExport ?? detector.reset).call(detector);
+    }
 
     for (let i = 0; i < totalFrames; i++) {
       const frame = fftFrames[i];
@@ -286,13 +314,13 @@ export async function exportMP4(
       audioAnalysis.beatPhase = globalBeat;
       useAudioStore.getState().beatPhase = globalBeat;
 
-      // Advance R3F frame — runs all useFrame callbacks (bars, particles, etc.) then renders
+      // Advance R3F frame - runs all useFrame callbacks (bars, particles, etc.) then renders
       const timestamp = i * frameDuration;
 
       // Re-pin R3F's state.size + canvas backing buffer to the export target
       // BEFORE running useFrame callbacks. R3F's react-use-measure
       // ResizeObserver fires async and can write a clipped size (parent's
-      // overflow-hidden / scrollbar) back into state.size — which would
+      // overflow-hidden / scrollbar) back into state.size - which would
       // then be picked up by all useFrame callbacks that derive mesh
       // scale from state.size, producing a stretched/squashed render
       // (camera frustum = export size, mesh scale = preview size).
