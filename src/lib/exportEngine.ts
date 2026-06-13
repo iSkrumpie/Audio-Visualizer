@@ -259,6 +259,9 @@ export async function exportMP4(
       audioAnalysis.highs = frame.highs;
       audioAnalysis.energy = frame.energy;
 
+      // Track current export frame for in-component diagnostics.
+      (window as unknown as Record<string, unknown>).__exportFrameIdx = i;
+
       // [EXPORT DEBUG] Log frames 0-4 and 30-60 to verify FFT data quality.
       // rawFreqData.max should be >> 0 where music is loud (beats, bass).
       if (i < 5 || (i >= 30 && i <= 60)) {
