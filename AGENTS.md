@@ -4,6 +4,58 @@ Diese Datei ist der **persistente Kontext-Snapshot** für jeden KI-Agenten, der 
 
 ---
 
+## 0. Orchestrator-Regeln (verbindlich für alle Agents)
+
+### 0.1 Rollenverteilung
+- **Ich (Haupt-Agent / Orchestrator)** plane, entscheide, verifiziere und kommuniziere mit dem User. **Ich schreibe KEINEN Code selbst.**
+- **Jegliche Implementierungs-Arbeit delegiere ich an `worker`-Subagents.** Jeder Worker bekommt einen vollständigen, abgeschlossenen Task mit Kontext, Akzeptanzkriterien und Verifikationsschritten.
+- **Worker dürfen ihrerseits Subagents einsetzen** (z. B. `scout` zum Code-Finden, `researcher` für Doku/Recherche, weitere `worker` für isolierte Teilaufgaben). Das ist explizit erlaubt und erwünscht.
+- **Triviale 1–2-Schritt-Tasks** (z. B. `git add` + `git commit`, Konsole-Kommandos, Status-Checks) führt der Orchestrator weiterhin **selbst** aus. Das ist **kein** Verstoß gegen 0.1.
+
+### 0.2 Worker-Briefing (Pflicht-Inhalt)
+Jeder Worker-Task enthält mindestens:
+1. **Ziel** — was genau soll am Ende funktionieren / anders sein.
+2. **Betroffene Dateien** — Pfade, ggf. mit Reason "warum" pro Datei.
+3. **Constraints** — relevante Regeln aus AGENTS.md (z. B. ANGLE-Prefix-Regel, `frameloop="never"`-Konventionen, Settings-Schema-Bump-Regel).
+4. **Verifikation** — wie der Worker **selbst** prüft, dass die Änderung korrekt ist (z. B. `npm run typecheck`, `npm run build`, gezielter `grep`/`read`).
+5. **Output-Format** — kurze Zusammenfassung: "geändert: X, Y · verifiziert: typecheck=OK, build=OK · offene Punkte: …".
+
+### 0.3 Verifikation
+- Worker verifizieren **selbst** (typecheck, build, grep, read). Erst dann melden sie "fertig".
+- Der Orchestrator verifiziert **nach** dem Worker **stichprobenartig oder bei Risiko** erneut, bevor er committed oder dem User Erfolg meldet.
+
+---
+
+## 0.4 Commit-Pflicht (feingranularer Rollback)
+
+**Nach JEDER abgeschlossenen Änderung — egal ob von Orchestrator oder Worker — wird sofort ein Commit gemacht.** Ziel: jederzeit auf jede Zwischenversion zurückrollen können.
+
+### Regeln
+- **Granularität:** ein Commit pro logisch trennbarem Änderungsblock (z. B. UI-Section + Library-Helper getrennt, nicht in einem Riesensammel-Commit).
+- **Message-Stil:** [Conventional Commits](https://www.conventionalcommits.org/) — `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `style:`, `perf:`, `test:`. Optional Scope: `feat(InstancedBars): …`.
+- **Commits gehören zum Workflow**, nicht zur Höflichkeit. Wird eine Änderung nicht committed, gilt sie als **nicht abgeschlossen**.
+- **VOR einer neuen Änderung** immer kurz `git status` + `git diff --stat` prüfen — kein `git add -A` "auf Verdacht". Nur die tatsächlich von der aktuellen Änderung betroffenen Dateien stagen.
+- **Vor destruktiven Operationen** (`reset --hard`, `clean`, Branch-Löschung) **immer** beim User rückfragen.
+- **WIP-Stände** dürfen als `wip: …`-Commit committed werden, wenn ein Rollback-Punkt gebraucht wird. Vor dem nächsten Feature-Commit dann `git reset --soft HEAD~1` und neu squaschen.
+
+### Standard-Workflow
+1. Worker liefert fertige, selbst-verifizierte Änderung.
+2. Orchestrator prüft `git status` / `git diff --stat`.
+3. Orchestrator erstellt **einen** passenden Commit (Conventional-Commits-Format).
+4. Bei mehreren unabhängigen Änderungsblöcken: **mehrere** Commits hintereinander, jeder mit eigenem Type/Scope.
+
+### Author
+- Aktuell gesetzt: `Skrumpie <skrumpie@local>` (lokal-only, **nicht** global).
+- User kann das jederzeit mit `git config user.email "…"` überschreiben (repo-lokal reicht).
+
+### Rollback-Hilfe
+- `git log --oneline -n 20` — Historie ansehen.
+- `git checkout <hash> -- <pfad>` — einzelne Datei aus altem Stand holen.
+- `git revert <hash>` — sicheren Rückwärts-Commit erzeugen (bevorzugt bei veröffentlichtem/push-barem Stand).
+- `git reset --hard <hash>` — **nur auf explizite User-Freigabe**, in diesem rein lokalen Repo aber unkritisch.
+
+---
+
 ## 1. Was ist das?
 
 **AudioVisualizer** ist eine **client-only Single-Page-Webapp**, die eine vom User hochgeladene Audio-Datei in Echtzeit als Three.js-Visualisierung rendert und das Ergebnis als **MP4** exportiert (YouTube oder TikTok, mehrere Qualitätsstufen).
@@ -343,3 +395,26 @@ node scripts/<name>.mjs   # Playwright-Smoketest (braucht laufenden Dev-Server v
 ---
 
 *Stand: Session 5 — settingsStore v8. Alle Hz-basierten Beat-Effekte auf `FreqBeatDetector` (Spectral-Flux Onset-Detection) umgestellt. `audioAnalysis.rawFreqData` (kick analyser, 1024 Bins, smoothing=0) exponiert und als einzige Datenquelle für Beat-Detection verwendet. `FreqBeatDetector`-Instanzen: 1× BackgroundPlane, 2× CenterLogo (logo + fire), 1× GPUParticles. Bloom-Shader auf korrekten 9×9 2D-Gaussian-Kernel (1-Texel-Stride) korrigiert. Glow-Plane auf CircleGeometry (64 Seg) + Edge-Fade umgestellt. Session 4: settingsStore v8, Hz-Slider, Logo-Vereinfachung, Fire-Ring, Custom Colors, Stylize-Animationen.*
+
+---
+
+## 9. Git-Workflow (Kurz-Cheat-Sheet)
+
+```bash
+# Status / Diff
+git status                          # was ist geändert?
+git diff --stat                     # kompakte Übersicht
+git diff <datei>                    # Detail einer Datei
+
+# Committen (Conventional Commits, pro logischem Block)
+git add <datei1> <datei2>           # NUR die betroffenen Dateien
+git commit -m "feat(InstancedBars): add custom color mode"
+
+# History / Rollback
+git log --oneline -n 20             # letzte 20 Commits
+git checkout <hash> -- <pfad>       # einzelne Datei aus altem Stand
+git revert <hash>                   # sicherer Rückwärts-Commit
+git reset --hard <hash>             # nur nach User-Freigabe
+```
+
+**Erinnerung:** Nach jeder Änderung committen — Details in **§ 0.4** (Commit-Pflicht).
