@@ -14,26 +14,29 @@
  *   loudness  = avg(all bins)         → 0..1
  *   highs     = avg(bins 60..end)     → 0..1
  *
- * Beat detection: rolling 25-frame history of kick-band energy, kick fires
- * when current > 1.6 * avg AND > 0.12 absolute.
+ * Beat detection: configurable FreqBeatDetector (spectral-flux) driven by
+ * settings.audio.globalBeatFreqStart/End/Sensitivity. Hz range and sensitivity
+ * are read live from settings each rAF tick.
  */
 
 import { useRef, useCallback, useEffect } from 'react';
 import { useAudioStore } from '@/lib/audioStore';
 import { sceneRegistry } from '@/components/three/AudioScene';
+import { FreqBeatDetector } from '@/lib/audioUtils';
+import { getSettings } from '@/lib/settingsStore';
 
 // ── Tunables (skrumpie.de-derived) ─────────────────────────────────────────
 const VISUAL_FFT = 256; // → 128 bins
 const KICK_FFT = 2048;
 const VISUAL_SMOOTHING = 0.55;
 const KICK_SMOOTHING = 0.0;
-const KICK_LO_HZ = 60;
-const KICK_HI_HZ = 120;
-const SAMPLE_RATE_FALLBACK = 44100;
-const HISTORY_LEN = 25;
 const MASTER_GAIN = 1.0;
-const BEAT_DECAY = 0.035;
 const BEAT_GLOW_MAX = 55; // px, mirrors skrumpie.de CSS var
+
+// ── Global beat detector (configurable Hz range + sensitivity) ─────────────
+// Module-level singleton — lives for the lifetime of the page.
+// The Hz range and sensitivity are read live from settings each rAF tick.
+const globalBeatDetector = new FreqBeatDetector();
 
 // ── Shared mutable analysis (read by canvas/Three.js render loops) ─────────
 export const audioAnalysis = {
@@ -58,8 +61,6 @@ export function useAudioReactive() {
   const kickRef = useRef<AnalyserNode | null>(null);
   const visualDataRef = useRef<Uint8Array>(new Uint8Array(VISUAL_FFT / 2));
   const kickDataRef = useRef<Uint8Array>(new Uint8Array(KICK_FFT / 2));
-  const energyHistRef = useRef<number[]>(new Array(HISTORY_LEN).fill(0));
-  const beatGlowRef = useRef(0);
   const rafRef = useRef<number | null>(null);
 
   const setPlayingRef = useRef(useAudioStore.getState().setPlaying);
@@ -154,37 +155,29 @@ export function useAudioReactive() {
         store.energy = Math.min(1, bass * 2 + loudness * 1 + highs * 0.5);
       }
 
-      // ── Kick detection (60-120Hz transient) ────────────────────────
+      // ── Global beat detection (configurable Hz range via settings.audio) ──
       const kick = kickRef.current;
       if (kick) {
         const kd = kickDataRef.current;
         kick.getByteFrequencyData(kd as Uint8Array<ArrayBuffer>);
-        // Expose raw (unsmoothed) FFT data for configurable beat detection
+        // Expose raw (unsmoothed) FFT data for per-component beat detectors
         audioAnalysis.rawFreqData.set(kd);
 
-        const sr = ctx?.sampleRate ?? SAMPLE_RATE_FALLBACK;
-        const binHz = sr / KICK_FFT;
-        const lo = Math.floor(KICK_LO_HZ / binHz);
-        const hi = Math.ceil(KICK_HI_HZ / binHz);
+        // Read current settings live (no React re-render needed)
+        const audioSettings = getSettings().audio;
+        globalBeatDetector.setSensitivity(audioSettings.globalBeatSensitivity);
+        const globalBeat = globalBeatDetector.update(
+          kd,
+          audioSettings.globalBeatFreqStart,
+          audioSettings.globalBeatFreqEnd,
+        );
 
-        let kickEnergy = 0;
-        for (let i = lo; i <= hi; i++) kickEnergy += kd[i];
-        kickEnergy /= (hi - lo + 1) * 255;
-
-        const hist = energyHistRef.current;
-        hist.push(kickEnergy);
-        hist.shift();
-        const avg = hist.reduce((a, b) => a + b, 0) / HISTORY_LEN;
-        const isKick = kickEnergy > avg * 1.6 && kickEnergy > 0.12;
-
-        if (isKick) beatGlowRef.current = 1;
-        beatGlowRef.current = Math.max(0, beatGlowRef.current - BEAT_DECAY);
         document.documentElement.style.setProperty(
           '--beat-glow',
-          `${Math.round(beatGlowRef.current * BEAT_GLOW_MAX)}px`,
+          `${Math.round(globalBeat * BEAT_GLOW_MAX)}px`,
         );
-        audioAnalysis.beatPhase = beatGlowRef.current;
-        useAudioStore.getState().beatPhase = beatGlowRef.current;
+        audioAnalysis.beatPhase = globalBeat;
+        useAudioStore.getState().beatPhase = globalBeat;
       }
 
       // Drive R3F frame (frameloop="never" — runs all useFrame callbacks)

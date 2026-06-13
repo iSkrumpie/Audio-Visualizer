@@ -1,6 +1,9 @@
 /**
  * Settings Store (Zustand + localStorage persist)
  *
+ * v9: Added `audio` group with globalBeatFreqStart/End/Sensitivity for
+ *     configurable global beat detection (replaces hardcoded 60-120 Hz kick).
+ *
  * v8: Beat FX source replaced with Hz range (beatFxFreqStart/End).
  *     Stylize effects (noise, scanlines, glitch, pixelation, dot screen, grid)
  *     gained animation / reactivity sub-parameters.
@@ -177,6 +180,15 @@ export type Settings = {
     peakDecay: number;          // 0.980..0.999
   };
 
+  audio: {
+    /** Global beat detector low Hz bound (20..20000, default 40) */
+    globalBeatFreqStart: number;
+    /** Global beat detector high Hz bound (20..20000, default 120) */
+    globalBeatFreqEnd: number;
+    /** Global beat detector sensitivity multiplier (0.1..5.0, default 1.0) */
+    globalBeatSensitivity: number;
+  };
+
   particles: {
     enabled: boolean;
     count: number;              // 0..400
@@ -341,6 +353,12 @@ const DEFAULT_SETTINGS: Settings = {
     peakDecay: 0.987,
   },
 
+  audio: {
+    globalBeatFreqStart: 40,
+    globalBeatFreqEnd: 120,
+    globalBeatSensitivity: 1.0,
+  },
+
   particles: {
     enabled: true,
     count: 120,
@@ -388,9 +406,9 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v8',
+      name: 'audiovisualizer:settings:v9',
       storage: createJSONStorage(() => localStorage),
-      version: 8,
+      version: 9,
       migrate: () => ({ settings: DEFAULT_SETTINGS }),
     },
   ),
