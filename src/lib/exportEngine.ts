@@ -92,7 +92,7 @@ export async function exportMP4(
 
     // Phase 2: Pre-compute FFT
     onProgress({ phase: 'analyzing', progress: 0, message: 'Analyzing audio...' });
-    const fftFrames = precomputeFFT(audioBuffer, fps);
+    const fftFrames = await precomputeFFT(audioBuffer, fps);
     onProgress({ phase: 'analyzing', progress: 1, message: `${fftFrames.length} frames analyzed.` });
 
     // Phase 3: Render frames
@@ -205,6 +205,7 @@ export async function exportMP4(
       audioAnalysis.bass = frame.bass;
       audioAnalysis.loudness = frame.loudness;
       audioAnalysis.highs = frame.highs;
+      audioAnalysis.energy = frame.energy;
 
       // Drive the global beat detector with the same settings as live preview
       globalBeatDetector.setSensitivity(audioSettings.globalBeatSensitivity ?? 1.0);

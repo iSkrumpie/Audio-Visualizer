@@ -49,6 +49,8 @@ export const audioAnalysis = {
   rawFreqData: new Uint8Array(KICK_FFT / 2),
   /** Raw time-domain data, 256 bytes, 128 = silence */
   waveData: new Uint8Array(VISUAL_FFT),
+  /** 0..1, combined energy from bass + loudness + highs */
+  energy: 0,
   /** 0..1, decays from 1 after kick, drives logo pulse + glow */
   beatPhase: 0,
 };
