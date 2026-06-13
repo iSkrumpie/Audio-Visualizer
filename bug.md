@@ -1,6 +1,6 @@
 # Export-Bug: Background, Bars, Particles reagieren im MP4 schwächer als im Preview
 
-**Status:** OFFEN — wird in einer späteren Session weiter bearbeitet.
+**Status:** GELÖST — Commit `d9da87a` (Session 10).
 
 **Symptom (Stand Session nach Commit `1704883`):**
 - Preview: Background-Beat-Animationen (Grid-Pulse, Scanline-Beat, Noise-Boost, Glitch-on-Beat, Pixelation, Dot-Scale, Background-Scale) pulsieren sichtbar.

@@ -471,7 +471,7 @@ node scripts/measure-logo-real.mjs       # Echtes User-Logo (braucht tmp/Logo.pn
 
 ---
 
-*Stand: Session 9 — **OFFENER EXPORT-BUG** (siehe `bug.md`). Background, Bars und Particles reagieren im MP4 weiterhin schwächer als im Preview. Mehrere systematische Abweichungen wurden bereits gefixt (siehe unten), aber das Problem besteht. AGENTS.md-Update dieser Session: §4.5 (Export-Pipeline), §4.3 (R3F-State-Sync), §4.11 (FreqBeatDetector) und §6 (bekannte Stolpersteine) wurden mit den neuen Hooks und Methoden aus den Fixes ergänzt. settingsStore weiterhin v11.*
+*Stand: Session 10 — Export-Bug **GELÖST** (Commit `d9da87a`). Root-Cause war die custom Cooley-Tukey-FFT-Implementierung, die trotz aller Session-9-Fixes eine **Approximation** des Browser-AnalyserNodes blieb. Lösung: `precomputeFFT()` in `fft.ts` komplett durch `OfflineAudioContext + AnalyserNode + suspend()/resume()` ersetzt. Damit läuft exakt derselbe Chromium-Code wie im Live-Preview → byte-identische Ausgabe garantiert. Zusätzlich: `audioAnalysis.energy` wird jetzt im Export-Loop pro Frame gesetzt (war vorher vergessen worden). `precomputeFFT` ist jetzt `async` (gibt `Promise<Array<...>>` zurück). settingsStore weiterhin v11.*
 
 *Session 9 — Export-Pipeline-Fixes (6 Commits, alle auf settingsStore v11):*
 - *`c109b84` — Race-Condition: `useAudioReactive` rAF-Loop überschrieb im Export die precomputed FFT-Daten. Fix: `stopAndPause()` / `startAndPlay()` Methoden, `App.tsx:handleStartExport` ruft `stopAndPause()` vor `exportMP4`, `startAndPlay()` in `finally`.*
