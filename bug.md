@@ -1,206 +1,248 @@
-# Export-Bug: Background, Bars, Particles reagieren im MP4 schwächer als im Preview
+# Export-Bug: Animationen reagieren im MP4 kaum/nicht auf Audio
 
-**Status:** OFFEN — zwei Bestätigte Root-Causes, beide gefixt in Commit `2fe4030`. Browser-Test steht aus.
-
-**Confirmed Root Causes:**
-- Bug 1: `OfflineAudioContext.AnalyserNode.getByteFrequencyData()` gibt in Chrome immer Zeros zurück (Chrome-Limitation). Fix: zurück zur custom Cooley-Tukey FFT.
-- Bug 2: `THREE.Clock` benutzt `performance.now()` intern für delta-Berechnung — ignoriert den timestamp der an `advance()` übergeben wird. Im schnellen Export-Loop → delta ≈ 0.001s statt 0.01667s → alle zeitbasierten Animationen (uTime, noise, scanlines, glitch, orbit) laufen 16× zu langsam → erscheinen eingefroren. Fix: `performance.now()` während `advance()` überschreiben.
-
-**Symptom (Stand Session nach Commit `1704883`):**
-- Preview: Background-Beat-Animationen (Grid-Pulse, Scanline-Beat, Noise-Boost, Glitch-on-Beat, Pixelation, Dot-Scale, Background-Scale) pulsieren sichtbar.
-- Export (.mp4): selbe Settings → Background "bewegt sich kaum bzw. nicht mal ansatzweise so viel wie im Preview". Bars und Particles reagieren ebenfalls weniger stark.
-- Die im Vorfeld gefixten Bugs (Sample-Rate, FFT-Normalisierung, dB-Mapping, Window-Funktion) sind also nicht die alleinige Ursache — oder es gibt weitere, noch nicht gefundene Abweichungen.
+**Status:** OFFEN — noch nicht gefixt. Zuletzt bearbeitet: Session 11 (aktuell).
 
 ---
 
-## 1. Was bisher gefixt wurde (zur Sicherheit nochmal kurz)
+## Symptom
 
-| Commit | Was |
-|--------|-----|
-| `c109b84` | `useAudioReactive` rAF-Loop wird im Export gestoppt (Race-Condition) |
-| `9fe1ec7` | FFT-Normalisierung + Sample-Rate + Resolution-Sync + Window-Center |
-| `cc53978` | Canvas-Backing-Buffer pro Frame auf Export-Größe gepinnt |
-| `dde5c3c` | `useFrame` liest `state.size` live statt aus Closure |
-| `d2a3274` | Component-Detectoren werden vor Export-Start resettet |
-| `1704883` | FFT-Pipeline an Web Audio AnalyserNode angeglichen (Blackman + 1/N + [-100,-30] dB + Trailing-Window + Smoothing + Downmix) |
-
-Trotzdem: Background reagiert im MP4 zu schwach.
+- **Preview:** Hintergrund pulsiert deutlich mit der Musik. Beat-Effekte (Grid-Pulse, Scanlines, Noise-Boost, Scale-on-Beat etc.) reagieren sichtbar auf den Beat.
+- **Export (.mp4):** Selbe Settings → Hintergrund reagiert kaum bis gar nicht. Animations-Unterschied ist stark sichtbar.
+- **Canvas hinter Export-Modal:** Auch während des Exports (Canvas sichtbar hinter ExportOverlay) sehen die Animationen falsch aus — das Problem liegt im Rendering, nicht im MP4-Encoding.
 
 ---
 
-## 2. Verbleibende Hypothesen (in Reihenfolge der Plausibilität)
+## Was wir in Session 11 herausgefunden haben (Diagnostik)
 
-### H1 (HOCH): `state.size` ist im Export-Loop weiterhin der Preview-Wert
+### Bestätigte Fakten (via Console-Logs)
 
-**Vermutung:** Trotz `sceneRegistry.setSize(width, height)` (was `r3fSetSize` ruft) und trotz `state.size` jetzt im useFrame live gelesen wird, ist `state.size` zum Zeitpunkt des useFrame-**Aufrufs** möglicherweise doch noch der Preview-Wert.
-
-**Warum:** `sceneRegistry.setSize` ruft synchron `r3fSetSize(w, h)`, was R3F's `state.size` setzt. R3F-subscribe feuert synchron `gl.setSize(w, h, true)` → setzt CSS-Style. ResizeObserver feuert **asynchron** (microtask) und misst `getBoundingClientRect()`. Wenn der Parent clippt, schreibt Observer `state.size` auf einen **falschen** (clipped) Wert zurück. Der nächste `useFrame`-Aufruf liest diesen clipped Wert.
-
-**Mein Fix `dde5c3c` pinnt `state.size` JEDES Frame VOR `advance()`.** Das sollte funktionieren, **AUSSER** wenn der Resize-Observer **zwischen** `r3fSetSize` und `useFrame` (innerhalb desselben synchronen Blocks) feuert. ResizeObserver ist async (microtask), das geht eigentlich nicht. **Aber:** R3F's `react-use-measure` nutzt eine **eigene** Resize-Mechanik; möglicherweise ist die synchroner als angenommen.
-
-**Test:** Im Export einen `console.log(state.size)` im Background-`useFrame` einbauen und prüfen, ob der Wert die Export-Auflösung hat.
-
-### H2 (HOCH): `audioAnalysis.rawFreqData` wird im Export-Loop mit Werten gefüttert, die im **Byte-Bereich** niedriger sind als Live
-
-**Vermutung:** Selbst mit korrektem Web-Audio-Mapping ist der **durchschnittliche** Byte-Wert im Live-Stream höher als im Export.
-
-**Warum:** 
-- Live: `getByteFrequencyData` liefert Werte aus `[0, 255]`, die dem Web-Audio-dB-Mapping entsprechen.
-- Export: `extractFFTFrame` macht das theoretisch auch.
-- **ABER:** Web Audio's `AnalyserNode` arbeitet auf einem **Live-Ring-Buffer** mit 2× `kMaxFFTSize` (65536) Samples. Die letzten `fftSize` Samples werden für die FFT genommen — also trailing. Mein Code macht das auch.
-- **ABER:** Im **Live-Stream** kommen kontinuierlich Samples in den Ring-Buffer, sodass `getByteFrequencyData` zu **jedem** Zeitpunkt ein "frisches" Spektrum hat. Im **Export** wird `audioBuffer.getChannelData(c)` direkt gesampelt — keine Ring-Buffer-Mechanik. Wenn der Sample `time = 0` ist, ist `endSample = 0`, `startSample = -fftSize`, alle Samples sind 0 → Spektrum ist 0. **Frame 0 hat ein "leeres" Spektrum** (im Web-Audio-Sinn).
-- Bei Frame 1 (`time = 1/60s`): `endSample = 800`, `startSample = -1248` (für fftSize=2048). Samples `[0..800]` aus Audio, davor 0. Spektrum hat Inhalt, aber **die ersten 1248 Samples sind 0** → asymmetrisches Spektrum mit DC-Bias.
-
-**Konsequenz:** Der **erste Frame** hat ein "leeres" Spektrum. Die nächsten ~21 ms (fftSize/2 bei 48kHz) haben ein asymmetrisches Spektrum. Das könnte den **durchschnittlichen** Magnitude-Level drücken.
-
-**Test:** Im Export `audioAnalysis.rawFreqData` über die ersten 100 Frames loggen und mit Live-Werten vergleichen.
-
-### H3 (MITTEL): `FreqBeatDetector.update()` adaptive Threshold ist auf den Live-Stream-Mittelwert trauriert, nicht auf Precomputed
-
-**Vermutung:** Der `fluxHistory` Rolling-Average ist ein EMA auf 40 Frames. Nach meinem `d2a3274`-Fix wird er resettet. Aber **die ersten ~40 Frames** des Exports haben einen anderen Statistik-Mittelwert als der Live-Stream nach längerem Hören.
-
-**Warum:** Wenn das Audio leise Passagen am Anfang hat (typisch für Musik), ist `flux` klein. Detector triggert nicht oder selten. Erst wenn laute Passagen kommen, normalisiert sich das.
-
-**Test:** `globalBeatDetector.fluxHistory` loggen, vergleichen mit typischen Live-Werten.
-
-### H4 (MITTEL): `useFrame` läuft im Export mit `delta = 1/fps = 16.67ms` konstant, im Preview ist `delta` variabel
-
-**Vermutung:** Im Live-Preview ist `delta` variabel je nach Browser-Load (14-22ms typisch). Das beeinflusst:
-- `uTime`-Akkumulation: variabel vs. konstant
-- Smooth-Decay-Rate (z.B. `phase -= 0.04` pro Frame, unabhängig von `delta`)
-
-**Konsequenz:** Falls der Browser im Preview dropped frames, läuft `useFrame` seltener, `phase` decay'd **seltener**, `uTime` wächst langsamer. Im Export deterministisch.
-
-**ABER:** Bei 60fps sind beide ähnlich. Marginaler Effekt.
-
-**Test:** Preview `delta` über 100 Frames loggen.
-
-### H5 (MITTEL): Das `globalBeatDetector`-Singleton in `useAudioReactive` läuft weiterhin im Live-Stream — auch im Export
-
-**Vermutung:** Nach `stopAndPause()` in `App.tsx:handleStartExport` ist der rAF-Loop gestoppt. Aber der **`globalBeatDetector` Singleton auf Module-Level** (`useAudioReactive.ts:39`) lebt weiter. Er hat noch Live-trainierten State.
-
-**Im Export-Loop:** `exportEngine.ts:179` erstellt eine **neue** `globalBeatDetector`-Instanz. Die schreibt `audioAnalysis.beatPhase`. Die Module-Level-Instanz wird im Export nicht benutzt (rAF-Loop ist gestoppt).
-
-**ABER:** Components lesen `audioAnalysis.beatPhase` im useFrame und nutzen das für `glowUniforms.uGwBeat.value`, etc. Das wird im Export-Loop korrekt gesetzt. OK.
-
-**Test:** Im Export prüfen, ob `audioAnalysis.beatPhase` Werte hat (nicht 0).
-
-### H6 (NIEDRIG): Unterschiedliche R3F-Clock-Initialisierung
-
-**Vermutung:** `state.clock` wird in R3F irgendwann initialisiert. Im Export könnte `state.clock.elapsedTime` einen anderen Startwert haben.
-
-**Test:** `state.clock.elapsedTime` vor dem ersten Export-Frame loggen.
-
----
-
-## 3. Konkrete Debug-Schritte für die nächste Session
-
-### 3.1 Smoke-Test: Werte direkt vergleichen
-
-Bau einen Debug-Modus in `exportEngine.ts` ein, der im Browser-Console für die ersten 10 Frames folgende Werte ausgibt:
-
-```ts
-console.log(`[EXPORT Frame ${i}]`, {
-  rawFreqData_max: Math.max(...frame.rawFreqData),       // Live: ~250
-  rawFreqData_avg: frame.rawFreqData.reduce((a,b)=>a+b,0) / 1024, // Live: ~50-150
-  bass: frame.bass,
-  loudness: frame.loudness,
-  globalBeat: audioAnalysis.beatPhase,
-  stateSize: { w: ??, h: ?? }, // muss im useFrame geloggt werden
-  r3fStateSize_w: gl.getSize(new THREE.Vector2()).x,     // sollte = width sein
-});
+**AudioBuffer ist korrekt:**
+```
+arrayBuffer.byteLength: 5067010        ← File korrekt gelesen
+AudioContext state: running             ← kein Autoplay-Problem
+AudioBuffer: { length: 10511999, sampleRate: 48000, durationSec: '219.00',
+               maxAbsFirst2sec: '0.587298' }   ← PCM-Daten sind valide!
 ```
 
-Dasselbe im Live-`useAudioReactive`-Tick loggen. Werte vergleichen.
+**FFT-Daten sind korrekt ab Frame 30:**
+```
+Frame 0-4:   rawFreqData.max=0   ← Stille (Track-Intro)
+Frame 30-60: rawFreqData.max=200-247, bass=0.7-0.8  ← KORREKTE DATEN!
+```
 
-### 3.2 Wenn `rawFreqData_avg` im Export deutlich niedriger ist als Live
+**BackgroundPlane.useFrame WIRD aufgerufen:**
+```
+[BG useFrame] exportFrame=29 beatPhase=0.7600  rawData[0-5]=[0,2,0,0,0,0]
+[BG useFrame] exportFrame=30 beatPhase=0.7200  rawData[0-5]=[49,43,25,11,16,14]
+[BG useFrame] exportFrame=35 beatPhase=0.5200  rawData[0-5]=[55,24,25,48,56,63]
+```
 
-→ **Bug bestätigt: das Spektrum ist im Export leiser.** Mögliche Ursachen:
-- Trailing-Window sampelt teilweise "leere" Regionen am Anfang des Audio (H2)
-- `audioBuffer.getChannelData(c)` liefert PCM-Samples in `[-1, 1]`, aber das **sind nicht die gleichen Samples, die der Web-Audio-Stream** zur Zeit `t` hat (anders resampled, andere Decoding-Pipeline)
-- Blackman-Window in meinem Code hat andere Koeffizienten als Chromium (BUG in meinem Code?)
-
-**Aktion:** Web-Audio-resampling im Export replizieren. Idealerweise die `AudioContext.sampleRate` benutzen (48000) und das Audio-Buffer mit dieser Rate resamplen, BEVOR `precomputeFFT` läuft. Aktuell wird das Audio mit der **Original-Sample-Rate** des Files (z.B. 44100) decodiert, was zu anderer FFT-Auflösung führt.
-
-### 3.3 Wenn `stateSize` im Export-Loop die Preview-Größe hat
-
-→ **Bug bestätigt: meine `sceneRegistry.setSize` läuft nicht synchron.** Aktion:
-- Sicherstellen, dass R3F-subscribe-Block NICHT von selbst `gl.setSize(w, h, true)` mit Style-Update ruft
-- Alternative: `state.size` direkt in R3F-Store mutieren ohne subscribe zu triggern (Hack via `getRootState().setState({ size: {...} })` ohne R3F's `setSize` Wrapper)
-
-### 3.4 Wenn `globalBeat` im Export konstant 0 ist
-
-→ Detector triggert nicht. Aktion:
-- `fluxHistory` der Component-Detectoren loggen nach dem `reset()` + ersten 5 `update()`-Calls
-- Wenn `flux` konstant ~0 ist: Magnitude-Spektrum zu leise (siehe 3.2)
-- Wenn `flux` oszilliert aber `avgFlux` mitwächst: Threshold passt nicht, Sensitivity zu hoch
+**Kritische Beobachtung:** beatPhase läuft von 0.76 auf 0.0 — er ZERFÄLLT nur, feuert aber keine neuen Beats ab Frame 30+.
 
 ---
 
-## 4. Hinweise zur Codebase
+## Zwei bestätigte Root-Causes (gefixt, aber noch nicht vollständig)
 
-### 4.1 Kritische Dateien
-- `src/lib/fft.ts` — Offline-FFT-Pipeline, muss Web-Audio-kompatibel sein
-- `src/lib/audioUtils.ts` — `FreqBeatDetector`, `getFreqRangeEnergy`
-- `src/lib/exportEngine.ts` — Export-Loop, schreibt `audioAnalysis` pro Frame
-- `src/hooks/useAudioReactive.ts` — Live-rAF-Loop, schreibt `audioAnalysis` im Live
-- `src/components/three/AudioScene.tsx` — `sceneRegistry`, `useBeatDetectorRegistration`
-- `src/components/three/BackgroundPlane.tsx` — nutzt `uBeatPhase` in 7+ Shader-Pfaden
-- `src/components/three/InstancedBars.tsx`, `GPUParticles.tsx`, `CenterLogo.tsx`, `NebulaPlane.tsx` — Beat-Detector-Instanzen, werden im Export resettet
+### Bug 1: OfflineAudioContext AnalyserNode = Zeros (GEFIXT, Commit `222289e` + `2fe4030`)
 
-### 4.2 Audio-Pipeline im Live-Modus
-```
-<audio> → createMediaElementSource
-  ├─→ AnalyserNode "visual" (fft=256, smooth=0.55) → freqData (128 bins)
-  └─→ AnalyserNode "kick"   (fft=2048, smooth=0.0)  → rawFreqData (1024 bins)
-       └─→ globalBeatDetector → audioAnalysis.beatPhase
+**Bestätigt durch:** `rawFreqData.max=0` für ALLE Frames mit dem OfflineAudioContext-Ansatz (Session 10).
 
-rAF-Tick:
-  - schreibt audioAnalysis.{bass,loudness,highs,freqData,rawFreqData,beatPhase}
-  - ruft sceneRegistry.advance() → useFrame-Callbacks aller Komponenten
-```
+**Ursache:** Chrome's `OfflineAudioContext` + `AnalyserNode.getByteFrequencyData()` gibt immer Zeros zurück. Chrome-Bug/Limitation.
 
-### 4.3 Audio-Pipeline im Export-Modus
-```
-audioFile → AudioContext.decodeAudioData → audioBuffer
-  → precomputeFFT(audioBuffer, fps) → Array<{freqData, rawFreqData, ...}>
-  → pro Frame: audioAnalysis.{freqData, rawFreqData, bass, loudness, highs} setzen
-  → globalBeatDetector (NEUE Instanz) → audioAnalysis.beatPhase
-  → Component-Detectoren (useMemo, werden resettet) → uBeatPhase etc.
-  → sceneRegistry.advance(timestamp) → useFrame-Callbacks
-```
-
-### 4.4 Alle Detector-Instanzen (Reset-Liste)
-- `useAudioReactive.ts:39` — `globalBeatDetector` (Modul-Singleton, für `audioAnalysis.beatPhase`)
-- `BackgroundPlane.tsx:494` — `beatDetector` (Background-Beat, `bg.beatFxFreq*`)
-- `CenterLogo.tsx:271-272` — `logoBeatDetector`, `fireBeatDetector` (Logo-Beat, Fire-Beat)
-- `GPUParticles.tsx:152` — `particleBeatDetector` (Particle-Kick, `sp.reactiveFreq*`)
-- `InstancedBars.tsx:30` — `barsBeatDetector` (Bar-Beat-Boost, `b.beatFreq*`)
-- `NebulaPlane.tsx:18` — `nebulaBeatDetector` (Nebula-Pulse, `bg.nebulaBeatFreq*`)
-
-Alle 6 Component-Detectoren werden via `useBeatDetectorRegistration` im `sceneRegistry.beatDetectors` Set registriert. `exportEngine.ts` ruft `reset()` auf alle vor Frame 0.
+**Fix:** Zurück zur custom Cooley-Tukey FFT (Commit `2fe4030`). Die FFT-Daten sind jetzt korrekt (Frame 30+ zeigt max=200-247).
 
 ---
 
-## 5. AGENTS.md Updates (nötig?)
+### Bug 2: THREE.Clock delta falsch im Export (GEFIXT, Commit `2fe4030`)
 
-Aktuell ist AGENTS.md auf **Session 7 (settingsStore v11)** Stand und referenziert die "Export-Pipeline schreibt `audioAnalysis.rawFreqData` pro Frame und nutzt globalen `FreqBeatDetector` mit `settings.audio.*`". Das ist **noch korrekt**.
+**Ursache:** R3F / `THREE.Clock` benutzt intern `performance.now()` für die delta-Berechnung in `useFrame`. Der timestamp-Parameter von `advance()` wird ignoriert. Im schnellen Export-Loop dauert jeder Frame nur ~1-5ms real-time statt 16.67ms → `delta ≈ 0.001s` statt `0.01667s` → alle zeitbasierten Animationen (noise scroll, scanline speed, grid wave, glitch timing, particle orbit, glow cycle) laufen 16x zu langsam → erscheinen eingefroren.
 
-Seitdem hinzugekommen (in AGENTS.md nicht dokumentiert):
-- `useAudioReactive.stopAndPause()` / `startAndPlay()` (Commit `c109b84`)
-- `sceneRegistry.setSize` (Commit `9fe1ec7`)
-- `canvas`-Resize-Loop-Fix (Commit `cc53978`)
-- `useFrame` `state.size` live lesen in BackgroundPlane + NebulaPlane (Commit `dde5c3c`)
-- `FreqBeatDetector.reset()` + `useBeatDetectorRegistration` (Commit `d2a3274`)
-- FFT-Pipeline komplett überarbeitet: Blackman, 1/N, [-100,-30] dB, Trailing-Window, Smoothing, Downmix (Commit `1704883`)
-
-**Empfehlung für die nächste Session:** Bevor weiter debugged wird, AGENTS.md auf den aktuellen Stand bringen (Commit-Liste oben eintragen, neue Hooks dokumentieren). Dann ist der Kontext für den nächsten Agenten klar.
+**Fix:** `performance.now()` temporär überschreiben vor jedem `sceneRegistry.advance()`, sofort danach restoren. THREE.Clock bekommt dadurch exakt `1/fps` als delta.
 
 ---
 
-## 6. Nicht vergessen
+### Bug 3: FreqBeatDetector Adaptive-Threshold-Kalibrierung (AKTUELLER FOKUS, noch nicht verifiziert)
 
-- **Commit-Hygiene:** Alle bisherigen Fixes sind committed. Vor weiteren Änderungen `git status` + `git diff --stat`.
-- **Verifikation:** Nach jedem Fix `npm run typecheck` + `npm run build` (muss grün sein). Browser-Test ist Sache des Users.
-- **AGENTS.md § 0.4 Commit-Pflicht:** Granularer Commit pro logischem Änderungsblock.
-- **Settings-Schema:** v11 ist aktuell, kein Bump nötig. `useF`-defensive-Defaults bleiben aktiv.
+**Das ist der verbleibende Kern-Bug.**
+
+**Was passiert:**
+
+Der Export startet bei t=0 (Anfang des Songs). Der Song hat ein leises Intro (~0.5s Stille, Frames 0-29). Irgendwo bei Frame ~24 (0.4s) gibt es einen kurzen Audio-Transient im 20-80 Hz Bereich (sub-bass).
+
+Mit `resetForExport()` (pre-fill = minFlux = 0.005):
+1. Threshold ist sehr niedrig (~0.026) → Frame 24 Transient feuert sofort
+2. Transient setzt `avgFlux` hoch
+3. Ab Frame 30 (echte Musik): flux=0.111-0.140, aber threshold ≈ 0.130-0.160 → **kein Beat feuert mehr!**
+
+Im **Live-Preview**: Detektor hat den ganzen Song gehört → `avgFlux` kalibriert auf die tatsächliche Beat-Intensität → Beats feuern zuverlässig.
+
+**Diagnose-Beweis:**
+```
+exportFrame=29: beatPhase=0.7600  (beat feuerte bei Frame ~24 wegen kleinem Transient)
+exportFrame=30: beatPhase=0.7200  (nur Zerfall, kein neuer Beat trotz rawFreqData.max=240!)
+exportFrame=35: beatPhase=0.5200  (immer noch nur Zerfall)
+```
+
+**User Settings (aus BG-Log):**
+```
+beatFxFreq=20-80Hz, sensitivity=3.00, scaleOnBeat=0.02
+```
+
+Mit `sensitivity=3.00` ist `effectiveMul = 1.8 × 3.0 = 5.4`. Der Threshold ist besonders hoch und verhindert Beats nach dem initialen Spike.
+
+---
+
+## Was bisher probiert wurde (Session 11 Commits)
+
+| Commit | Was | Ergebnis |
+|--------|-----|---------|
+| `d9da87a` | OfflineAudioContext + AnalyserNode (Session 10) | rawFreqData.max=0 — Chrome-Bug, funktioniert nicht |
+| `222289e` | OfflineAudioContext: silentGain→Serienschaltung | Keine Änderung, OfflineAudioContext grundsätzlich kaputt |
+| `2fe4030` | Custom FFT zurück + performance.now() Override für delta | Daten korrekt, delta korrekt — Beats feuern aber immer noch selten |
+| `9bc4416` | `FreqBeatDetector.resetForExport()`: pre-fill mit minFlux=0.005 | beatPhase 0.24→0.76 (Verbesserung), aber noch immer kein kontinuierliches Beat-Feuern |
+| `3c832a4` | 80-Frame Pre-Warm-Pass aus Song-Mitte + `resetPhaseAndPrevBins()` | **Noch nicht getestet vom User** |
+
+---
+
+## Aktueller Stand (Commit `3c832a4`, noch nicht verifiziert)
+
+### Was der Pre-Warm-Pass macht
+
+```
+1. 80 Frames aus Song-Mitte (ca. 50% der Laufzeit) durch advance() schicken
+2. useFrame-Callbacks laufen → detector.update() mit echten Mid-Song-Daten
+3. fluxHistory kalibriert sich auf die typische Beat-Intensität des Songs
+4. resetPhaseAndPrevBins(): nur Phase + prevBins zurücksetzen, fluxHistory behalten
+5. Actual Export-Loop startet mit korrekt kalibriertem Detektor
+```
+
+**Erwartetes Ergebnis:** beatPhase sollte ab Frame ~30 auf 0.96 springen und dann regelmäßig durch die Musik gefeuert werden.
+
+**Noch zu testen:** User muss Export-Video ansehen und ggf. Console checken.
+
+---
+
+## Was noch unklar ist / mögliche weitere Probleme
+
+### A) Mismatch: Welche Hz-Bins hat der Live-Analyser vs. Export?
+
+**Live-Preview:** `new AudioContext()` ohne sampleRate → System-Default (auf manchen Windows-Systemen 44100 Hz). `binHz = 44100/2048 = 21.53 Hz/bin`.
+
+**Export:** `new AudioContext({ sampleRate: 48000 })` → erzwungen 48000 Hz. `binHz = 48000/2048 = 23.44 Hz/bin`.
+
+Der `FreqBeatDetector` wird mit `new FreqBeatDetector(48000)` instanziiert (hardcoded in allen Komponenten). Er mapped Hz→Bins immer mit 23.44 Hz/bin.
+
+→ **In Live-Preview empfängt der Detektor 44100-Hz-Daten, mapped aber mit 48000-Hz-Bins.** Das führt zu leicht unterschiedlichem Frequenz-Targeting. Für breite Ranges (20-80 Hz) ist der Unterschied gering, könnte aber bei Edge-Cases relevant sein.
+
+**Möglicher Fix:** Live-AudioContext auch auf 48000 Hz zwingen (`new AudioContext({ sampleRate: 48000 })` in `useAudioReactive.ts`) — oder Export-AudioContext mit system-default Rate erstellen.
+
+### B) scaleOnBeat = 0.02 ist sehr klein
+
+Der User hat `scaleOnBeat=0.02`. Das ist nur 2% Zoom auf Beat — sehr subtil. Falls der User primär diesen Effekt meint, könnte der Effekt im Export technisch korrekt sein, aber visuell kaum wahrnehmbar (besonders im 1080p Video vs. kleinerem Preview-Viewport).
+
+→ **Mögliche Folgefrage:** Welche Beat-Effekte sieht der User im Preview genau? Ist es wirklich scaleOnBeat, oder Grid/Noise/Scanlines?
+
+### C) rawData[0-5] in BackgroundPlane ist schwach
+
+Während `rawFreqData.max=240` im Export-Log irgendwo bei hohen Frequenzen liegt, sind die Bins 0-5 (20-117 Hz) in BackgroundPlane's useFrame nur 11-67. Die starke Energie ist bei HÖHEREN Frequenzen.
+
+→ **Wenn der Song wenig Sub-Bass (20-80 Hz) hat**, kann kein Beat bei dieser Frequenz-Einstellung feuern. Weder im Export noch im Preview. Falls der User beatFxFreq auf 20-200 Hz oder breitere Range erweitert, würden mehr Bins einbezogen → höhere Flux-Werte → mehr Beat-Trigger.
+
+---
+
+## Debugging-Plan für morgen
+
+### Schritt 1: Pre-Warm verifizieren (Commit `3c832a4`)
+
+Export starten, Console checken:
+```
+[BG useFrame] exportFrame=30 beatPhase=???
+```
+- Wenn `beatPhase ≥ 0.90` bei Frame 30 → Pre-Warm hat kalibriert, neuer Beat gefeuert ✅
+- Wenn `beatPhase < 0.80` und weiter Zerfall → Kalibrierung hat nicht geholfen, weiter debuggen
+
+### Schritt 2: Falls Pre-Warm nicht hilft — rawData[0-5] live vs. export vergleichen
+
+In `useAudioReactive.ts` im rAF-Tick temporär loggen:
+```typescript
+if (audioCtxRef.current && Math.random() < 0.01) { // 1% der Frames
+  console.log('[LIVE rawData[0-5]]', Array.from(kickDataRef.current.slice(0,6)));
+}
+```
+
+Vergleich mit Export-Log (`rawData[0-5]=[49,43,25,11,16,14]`). Wenn Live-Werte deutlich höher → sub-bass spectrum genuinely different.
+
+### Schritt 3: Falls Sub-Bass schwach in beiden (Live + Export) → User Settings prüfen
+
+User sollte beatFxFreq von 20-80 Hz auf z.B. "Bass: 20-250 Hz" oder "Kick: 40-120 Hz" ändern. Die meisten Songs haben mehr Energie bei 40-200 Hz als bei 20-80 Hz.
+
+### Schritt 4: LiveAudioContext sample rate mit Export angleichen
+
+In `useAudioReactive.ts`:
+```typescript
+const ctx = new Ctor({ sampleRate: 48000 }); // Anstatt new Ctor()
+```
+→ Gleiche Binauflösung in Live und Export → gleicher Frequenz-Targeting.
+
+### Schritt 5: Falls immer noch falsch — Vollständiger Pre-Warm durch alle Frames
+
+Statt 80 Frames aus Mitte: alle totalFrames durch Pre-Warm schicken (dauert länger, kalibriert aber exakt).
+
+---
+
+## Alle relevanten Dateien
+
+| Datei | Relevanz |
+|-------|---------|
+| `src/lib/exportEngine.ts` | Export-Loop, FFT-Precompute, Pre-Warm, Detector-Reset |
+| `src/lib/fft.ts` | Custom Cooley-Tukey FFT (korrekt, produziert Daten) |
+| `src/lib/audioUtils.ts` | `FreqBeatDetector` mit `reset()`, `resetForExport()`, `resetPhaseAndPrevBins()` |
+| `src/hooks/useAudioReactive.ts` | Live-rAF-Loop, AudioContext-Erstellung (wichtig: sample rate!) |
+| `src/components/three/AudioScene.tsx` | `sceneRegistry`, `useBeatDetectorRegistration`, Typen |
+| `src/components/three/BackgroundPlane.tsx` | Lokaler `beatDetector`, `uBeatPhase` Uniform |
+| `src/components/three/InstancedBars.tsx` | `barsBeatDetector` |
+| `src/components/three/GPUParticles.tsx` | `particleBeatDetector` |
+| `src/components/three/CenterLogo.tsx` | `logoBeatDetector`, `fireBeatDetector` |
+| `src/components/three/NebulaPlane.tsx` | `nebulaBeatDetector` |
+
+---
+
+## Git-Log der relevanten Session-11-Commits
+
+```
+3c832a4  fix(export): beat-detector pre-warm pass                    ← ZULETZT, UNGETESTET
+9bc4416  fix(FreqBeatDetector): resetForExport() pre-fills fluxHistory
+1601e05  debug: BackgroundPlane.useFrame BG-Diagnostic
+ade406b  debug: comprehensive AudioBuffer + frame diagnostics
+2fe4030  fix(export): custom FFT zurück + performance.now() delta override
+222289e  fix(fft): OfflineAudioContext-Routing (silentGain→series)  ← hilft nicht
+d9da87a  feat(export): OfflineAudioContext+AnalyserNode (Session 10) ← Zeros, broken
+```
+
+---
+
+## Wichtige Diagnostic-Logs (Referenz für morgen)
+
+### Console-Output mit `resetForExport()` (vor Pre-Warm, Stand Commit `9bc4416`)
+
+```
+[EXPORT DEBUG] AudioBuffer: { maxAbsFirst2sec: '0.587298', length: 10511999, sampleRate: 48000 }
+[EXPORT DEBUG] Frame 30: rawFreqData.max=240 freqData.max=236 bass=0.700
+[BG useFrame] exportFrame=29 beatPhase=0.7600 rawData[0-5]=[0,2,0,0,0,0] beatFxFreq=20-80Hz sensitivity=3.00 scaleOnBeat=0.02
+[BG useFrame] exportFrame=30 beatPhase=0.7200 rawData[0-5]=[49,43,25,11,16,14] beatFxFreq=20-80Hz sensitivity=3.00 scaleOnBeat=0.02
+[BG useFrame] exportFrame=35 beatPhase=0.5200 rawData[0-5]=[55,24,25,48,56,63] beatFxFreq=20-80Hz sensitivity=3.00 scaleOnBeat=0.02
+```
+
+**Fazit aus diesem Log:**
+- Daten kommen an (rawData ist non-zero ab Frame 30) ✅
+- useFrame wird aufgerufen ✅
+- beatPhase zerfällt nur (0.76→0.52 über Frames 29-35), kein neues Feuern ❌
+- Grund: Transient bei Frame ~24 hat avgFlux so erhöht dass flux=0.111 (Frame 30) < threshold ≈ 0.130
+
+---
+
+## Noch offene Debug-Ausgaben im Code (entfernen wenn Bug gefixt)
+
+- `src/lib/exportEngine.ts`: `[EXPORT DEBUG]` Logs für Frames 0-4 und 30-60
+- `src/components/three/BackgroundPlane.tsx`: `[BG useFrame]` Log für Frames 29-35
+- `src/lib/exportEngine.ts`: `window.__exportFrameIdx` global flag
