@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSettingsStore, getSettings, type Settings } from '@/lib/settingsStore';
+import { useSettingsStore, getSettings, type Settings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
 import { usePresetsStore } from '@/lib/presetsStore';
 import { HzRangePicker } from '@/components/HzRangePicker';
 
@@ -502,7 +502,17 @@ function CB<T extends string>({
 }
 
 function useF<K extends keyof Settings>(group: K, key: keyof Settings[K]) {
-  const value = useSettingsStore((s) => s.settings[group][key] as unknown);
+  const value = useSettingsStore((s) => {
+    // Defensive: presets saved before a schema bump may be missing the requested field.
+    // Fall back to the current default so the UI never sees `undefined` and crashes
+    // (e.g. CB receiving `value={undefined}` breaks button highlight state, and
+    // `arr.map()` on undefined throws).
+    const field = (s.settings[group] as Record<string, unknown>)[key as string];
+    if (field === undefined) {
+      return (DEFAULT_SETTINGS[group] as Record<string, unknown>)[key as string];
+    }
+    return field;
+  });
   const setSettings = useSettingsStore((s) => s.setSettings);
   const set = (v: unknown) =>
     setSettings((prev) => ({ ...prev, [group]: { ...prev[group], [key]: v } }));
@@ -949,21 +959,21 @@ function LogoSection_() {
             {((gCM as string) === 'custom') && (
               <div className="mt-2 space-y-1">
                 <p className="font-ui text-xs" style={{ color: 'var(--text-muted)' }}>Colors (cycled)</p>
-                {(gCC as string[]).map((col, idx) => (
+                {((gCC as string[] | undefined) ?? []).map((col, idx) => (
                   <div key={idx} className="flex items-center gap-2">
                     <CP
                       value={col}
                       onChange={(v) => {
-                        const next = [...(gCC as string[])];
+                        const next = [...((gCC as string[] | undefined) ?? [])];
                         next[idx] = v;
                         sGCC(next);
                       }}
                     />
-                    {(gCC as string[]).length > 2 && (
+                    {((gCC as string[] | undefined) ?? []).length > 2 && (
                       <button
                         type="button"
                         onClick={() => {
-                          const next = (gCC as string[]).filter((_, i) => i !== idx);
+                          const next = ((gCC as string[] | undefined) ?? []).filter((_, i) => i !== idx);
                           sGCC(next);
                         }}
                         className="rounded px-1.5 py-0.5 font-ui text-xs"
@@ -974,7 +984,7 @@ function LogoSection_() {
                 ))}
                 <button
                   type="button"
-                  onClick={() => sGCC([...(gCC as string[]), '#ffffff'])}
+                  onClick={() => sGCC([...((gCC as string[] | undefined) ?? []), '#ffffff'])}
                   className="mt-1 rounded px-2 py-1 font-ui text-xs"
                   style={{ color: 'var(--accent)', border: '1px solid var(--border)' }}
                 >+ Add color</button>

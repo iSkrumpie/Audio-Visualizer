@@ -419,6 +419,8 @@ const DEFAULT_SETTINGS: Settings = {
   },
 };
 
+export { DEFAULT_SETTINGS };
+
 type SettingsStore = {
   settings: Settings;
   setSettings: (updater: (prev: Settings) => Settings) => void;

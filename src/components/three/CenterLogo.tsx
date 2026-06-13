@@ -313,7 +313,11 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     }
 
     // ── Glow color mode ───────────────────────────────────────────────────────
-    const glowColorMode  = s.glowColorMode  ?? 'solid';
+    // Defensive fallbacks: settings from old presets may lack the v11 fields.
+    // Without fallbacks, undefined values would either skip the entire if-chain
+    // (leaving uGwColor stale) or throw on .length / .set() calls → black canvas.
+    const glowColorMode: 'solid' | 'rainbow' | 'custom' | 'random' =
+      s.glowColorMode ?? 'solid';
     const glowCycleSpeed = s.glowCycleSpeed ?? 0.3;
     const gwCol          = glowUniforms.uGwColor.value;
     if (glowColorMode === 'solid') {
@@ -322,8 +326,8 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
       rainbowHueRef.current = (rainbowHueRef.current + delta * glowCycleSpeed * 0.05) % 1;
       gwCol.setHSL(rainbowHueRef.current, 0.9, 0.55);
     } else if (glowColorMode === 'custom') {
-      const cols = (s.glowCustomColors?.length ?? 0) > 0
-        ? s.glowCustomColors
+      const cols: string[] = (s.glowCustomColors?.length ?? 0) > 0
+        ? s.glowCustomColors!
         : ['#6366F1', '#22D3EE', '#F472B6', '#F59E0B'];
       const fi   = ((timeRef.current * glowCycleSpeed * 0.05) % 1) * cols.length;
       const i0   = Math.floor(fi) % cols.length;
