@@ -81,6 +81,10 @@ export async function exportMP4(
     onProgress,
   } = options;
 
+  // Capture real performance.now before the try block so it is accessible
+  // in both try and catch for the THREE.Clock override restore.
+  const origPerfNow = performance.now.bind(performance);
+
   try {
     // Phase 1: Decode audio
     onProgress({ phase: 'decoding', progress: 0, message: 'Decoding audio...' });
@@ -92,7 +96,7 @@ export async function exportMP4(
 
     // Phase 2: Pre-compute FFT
     onProgress({ phase: 'analyzing', progress: 0, message: 'Analyzing audio...' });
-    const fftFrames = await precomputeFFT(audioBuffer, fps);
+    const fftFrames = precomputeFFT(audioBuffer, fps);
     onProgress({ phase: 'analyzing', progress: 1, message: `${fftFrames.length} frames analyzed.` });
 
     // Phase 3: Render frames
@@ -196,6 +200,22 @@ export async function exportMP4(
     const totalFrames = fftFrames.length;
     const audioSettings = getSettings().audio;
 
+    // ── performance.now() override for correct THREE.Clock delta ────────────────
+    // R3F / THREE.Clock internally calls performance.now() to compute delta
+    // (the timestamp argument to advance() is NOT used for clock calculation).
+    // In the export render loop each frame renders in ~1-5 ms of wall time,
+    // so without the override delta ≈ 0.001 s instead of 1/fps ≈ 0.01667 s.
+    // That makes ALL time-based shader animations (uTime, noise scroll, grid wave,
+    // scanline speed, glitch timing, particle orbit, etc.) run ~16× too slowly
+    // and appear frozen in the exported video.
+    //
+    // Fix: patch performance.now() so THREE.Clock sees exactly frameDuration per
+    // frame. Restore immediately after advance() in every loop iteration so that
+    // Mediabunny's own timing (videoSource.add timestamps) is unaffected.
+    const exportPerfBase = origPerfNow();
+    let exportFrameNow = exportPerfBase; // will be advanced per frame
+    (performance as unknown as { now: () => number }).now = () => exportFrameNow;
+
     for (let i = 0; i < totalFrames; i++) {
       const frame = fftFrames[i];
 
@@ -244,11 +264,18 @@ export async function exportMP4(
         gl.setSize(width, height, false);
       }
 
+      // Advance the fake clock so THREE.Clock.getDelta() returns exactly frameDuration.
+      exportFrameNow = exportPerfBase + (i + 1) * frameDuration * 1000;
+      (performance as unknown as { now: () => number }).now = () => exportFrameNow;
+
       if (sceneRegistry.advance) {
         sceneRegistry.advance(timestamp);
       } else {
         gl.render(scene, camera);
       }
+
+      // Restore real performance.now so Mediabunny timing is unaffected.
+      (performance as unknown as { now: () => number }).now = origPerfNow;
 
       // Re-pin AGAIN after advance(): gl.render() reads canvas.width/height
       // to set the viewport, and if anything (e.g. the subscribe block, a
@@ -278,6 +305,9 @@ export async function exportMP4(
         await new Promise((r) => setTimeout(r, 0));
       }
     }
+
+    // Ensure performance.now is always restored even on error.
+    (performance as unknown as { now: () => number }).now = origPerfNow;
 
     // Close video source
     videoSource.close();
@@ -312,6 +342,8 @@ export async function exportMP4(
     onProgress({ phase: 'done', progress: 1, message: 'Export complete!' });
     return new Blob([buffer], { type: 'video/mp4' });
   } catch (error) {
+    // Always restore performance.now if it was patched during the render loop.
+    (performance as unknown as { now: () => number }).now = origPerfNow;
     onProgress({
       phase: 'error',
       progress: 0,
