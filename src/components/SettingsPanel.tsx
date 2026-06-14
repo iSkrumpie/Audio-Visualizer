@@ -1283,7 +1283,7 @@ function LogoSection_() {
         )}
       </Acc>
 
-      <Acc label="Fire" description={ACCORDION_DESCRIPTIONS['logo.fire']}>
+      <Acc label="Fire" defaultOpen description={ACCORDION_DESCRIPTIONS['logo.fire']}>
         <FR label="" info={hintFor('logo.fireEnabled')}><Tg value={fireE as boolean} onChange={sFireE} label="Enabled" /></FR>
         {!!fireE && (
           <div className="mt-3 space-y-2">
@@ -1319,7 +1319,7 @@ function LogoSection_() {
         )}
       </Acc>
 
-      <Acc label="Sparks" description={ACCORDION_DESCRIPTIONS['logo.sparks']}>
+      <Acc label="Sparks" defaultOpen description={ACCORDION_DESCRIPTIONS['logo.sparks']}>
         <FR label="" info={hintFor('logo.sparksEnabled')}>
           <Tg value={sparksE as boolean} onChange={sSparksE} label="Enabled" />
         </FR>

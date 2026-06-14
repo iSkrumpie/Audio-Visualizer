@@ -45,6 +45,7 @@ uniform float uKick;
 uniform float uHihat;
 uniform float uLoudness;
 uniform float uStyle;
+uniform float uLogoSize;
 
 attribute vec3  aStart;
 attribute vec3  aVelocity;
@@ -79,14 +80,16 @@ void main() {
   // Style-based lifetime scaling (welds are fast, volcanos are slow)
   float fr_lifetimeMul = mix(1.0, 2.8, clamp(uStyle, 0.0, 2.0) / 2.0);
 
-  // Velocity with vocal boost
-  float fr_boost = 1.0 + uVocalBoost * 1.5;
-  vec3  fr_vel   = aVelocity * fr_boost;
+  // Velocity with vocal boost (divide by uLogoSize so world speed stays
+  // constant when the <points> group is scaled by logoSize)
+  float fr_boost  = 1.0 + uVocalBoost * 1.5;
+  float fr_invLs  = 1.0 / max(uLogoSize, 1.0);
+  vec3  fr_vel    = aVelocity * fr_boost * fr_invLs;
 
   // Ballistic position: integrated drag
   float fr_k   = uDrag;
   vec3  fr_pos = aStart + fr_vel / fr_k * (1.0 - exp(-fr_k * fr_age * fr_lifetimeMul));
-  fr_pos.y -= 0.5 * uGravity * fr_age * fr_age * fr_lifetimeMul;
+  fr_pos.y -= 0.5 * (uGravity * fr_invLs) * fr_age * fr_age * fr_lifetimeMul;
 
   // Color
   vColor = fr_sparkColor(fr_t);
@@ -101,7 +104,7 @@ void main() {
 
   // Perspective point size
   vec4 fr_mvPos  = modelViewMatrix * vec4(fr_pos, 1.0);
-  gl_PointSize   = fr_sz * (300.0 / -fr_mvPos.z);
+  gl_PointSize   = fr_sz * (300.0 / -fr_mvPos.z) / max(uLogoSize / 240.0, 0.5);
   gl_Position    = projectionMatrix * fr_mvPos;
 }
 `;
@@ -133,6 +136,7 @@ uniform float uTime;
 uniform float uGravity;
 uniform float uDrag;
 uniform float uBaseSize;
+uniform float uLogoSize;
 
 attribute vec3  aStart;
 attribute vec3  aVelocity;
@@ -172,16 +176,17 @@ void main() {
   float fr_t   = fr_age / aLifetime;
 
   // Ballistic with drag
-  float fr_k   = uDrag;
-  vec3  fr_pos = aStart + aVelocity / fr_k * (1.0 - exp(-fr_k * fr_age));
-  fr_pos.y    -= 0.5 * uGravity * fr_age * fr_age;
+  float fr_k    = uDrag;
+  float fr_iLs  = 1.0 / max(uLogoSize, 1.0);
+  vec3  fr_pos  = aStart + (aVelocity * fr_iLs) / fr_k * (1.0 - exp(-fr_k * fr_age));
+  fr_pos.y     -= 0.5 * (uGravity * fr_iLs) * fr_age * fr_age;
 
   vColor = fr_sparkColor(fr_t);
   vAlpha = pow(1.0 - smoothstep(0.3, 1.0, fr_t), 2.0);
 
   float fr_sz    = uBaseSize * (1.0 - fr_t * 0.75);
   vec4  fr_mvPos = modelViewMatrix * vec4(fr_pos, 1.0);
-  gl_PointSize   = fr_sz * (320.0 / -fr_mvPos.z);
+  gl_PointSize   = fr_sz * (320.0 / -fr_mvPos.z) / max(uLogoSize / 240.0, 0.5);
   gl_Position    = projectionMatrix * fr_mvPos;
 }
 `;
@@ -268,6 +273,7 @@ export function LogoSparks() {
       uHihat:      { value: 0 },
       uLoudness:   { value: 0 },
       uStyle:      { value: 0 },
+      uLogoSize:   { value: 240 },
     },
     transparent: true,
     depthWrite:  false,
@@ -304,7 +310,8 @@ export function LogoSparks() {
       uTime:     { value: 0 },
       uGravity:  { value: 2.5 },
       uDrag:     { value: 2.0 },
-      uBaseSize: { value: 4.0 },
+      uBaseSize:  { value: 4.0 },
+      uLogoSize:  { value: 240 },
     },
     transparent: true,
     depthWrite:  false,
@@ -395,10 +402,17 @@ export function LogoSparks() {
       spawnBurst(burstGeo, 1, fr_styleVal, fr_time);
     }
 
-    // Scale both layers with beat pulse
-    const fr_scale = 1.0 + fr_beatPulse * 0.15;
-    if (ambientRef.current) ambientRef.current.scale.set(fr_scale, fr_scale, 1);
-    if (burstRef.current)   burstRef.current.scale.set(fr_scale, fr_scale, 1);
+    // Scale both layers to match logo size + beat pulse.
+    // Mirrors CenterLogo's formula: logoSize = settings.logo.size * min(vmin/900, 1)
+    const { width, height } = state.size;
+    const fr_vmin       = Math.min(width, height);
+    const fr_vpScale    = Math.min(fr_vmin / 900, 1);
+    const fr_logoSize   = (sF.size ?? 240) * fr_vpScale;
+    const fr_totalScale = fr_logoSize * (1.0 + fr_beatPulse * 0.15);
+    fr_aU.uLogoSize.value = fr_logoSize;
+    fr_bU.uLogoSize.value = fr_logoSize;
+    if (ambientRef.current) ambientRef.current.scale.set(fr_totalScale, fr_totalScale, 1);
+    if (burstRef.current)   burstRef.current.scale.set(fr_totalScale, fr_totalScale, 1);
   });
 
   // ── Render ─────────────────────────────────────────────────────────────────

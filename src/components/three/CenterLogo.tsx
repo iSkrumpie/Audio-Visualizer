@@ -102,14 +102,15 @@ void main() {
 // ─── Fire ShaderMaterial sources ──────────────────────────────────────────────
 
 const FIRE_VERT = /* glsl */ `
-varying vec3 vWorldPos;
+varying vec3 vLocalPos;
 uniform float uTime;
 uniform float uFrBass;
 
 void main() {
-  // Pass world position for polar UV computation in fragment shader
-  vec4 worldPos = modelMatrix * vec4(position, 1.0);
-  vWorldPos = worldPos.xyz;
+  // Pass LOCAL position for polar UV computation in fragment shader.
+  // The RingGeometry is [innerR=0.5, outerR=0.5+height] in local space,
+  // so polar math stays in the [-0.5..1.5] range regardless of mesh scale.
+  vLocalPos = position;
 
   // Keep the radial ripple for nice edge variation
   vec3 pos = position;
@@ -125,7 +126,7 @@ void main() {
 `;
 
 const FIRE_FRAG = /* glsl */ `
-varying vec3 vWorldPos;
+varying vec3 vLocalPos;
 
 uniform float uTime;
 uniform float uFrBass;
@@ -212,11 +213,11 @@ float fr_flameTongue(float fr_localX, float fr_center, float fr_start,
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 void main() {
-  // ── Polar coordinates from world position ─────────────────────────────
-  float fr_angle  = atan(vWorldPos.y, vWorldPos.x);         // -PI..PI
+  // ── Polar coordinates from local position ─────────────────────────────
+  float fr_angle  = atan(vLocalPos.y, vLocalPos.x);         // -PI..PI
   float fr_localX = fract(fr_angle / 6.28318 + 0.5);        // 0..1 around arc
 
-  float fr_radius = length(vWorldPos.xy);
+  float fr_radius = length(vLocalPos.xy);
   float fr_innerR = 0.5;
   float fr_outerR = uFrHeight + 0.5;
 
