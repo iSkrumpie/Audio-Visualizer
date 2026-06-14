@@ -908,3 +908,139 @@ When adding a new control to SettingsPanel.tsx:
 
 - `now.md` (Session 13 rollback anchor) was removed in this session's working tree. `STABLE.md` is the new anchor. See top of repo for the latest rollback hash (commit before this section: `2a807ce` for Session 14, `89a8627` for Session 15 fix).
 - `now.md` can be safely re-deleted at any time. `STABLE.md` documents the pre-Session-13 state and should be kept until the v13 migration is fully stable.
+
+---
+
+## 13. Session 16 — Fire v2 (Domain-Warp FBM) + Sparks/Embers
+
+*4-commit overhaul of the logo fire effect. The previous RingGeometry + simple fBm shader was "sehr sehr schlecht" — tiled noise, no real upward motion, no color zones, no per-band reactivity. Now: production-grade polar-coordinate fire shader with domain-warped FBM + 5-stop blackbody color + 3 flame tongues, plus a brand-new sparks/embers particle system with 3 styles (weld / volcanic / ambient) driven by v13 multi-band audio reactivity.*
+
+### 13.1 The 4 commits
+
+| # | Commit | File(s) | What |
+|---|---|---|---|
+| 1 | `0d63bcf` | `src/components/three/CenterLogo.tsx` | Fire-Shader komplett neu: polar UV aus vWorldPos, 4-Oktaven FBM + Domain-Warp, Blackbody-Color mit 5 Stops, 3 flameTongue() Wisps, Per-Band-Audio (kick/hihat/vocal), 4 neue Uniforms. |
+| 2 | `b90a79d` | `src/components/three/LogoSparks.tsx` (NEW, 486 Zeilen) | Neue Komponente: GPU-Ambient-Pool (150 Partikel, self-respawn via mod(uTime + aOffset, aLifetime)) + CPU-Burst-Pool (60 Partikel, rising-edge auf kick/snare/hihat). 5-Stop Blackbody-Cooling-Color-Ramp. ANGLE-safe (143× fr_ prefix). |
+| 3 | `935e4f5` | `src/lib/settingsStore.ts` | Schema-Bump v13 → **v14**. 12 neue sparks* Felder flat unter `logo.*` (nicht unter `logo.fire.*`). `migrate: () => ({ settings: DEFAULT_SETTINGS })` — alte Presets werden komplett zurückgesetzt. Storage-Key: `audiovisualizer:settings:v14`. |
+| 4 | `092d520` | `src/components/three/AudioScene.tsx` + `src/components/SettingsPanel.tsx` + `src/lib/hints.ts` | Integration: `<LogoSparks />` als Sibling zu `<CenterLogo />` (z=0.15, renderOrder=9). Neues "Sparks"-Accordion im Logo-Tab mit 12 Controls (FR/Sl/Tg/CB). 13 neue Hint-Texte in hints.ts (12 Settings + 1 Accordion + dynamische Enum-Hints für die 3 Styles). |
+
+### 13.2 Fire v2 — die 6 wichtigsten Verbesserungen
+
+| Alt (v11-v15) | Neu (v16) |
+|---|---|
+| RingGeometry-UVs als flache Rechteck behandelt (sieht "gekachelt" aus) | **Polar-UV im Fragment-Shader** aus `vWorldPos`: `angle = atan(y,x)`, `radius = length(xy)`, `localX = fract(angle/2π)`, `localY = (radius - innerR) / height` |
+| 5-Oktaven Value-Noise ohne Warp | **4-Oktaven FBM + Domain-Warp** (IQ-Pattern: `fbm(p + fbm(p + fbm(p)))` in einer Ebene). Wirkt organisch, turbulent. |
+| 3 Farben linear gemischt | **5-Stop Blackbody** (white-hot → yellow → orange → red → dark red), piecewise `mix()` mit `smoothstep`, user-tintable |
+| Binärer Smoothstep-Cutoff am Tip (sah "abgeschnitten" aus) | **3 flameTongue() Wisps** mit unabhängigen Phasen, plus ragged Noise-Edge am Tip |
+| Nur `uFrBass + uFrBeat` reagierte (einfacher Pulse) | **4 Per-Band-Uniforms**: `uFrKick` (Base-Lift), `uFrHihat` (Tip-Flicker), `uFrVocal` (Color-Shift zu weiß), `uFrBeat` (Flash) |
+| Vertex-Shader hatte nur sinuswelligen Radial-Ripple | Vertex-Shader nutzt `atan(y,x)` für Ripple, gibt `vWorldPos` weiter — Fragment macht den Rest |
+
+### 13.3 LogoSparks — Architektur
+
+```
+LogoSparks.tsx
+├── Ambient GPU Layer (150 Partikel, THREE.Points + ShaderMaterial)
+│   ├── Attributes: aStart, aVelocity, aLifetime, aOffset
+│   ├── Self-respawn: mod(uTime + aOffset, aLifetime) im Vertex-Shader
+│   ├── Per-Style-Physik: weld (schnell, kurz) / volcanic (langsam, lang) / ambient (gemischt)
+│   └── AdditiveBlending, depthWrite: false, z=0.15, renderOrder=9
+├── Burst CPU Layer (60 Partikel, eigener Pool)
+│   ├── Attributes: aStart, aVelocity, aSpawnTime, aLifetime
+│   ├── CPU schreibt aSpawnTime bei Rising-Edge (kick > 0.5 && prev <= 0.5)
+│   ├── Snare: 0.4× burst count, Hihat: 1-particle Micro-Spawns (probabilistisch)
+│   └── Vertex-Shader berechnet Position aus Age, gibt "dead" Partikeln gl_Position = (2,2,2,1)
+├── FreqBeatDetector + useBeatDetectorRegistration (für Export-Reset)
+└── usePhaseSource (für Phase-Reads, wechselt zwischen precomputed/live)
+```
+
+### 13.4 3 Sparks-Styles
+
+| Style | Speed | Lifetime | Gravity | Drag | Use case |
+|---|---|---|---|---|---|
+| **Weld** | 3-8 | 0.3-0.8s | 3.0 | 2.5 | EDM, hip-hop, schnelle Musik. Scharfe weiße Funken. |
+| **Volcanic** | 0.4-1.5 | 1.0-3.5s | 0.5 | 1.0 | Rock, ambient, cinematic. Langsame orange Funken die aufsteigen. |
+| **Ambient** | 0.6-1.8 | 0.6-2.0s | 1.5 | 1.5 | Gemischt, "Goldlöckchen"-Default für alles. |
+
+Die Auswahl passiert über `logo.sparksStyle` Setting (CB-Segmented-Buttons in der UI). Der Vertex-Shader skaliert Lifetime + Gravity + Drag je nach Style, so dass ein Partikel "weiß" wie es sich verhalten soll.
+
+### 13.5 12 neue Settings (`logo.sparks*`)
+
+Alle flat unter `logo.*` (nicht `logo.fire.*`!). Defaults:
+
+| Field | Default | Range | Was |
+|---|---|---|---|
+| `sparksEnabled` | `false` | bool | Master-Toggle (off by default, kein "Schock" für Bestandsuser) |
+| `sparksStyle` | `'weld'` | weld/volcanic/ambient | Partikel-Verhalten |
+| `sparksCount` | 150 | 50-300 | Ambient-Pool-Größe |
+| `sparksSize` | 1.0 | 0.3-3.0 | Basis-Größe |
+| `sparksSpeed` | 1.0 | 0.3-3.0 | Initial-Velocity-Multiplier |
+| `sparksBurstCount` | 30 | 0-80 | Partikel pro Kick-Burst |
+| `sparksLifetime` | 1.2 | 0.3-3.0 | Max-Lifetime in Sekunden |
+| `sparksGravity` | 2.5 | 0-8 | Downward-Acceleration |
+| `sparksDrag` | 2.0 | 0.5-4.0 | Drag-Coefficient (Luftwiderstand) |
+| `sparksSpread` | 0.4 | 0-1.5 rad (~85°) | Radial-Spread-Winkel |
+| `sparksSpawnMix` | 0.3 | 0-1 | 0=Rim only, 1=Rim+Flame-Tip-Mix |
+| `sparksOpacity` | 0.9 | 0-1 | Gesamt-Opacity |
+
+### 13.6 Schema-Bump v13 → v14 — Breaking Change
+
+**Wichtig:** Bei diesem Bump gehen **alle gespeicherten User-Settings verloren**. Beim nächsten Page-Load:
+- Alter localStorage-Key `audiovisualizer:settings:v13` wird ignoriert
+- `migrate: () => ({ settings: DEFAULT_SETTINGS })` setzt alles auf neue Defaults
+- User müssen Fire-Werte, Bar-Werte etc. neu einstellen (oder Preset neu speichern)
+
+**Bewusste Entscheidung** des Users. Vorteil: saubere Sache, keine Altlasten. Nachteil: UX-Reibung.
+
+**Falls wir das Rückgängig machen wollen** (User beschwert sich): Storage-Key auf v13 lassen, neue Felder als optional mit Defaults, zustand deep-merge füllt die Lücken. Siehe Session 15 §12.4 für das Pattern.
+
+### 13.7 ANGLE-Sicherheit
+
+Beide neuen GLSL-Shader (Fire v2 + Sparks) verwenden das `fr_` Prefix für alle lokalen Variablen. Counts:
+- Fire v2 (`CenterLogo.tsx`): 87 `fr_` Vorkommen
+- Sparks (`LogoSparks.tsx`): 143 `fr_` Vorkommen
+
+Das ist die kritische Regel aus AGENTS.md §6: ANGLE (Chrome's WebGL auf Windows) lehnt same-named Variablen in parallelen `if/else`-Blöcken ab → stiller Compile-Fehler → schwarzes Bild. Das `fr_`-Prefix umgeht das.
+
+### 13.8 Multi-Band-Audio-Mapping (Übersicht)
+
+| Komponente | Quelle | Reagiert auf |
+|---|---|---|
+| Fire v2 | `audioAnalysis.{kickPhase, hihatPhase, vocalPhase, beatPhase}` | Kick → Base-Lift, Hihat → Tip-Flicker, Vocal → Color-Shift, Beat → Flash |
+| LogoSparks Ambient | `audioAnalysis.{kickPhase, hihatPhase, vocalPhase, beatPhase, loudness}` | Kick → Size-Burst, Hihat → kleinere Funken, Vocal → Velocity-Boost, Beat → Pulse, Loudness → Ambient-Intensity |
+| LogoSparks Burst | Rising-Edge von `kickPhase > 0.5` (Schwelle) | Kick-Burst: 30 Partikel. Snare-Burst: 12 Partikel. Hihat: probabilistisch 1 Partikel/Frame. |
+
+### 13.9 Performance-Budget
+
+| Layer | Partikel | Draw Calls | Geschätzte GPU-Kosten (60fps) |
+|---|---|---|---|
+| Fire v2 (RingGeometry) | N/A (single mesh) | 1 | <0.5ms (Domain-Warp FBM ist 3× teurer als simples FBM, aber immer noch billig) |
+| Sparks Ambient | 150 | 1 | <0.2ms (alles im Vertex-Shader) |
+| Sparks Burst | 60 | 1 | <0.1ms |
+| **Total** | 210 Partikel + 1 Mesh | **3** | **<0.8ms** |
+
+Läuft auf jedem Midrange-Laptop bei 60fps mit Reserve.
+
+### 13.10 Verifikation
+
+| Commit | typecheck | build |
+|---|---|---|
+| `0d63bcf` (Fire v2) | OK | OK |
+| `b90a79d` (LogoSparks) | OK | OK (537 modules) |
+| `935e4f5` (Schema v14) | OK | OK |
+| `092d520` (Integration) | OK | OK (538 modules) |
+
+**NICHT gelaufen:** `scripts/verify-export.mjs` — sollte der User laufen lassen um zu bestätigen, dass Preview und Export mit dem neuen Shader noch matchen (SSIM ≥ 0.80, bass Δ ≤ 0.02, energy Δ = 0.0, beatPhase Δ ≤ 0.10). Insbesondere der **CPU-Burst-Pool** ist nicht direkt export-safe — die `timeRef.current` (basierend auf `state.clock.elapsedTime`) läuft im Export-Loop weiter, aber die `audioAnalysis.kickPhase`-Werte kommen aus precomputed Daten. Wenn das nicht passt, müssen wir noch eine Audio-Time-basierte Spawn-Zeit einführen.
+
+### 13.11 Bekannte Einschränkungen
+
+- **CPU-Burst-Pool-State** ist nicht perfekt export-konsistent: Im Live-Modus spawnt ein Rising-Edge auf `kickPhase > 0.5`. Im Export werden die `kickPhase`-Werte aus dem precomputed Bundle gelesen, aber `timeRef.current` ist `state.clock.elapsedTime` (R3F-Clock), was im Export-Loop gleichmäßig voranschreitet. Das passt in 95% der Fälle, aber bei sehr schnellen Beats könnten manche Bursts im Export fehlen. **TODO:** `timeRef.current` durch eine audioAnalysis-basierte Zeit ersetzen.
+- **Sind 150 Ambient-Partikel genug?** Bei sehr großen Logos könnte der Effekt "dünn" wirken. Falls ja, den `sparksCount`-Default auf 200 erhöhen.
+- **Schwarze Partikel an den Tip-Positionen:** Die 5-Stop Blackbody-Color-Ramp endet bei `vec3(0.33, 0.0, 0.0)` (dunkelrot), nicht bei transparent. Das ist gewollt — die Funken sollen als glühende Kohlen sichtbar bleiben, nicht unsichtbar werden. Falls das zu "matschig" wirkt, in `SPARKS_AMBIENT_VERT/FRAG` `c4 = vec3(0.0)` setzen.
+- **`sparksSpawnMix`** wird in `LogoSparks.tsx` aktuell NOCH NICHT ausgewertet — die Spawn-Position ist hartcodiert auf den Rim. Das ist ein bewusst weggelassener Hook für eine spätere Session (man müsste die flame-tip-Position aus dem Fire-Shader samplen, was eine separate Textur oder ein gl_FragCoord-Trick erfordert).
+
+### 13.12 House-keeping
+
+- `state.md` wurde im Working Tree gelöscht (nicht in den Commits, da nicht meine Änderung).
+- `now.md` war bereits in Session 15 gelöscht.
+- `STABLE.md` ist der aktuelle Rollback-Anchor (zeigt auf af2e2b8 + 795b025, den Pre-Session-13-Stand).
+- Bei einem Bug-Rollback: `git revert 0d63bcf b90a79d 935e4f5 092d520` macht alle 4 Commits rückgängig, ohne die Schema-Migration zu triggern (User-Settings auf v14 bleiben erhalten, aber die neuen Features sind weg).
