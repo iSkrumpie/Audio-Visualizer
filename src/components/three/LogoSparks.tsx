@@ -1,22 +1,22 @@
 /**
- * LogoSparks — audio-reactive sparks / embers / weld particle system
- * rendered around the logo.
+ * LogoSparks — audio-reactive sparks / embers particle system (v15)
  *
- * Two layers:
- *   1. Ambient GPU pool (AMBIENT_COUNT particles) — self-respawning via
- *      mod(uTime + aOffset, aLifetime). Constant flow.
- *   2. CPU burst pool (BURST_COUNT particles) — fired on kick/snare/hihat
- *      rising edges.
+ * Three independent ambient pools, each with its own style-specific
+ * spawn geometry baked in at init time:
+ *   weld     — fast radial outward, short life (0.3-0.8s)
+ *   volcanic — slow radial + strong upward, long life (1.5-3.5s)
+ *   ambient  — mixed mid-life (0.8-2.0s), constant flow
  *
- * Styles:
- *   weld     — short, fast, white-hot → orange → dark
- *   volcanic — slow, rising, orange → red → dark
- *   ambient  — mixed (in between)
+ * Plus a CPU-triggered burst pool (weld only, fires on kick/snare).
  *
- * z=0.15, renderOrder=9 (in front of fire ring z=0.1 / renderOrder=7
- * and inner glow z=0.05 / renderOrder=8).
+ * Bug fixes vs v14:
+ *   1. gl_PointSize NO LONGER divided by uLogoSize/240 — sparks are
+ *      bigger on larger logos (was the main complaint).
+ *   2. Each pool has its own spawn attributes; style differences are
+ *      visible immediately without restarting.
  *
- * ANGLE-safety: ALL local vars inside GLSL blocks use the fr_ prefix.
+ * z=0.15-0.17, renderOrder=9.
+ * ANGLE-safety: ALL local GLSL vars use the fr_ prefix.
  */
 
 import { useRef, useMemo } from 'react';
@@ -28,11 +28,79 @@ import { FreqBeatDetector } from '@/lib/audioUtils';
 import { useBeatDetectorRegistration } from './AudioScene';
 import { usePhaseSource } from '@/hooks/usePhaseSource';
 
-const AMBIENT_COUNT       = 150;
-const BURST_COUNT         = 60;
+const PARTICLES_PER_POOL  = 80;
+const BURST_POOL_SIZE     = 60;
 const LOGO_RADIUS_DEFAULT = 0.5;  // matches CenterLogo fire ring innerR
 
-// ─── GLSL: Ambient layer ───────────────────────────────────────────────────────
+// ─── Per-style pool init ───────────────────────────────────────────────────
+
+function initWeldPool(count: number) {
+  const starts     = new Float32Array(count * 3);
+  const velocities = new Float32Array(count * 3);
+  const lifetimes  = new Float32Array(count);
+  const offsets    = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    const fr_angle = Math.random() * Math.PI * 2;
+    const fr_r     = LOGO_RADIUS_DEFAULT * (1.0 + Math.random() * 0.1);
+    starts[i * 3 + 0] = Math.cos(fr_angle) * fr_r;
+    starts[i * 3 + 1] = Math.sin(fr_angle) * fr_r;
+    starts[i * 3 + 2] = 0;
+    // Fast radial outward
+    const fr_speed = 1.2 + Math.random() * 1.5;
+    velocities[i * 3 + 0] = Math.cos(fr_angle) * fr_speed;
+    velocities[i * 3 + 1] = Math.sin(fr_angle) * fr_speed;
+    velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.2;
+    lifetimes[i] = 0.3 + Math.random() * 0.5;
+    offsets[i]   = Math.random() * lifetimes[i];
+  }
+  return { starts, velocities, lifetimes, offsets };
+}
+
+function initVolcanicPool(count: number) {
+  const starts     = new Float32Array(count * 3);
+  const velocities = new Float32Array(count * 3);
+  const lifetimes  = new Float32Array(count);
+  const offsets    = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    const fr_angle = Math.random() * Math.PI * 2;
+    const fr_r     = LOGO_RADIUS_DEFAULT * (0.95 + Math.random() * 0.1);
+    starts[i * 3 + 0] = Math.cos(fr_angle) * fr_r;
+    starts[i * 3 + 1] = Math.sin(fr_angle) * fr_r;
+    starts[i * 3 + 2] = 0;
+    // Slow radial + strong upward bias
+    const fr_radial = 0.2 + Math.random() * 0.4;
+    const fr_up     = 0.4 + Math.random() * 0.6;
+    velocities[i * 3 + 0] = Math.cos(fr_angle) * fr_radial;
+    velocities[i * 3 + 1] = Math.sin(fr_angle) * fr_radial + fr_up;
+    velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.1;
+    lifetimes[i] = 1.5 + Math.random() * 2.0;
+    offsets[i]   = Math.random() * lifetimes[i];
+  }
+  return { starts, velocities, lifetimes, offsets };
+}
+
+function initAmbientPool(count: number) {
+  const starts     = new Float32Array(count * 3);
+  const velocities = new Float32Array(count * 3);
+  const lifetimes  = new Float32Array(count);
+  const offsets    = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    const fr_angle = Math.random() * Math.PI * 2;
+    const fr_r     = LOGO_RADIUS_DEFAULT * (0.95 + Math.random() * 0.15);
+    starts[i * 3 + 0] = Math.cos(fr_angle) * fr_r;
+    starts[i * 3 + 1] = Math.sin(fr_angle) * fr_r;
+    starts[i * 3 + 2] = 0;
+    const fr_speed = 0.4 + Math.random() * 0.8;
+    velocities[i * 3 + 0] = Math.cos(fr_angle) * fr_speed;
+    velocities[i * 3 + 1] = Math.sin(fr_angle) * fr_speed + (Math.random() - 0.5) * 0.4;
+    velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.15;
+    lifetimes[i] = 0.8 + Math.random() * 1.2;
+    offsets[i]   = Math.random() * lifetimes[i];
+  }
+  return { starts, velocities, lifetimes, offsets };
+}
+
+// ─── GLSL: Ambient layer ───────────────────────────────────────────────────
 
 const SPARKS_AMBIENT_VERT = /* glsl */ `
 uniform float uTime;
@@ -43,8 +111,7 @@ uniform float uBeatPulse;
 uniform float uVocalBoost;
 uniform float uKick;
 uniform float uHihat;
-uniform float uLoudness;
-uniform float uStyle;
+uniform float uStyleFlag;
 uniform float uLogoSize;
 
 attribute vec3  aStart;
@@ -54,9 +121,7 @@ attribute float aOffset;
 
 varying vec3  vColor;
 varying float vAlpha;
-varying float vSize;
 
-// fr_ prefix on all locals for ANGLE safety
 vec3 fr_sparkColor(float fr_t) {
   fr_t = clamp(fr_t, 0.0, 1.0);
   vec3 fr_c0 = vec3(1.00, 0.97, 0.88);
@@ -75,61 +140,61 @@ vec3 fr_sparkColor(float fr_t) {
 void main() {
   // Self-respawn: age wraps at lifetime
   float fr_age = mod(uTime + aOffset, aLifetime);
-  float fr_t   = fr_age / aLifetime;  // 0=fresh, 1=dying
+  float fr_t   = fr_age / aLifetime;
 
-  // Style-based lifetime scaling (welds are fast, volcanos are slow)
-  float fr_lifetimeMul = mix(1.0, 2.8, clamp(uStyle, 0.0, 2.0) / 2.0);
+  // Per-style lifetime multiplier (weld short, volcanic long, ambient mid)
+  float fr_styleMul = uStyleFlag < 0.5 ? 1.0 : (uStyleFlag < 1.5 ? 2.5 : 1.5);
 
-  // Velocity with vocal boost (divide by uLogoSize so world speed stays
-  // constant when the <points> group is scaled by logoSize)
-  float fr_boost  = 1.0 + uVocalBoost * 1.5;
-  float fr_invLs  = 1.0 / max(uLogoSize, 1.0);
-  vec3  fr_vel    = aVelocity * fr_boost * fr_invLs;
+  // Velocity with vocal boost
+  float fr_boost = 1.0 + uVocalBoost * 1.5;
+  // Divide by uLogoSize so world-space speed stays constant when the
+  // <points> group is scaled by logoSize in the frame loop.
+  float fr_invLs = 1.0 / max(uLogoSize, 1.0);
+  vec3  fr_vel   = aVelocity * fr_boost * fr_invLs;
 
-  // Ballistic position: integrated drag
+  // Ballistic position with drag
   float fr_k   = uDrag;
-  vec3  fr_pos = aStart + fr_vel / fr_k * (1.0 - exp(-fr_k * fr_age * fr_lifetimeMul));
-  fr_pos.y -= 0.5 * (uGravity * fr_invLs) * fr_age * fr_age * fr_lifetimeMul;
+  vec3  fr_pos = aStart + fr_vel / fr_k * (1.0 - exp(-fr_k * fr_age * fr_styleMul));
+  fr_pos.y    -= 0.5 * uGravity * fr_invLs * fr_age * fr_age * fr_styleMul;
 
-  // Color
   vColor = fr_sparkColor(fr_t);
 
   // Alpha: bright early, exponential dropoff
   vAlpha = pow(1.0 - smoothstep(0.4, 1.0, fr_t), 2.0);
 
-  // Size: shrinks over life, hihat pulse boost
-  float fr_sz = uBaseSize * (1.0 - fr_t * 0.7) * (1.0 + uBeatPulse * 0.5)
+  // SIZE FIX: No longer divided by uLogoSize/240.
+  // The <points> group is scaled by logoSize; perspective projection then
+  // gives correct world-space size automatically. Large logos → big sparks.
+  float fr_sz = uBaseSize * (1.0 - fr_t * 0.7)
+              * (1.0 + uBeatPulse * 0.5)
               * (1.0 + uKick * 0.3);
-  vSize = fr_sz;
 
-  // Perspective point size
-  vec4 fr_mvPos  = modelViewMatrix * vec4(fr_pos, 1.0);
-  gl_PointSize   = fr_sz * (300.0 / -fr_mvPos.z) / max(uLogoSize / 240.0, 0.5);
-  gl_Position    = projectionMatrix * fr_mvPos;
+  vec4 fr_mvPos = modelViewMatrix * vec4(fr_pos, 1.0);
+  gl_PointSize  = fr_sz * (400.0 / -fr_mvPos.z);
+  gl_Position   = projectionMatrix * fr_mvPos;
 }
 `;
 
 const SPARKS_AMBIENT_FRAG = /* glsl */ `
 varying vec3  vColor;
 varying float vAlpha;
-varying float vSize;
 
 void main() {
   float fr_dist = distance(gl_PointCoord, vec2(0.5));
 
   // Tight core + wide halo
-  float fr_core  = 1.0 - smoothstep(0.0, 0.20, fr_dist);
-  float fr_halo  = 1.0 - smoothstep(0.0, 0.50, fr_dist);
-  float fr_glow  = pow(fr_core, 2.0) * 0.85 + fr_halo * 0.25;
+  float fr_core = 1.0 - smoothstep(0.0, 0.20, fr_dist);
+  float fr_halo = 1.0 - smoothstep(0.0, 0.50, fr_dist);
+  float fr_glow = pow(fr_core, 2.0) * 0.85 + fr_halo * 0.25;
 
   float fr_finalAlpha = fr_glow * vAlpha;
 
-  // Additive blending: output pre-multiplied
+  // Additive blending: pre-multiply
   gl_FragColor = vec4(vColor * fr_finalAlpha, fr_finalAlpha);
 }
 `;
 
-// ─── GLSL: Burst layer ────────────────────────────────────────────────────────
+// ─── GLSL: Burst layer ─────────────────────────────────────────────────────
 
 const SPARKS_BURST_VERT = /* glsl */ `
 uniform float uTime;
@@ -164,7 +229,7 @@ vec3 fr_sparkColor(float fr_t) {
 void main() {
   float fr_age = uTime - aSpawnTime;
 
-  // Particle not yet spawned or already dead — hide off-screen
+  // Not yet spawned or already dead — hide off-screen
   if (fr_age < 0.0 || fr_age > aLifetime) {
     gl_Position  = vec4(2.0, 2.0, 2.0, 1.0);
     gl_PointSize = 0.0;
@@ -173,45 +238,76 @@ void main() {
     return;
   }
 
-  float fr_t   = fr_age / aLifetime;
-
-  // Ballistic with drag
-  float fr_k    = uDrag;
-  float fr_iLs  = 1.0 / max(uLogoSize, 1.0);
-  vec3  fr_pos  = aStart + (aVelocity * fr_iLs) / fr_k * (1.0 - exp(-fr_k * fr_age));
-  fr_pos.y     -= 0.5 * (uGravity * fr_iLs) * fr_age * fr_age;
+  float fr_t     = fr_age / aLifetime;
+  float fr_invLs = 1.0 / max(uLogoSize, 1.0);
+  float fr_k     = uDrag;
+  vec3  fr_vel   = aVelocity * fr_invLs;
+  vec3  fr_pos   = aStart + fr_vel / fr_k * (1.0 - exp(-fr_k * fr_age));
+  fr_pos.y      -= 0.5 * uGravity * fr_invLs * fr_age * fr_age;
 
   vColor = fr_sparkColor(fr_t);
   vAlpha = pow(1.0 - smoothstep(0.3, 1.0, fr_t), 2.0);
 
+  // SIZE FIX: same as ambient — no division by uLogoSize/240
   float fr_sz    = uBaseSize * (1.0 - fr_t * 0.75);
   vec4  fr_mvPos = modelViewMatrix * vec4(fr_pos, 1.0);
-  gl_PointSize   = fr_sz * (320.0 / -fr_mvPos.z) / max(uLogoSize / 240.0, 0.5);
+  gl_PointSize   = fr_sz * (400.0 / -fr_mvPos.z);
   gl_Position    = projectionMatrix * fr_mvPos;
 }
 `;
 
-// Burst layer reuses the same fragment shader as the ambient layer.
+// ─── Helpers ──────────────────────────────────────────────────────────────
 
-// ─── Component ────────────────────────────────────────────────────────────────
+function makeAmbientGeo(init: ReturnType<typeof initWeldPool>) {
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(PARTICLES_PER_POOL * 3);
+  geo.setAttribute('position',  new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aStart',    new THREE.BufferAttribute(init.starts, 3));
+  geo.setAttribute('aVelocity', new THREE.BufferAttribute(init.velocities, 3));
+  geo.setAttribute('aLifetime', new THREE.BufferAttribute(init.lifetimes, 1));
+  geo.setAttribute('aOffset',   new THREE.BufferAttribute(init.offsets, 1));
+  return geo;
+}
+
+function makeAmbientMat(styleFlag: number) {
+  return new THREE.ShaderMaterial({
+    vertexShader:   SPARKS_AMBIENT_VERT,
+    fragmentShader: SPARKS_AMBIENT_FRAG,
+    uniforms: {
+      uTime:       { value: 0 },
+      uGravity:    { value: 2.5 },
+      uDrag:       { value: 2.0 },
+      uBaseSize:   { value: 4.0 },
+      uBeatPulse:  { value: 0 },
+      uVocalBoost: { value: 0 },
+      uKick:       { value: 0 },
+      uHihat:      { value: 0 },
+      uStyleFlag:  { value: styleFlag },
+      uLogoSize:   { value: 240 },
+    },
+    transparent: true,
+    depthWrite:  false,
+    blending:    THREE.AdditiveBlending,
+  });
+}
+
+// ─── Component ────────────────────────────────────────────────────────────
 
 export function LogoSparks() {
-  const ambientRef    = useRef<THREE.Points>(null);
-  const burstRef      = useRef<THREE.Points>(null);
+  const weldRef     = useRef<THREE.Points>(null);
+  const volcanicRef = useRef<THREE.Points>(null);
+  const ambientRef  = useRef<THREE.Points>(null);
+  const burstRef    = useRef<THREE.Points>(null);
 
-  // ── Beat detector ────────────────────────────────────────────────────────
+  // Beat detector
   const sparksBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
   useBeatDetectorRegistration(sparksBeatDetector);
 
-  // Phase source: switches live ↔ precomputed based on detectionMode
   const sparksPhaseSrc = usePhaseSource({
     detector: sparksBeatDetector,
     getPrecomputedRange: () => {
       const sL = getSettings().logo;
-      return {
-        startHz: sL.fireFreqStart ?? 40,
-        endHz:   sL.fireFreqEnd   ?? 160,
-      };
+      return { startHz: sL.fireFreqStart ?? 40, endHz: sL.fireFreqEnd ?? 160 };
     },
     liveFn: () => {
       const sL = getSettings().logo;
@@ -224,76 +320,28 @@ export function LogoSparks() {
     },
   });
 
-  // ── Ambient geometry ─────────────────────────────────────────────────────
-  const ambientGeo = useMemo(() => {
-    const geo        = new THREE.BufferGeometry();
-    const positions  = new Float32Array(AMBIENT_COUNT * 3);
-    const aStarts    = new Float32Array(AMBIENT_COUNT * 3);
-    const aVelocities = new Float32Array(AMBIENT_COUNT * 3);
-    const aLifetimes = new Float32Array(AMBIENT_COUNT);
-    const aOffsets   = new Float32Array(AMBIENT_COUNT);
+  // ── Geometries (style-specific, baked at init) ───────────────────────────
+  const weldGeo     = useMemo(() => makeAmbientGeo(initWeldPool(PARTICLES_PER_POOL)), []);
+  const volcanicGeo = useMemo(() => makeAmbientGeo(initVolcanicPool(PARTICLES_PER_POOL)), []);
+  const ambientGeo  = useMemo(() => makeAmbientGeo(initAmbientPool(PARTICLES_PER_POOL)), []);
 
-    for (let i = 0; i < AMBIENT_COUNT; i++) {
-      const fr_angle = Math.random() * Math.PI * 2;
-      const fr_r     = LOGO_RADIUS_DEFAULT * (1.0 + Math.random() * 0.15);
-      aStarts[i * 3 + 0] = Math.cos(fr_angle) * fr_r;
-      aStarts[i * 3 + 1] = Math.sin(fr_angle) * fr_r;
-      aStarts[i * 3 + 2] = 0;
+  // ── Materials ────────────────────────────────────────────────────────────
+  const weldMat     = useMemo(() => makeAmbientMat(0), []);
+  const volcanicMat = useMemo(() => makeAmbientMat(1), []);
+  const ambientMat  = useMemo(() => makeAmbientMat(2), []);
 
-      const fr_speed  = 0.4 + Math.random() * 1.5;
-      const fr_upBias = Math.random() * 0.6;
-      aVelocities[i * 3 + 0] = Math.cos(fr_angle) * fr_speed + (Math.random() - 0.5) * 0.3;
-      aVelocities[i * 3 + 1] = Math.sin(fr_angle) * fr_speed + fr_upBias;
-      aVelocities[i * 3 + 2] = (Math.random() - 0.5) * 0.2;
-
-      aLifetimes[i] = 0.4 + Math.random() * 1.6;
-      aOffsets[i]   = Math.random() * aLifetimes[i];
-    }
-
-    geo.setAttribute('position',  new THREE.BufferAttribute(positions, 3));
-    geo.setAttribute('aStart',    new THREE.BufferAttribute(aStarts, 3));
-    geo.setAttribute('aVelocity', new THREE.BufferAttribute(aVelocities, 3));
-    geo.setAttribute('aLifetime', new THREE.BufferAttribute(aLifetimes, 1));
-    geo.setAttribute('aOffset',   new THREE.BufferAttribute(aOffsets, 1));
-    return geo;
-  }, []);
-
-  // ── Ambient material ──────────────────────────────────────────────────────
-  const ambientMat = useMemo(() => new THREE.ShaderMaterial({
-    vertexShader:   SPARKS_AMBIENT_VERT,
-    fragmentShader: SPARKS_AMBIENT_FRAG,
-    uniforms: {
-      uTime:       { value: 0 },
-      uGravity:    { value: 2.5 },
-      uDrag:       { value: 2.0 },
-      uBaseSize:   { value: 4.0 },
-      uBeatPulse:  { value: 0 },
-      uVocalBoost: { value: 0 },
-      uKick:       { value: 0 },
-      uHihat:      { value: 0 },
-      uLoudness:   { value: 0 },
-      uStyle:      { value: 0 },
-      uLogoSize:   { value: 240 },
-    },
-    transparent: true,
-    depthWrite:  false,
-    blending:    THREE.AdditiveBlending,
-  }), []);
-
-  // ── Burst geometry ────────────────────────────────────────────────────────
+  // ── Burst pool ───────────────────────────────────────────────────────────
   const burstGeo = useMemo(() => {
     const geo         = new THREE.BufferGeometry();
-    const positions   = new Float32Array(BURST_COUNT * 3);
-    const aStarts     = new Float32Array(BURST_COUNT * 3);
-    const aVelocities = new Float32Array(BURST_COUNT * 3);
-    const aSpawnTimes = new Float32Array(BURST_COUNT);
-    const aLifetimes  = new Float32Array(BURST_COUNT);
-
-    for (let i = 0; i < BURST_COUNT; i++) {
+    const positions   = new Float32Array(BURST_POOL_SIZE * 3);
+    const aStarts     = new Float32Array(BURST_POOL_SIZE * 3);
+    const aVelocities = new Float32Array(BURST_POOL_SIZE * 3);
+    const aSpawnTimes = new Float32Array(BURST_POOL_SIZE);
+    const aLifetimes  = new Float32Array(BURST_POOL_SIZE);
+    for (let i = 0; i < BURST_POOL_SIZE; i++) {
       aSpawnTimes[i] = -1000.0;
       aLifetimes[i]  = 0.0;
     }
-
     geo.setAttribute('position',   new THREE.BufferAttribute(positions, 3));
     geo.setAttribute('aStart',     new THREE.BufferAttribute(aStarts, 3));
     geo.setAttribute('aVelocity',  new THREE.BufferAttribute(aVelocities, 3));
@@ -302,16 +350,15 @@ export function LogoSparks() {
     return geo;
   }, []);
 
-  // ── Burst material ────────────────────────────────────────────────────────
   const burstMat = useMemo(() => new THREE.ShaderMaterial({
     vertexShader:   SPARKS_BURST_VERT,
-    fragmentShader: SPARKS_AMBIENT_FRAG,   // reuse ambient frag
+    fragmentShader: SPARKS_AMBIENT_FRAG,
     uniforms: {
       uTime:     { value: 0 },
-      uGravity:  { value: 2.5 },
-      uDrag:     { value: 2.0 },
-      uBaseSize:  { value: 4.0 },
-      uLogoSize:  { value: 240 },
+      uGravity:  { value: 3.0 },
+      uDrag:     { value: 2.5 },
+      uBaseSize: { value: 5.0 },
+      uLogoSize: { value: 240 },
     },
     transparent: true,
     depthWrite:  false,
@@ -324,115 +371,135 @@ export function LogoSparks() {
 
   // ── Per-frame ─────────────────────────────────────────────────────────────
   useFrame((state) => {
-    const settings = getSettings();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sF = settings.logo as any;
+    const sF = getSettings().logo as any;
 
-    const sparksEnabled = sF.sparksEnabled ?? false;
+    const fr_weldOn     = sF.sparksWeldEnabled     ?? false;
+    const fr_volcanicOn = sF.sparksVolcanicEnabled ?? false;
+    const fr_ambientOn  = sF.sparksAmbientEnabled  ?? false;
 
-    if (!sparksEnabled) {
-      if (ambientRef.current) ambientRef.current.visible = false;
-      if (burstRef.current)   burstRef.current.visible   = false;
-      return;
-    }
+    // Visibility
+    if (weldRef.current)     weldRef.current.visible     = fr_weldOn;
+    if (volcanicRef.current) volcanicRef.current.visible = fr_volcanicOn;
+    if (ambientRef.current)  ambientRef.current.visible  = fr_ambientOn;
+    if (burstRef.current)    burstRef.current.visible    = fr_weldOn;
 
-    if (ambientRef.current) ambientRef.current.visible = true;
-    if (burstRef.current)   burstRef.current.visible   = true;
+    const fr_anyOn = fr_weldOn || fr_volcanicOn || fr_ambientOn;
+    if (!fr_anyOn) return;
 
-    const fr_time = state.clock.elapsedTime;
+    const fr_time     = state.clock.elapsedTime;
+    const fr_beatPuls = sparksPhaseSrc();
 
-    // Style mapping
-    const fr_styleStr = sF.sparksStyle ?? 'weld';
-    const fr_styleMap: Record<string, number> = { weld: 0, volcanic: 1, ambient: 2 };
-    const fr_styleVal = fr_styleMap[fr_styleStr] ?? 0;
+    // Shared settings
+    const fr_sparksSize     = sF.sparksSize      ?? 1.0;
+    const fr_sparksGravity  = sF.sparksGravity   ?? 2.5;
+    const fr_sparksDrag     = sF.sparksDrag      ?? 2.0;
+    const fr_sparksSpread   = sF.sparksSpread    ?? 0.4;
+    const fr_sparksSpeed    = sF.sparksSpeed     ?? 1.0;
+    const fr_sparksBurst    = sF.sparksBurstCount ?? 30;
 
-    // Per-style physics
-    let fr_gravity = 2.5;
-    let fr_drag    = 2.0;
-    if (fr_styleVal === 0) {
-      fr_gravity = 3.0; fr_drag = 2.5;
-    } else if (fr_styleVal === 1) {
-      fr_gravity = 0.5; fr_drag = 1.0;
-    } else {
-      fr_gravity = 1.5; fr_drag = 1.5;
-    }
-
-    // Read phase (live or precomputed)
-    const fr_beatPulse = sparksPhaseSrc();
-
-    // Update ambient uniforms
-    const fr_aU       = ambientMat.uniforms;
-    fr_aU.uTime.value       = fr_time;
-    fr_aU.uGravity.value    = fr_gravity;
-    fr_aU.uDrag.value       = fr_drag;
-    fr_aU.uBaseSize.value   = (sF.sparksSize ?? 1.0) * 4.0;
-    fr_aU.uBeatPulse.value  = audioAnalysis.beatPhase  ?? 0;
-    fr_aU.uVocalBoost.value = audioAnalysis.vocalPhase ?? 0;
-    fr_aU.uKick.value       = audioAnalysis.kickPhase  ?? 0;
-    fr_aU.uHihat.value      = audioAnalysis.hihatPhase ?? 0;
-    fr_aU.uLoudness.value   = audioAnalysis.loudness   ?? 0;
-    fr_aU.uStyle.value      = fr_styleVal;
-
-    // Update burst uniforms
-    const fr_bU       = burstMat.uniforms;
-    fr_bU.uTime.value     = fr_time;
-    fr_bU.uGravity.value  = fr_gravity;
-    fr_bU.uDrag.value     = fr_drag;
-    fr_bU.uBaseSize.value = (sF.sparksSize ?? 1.0) * 5.0;
-
-    // Rising-edge beat detection → CPU burst spawning
-    const fr_kick       = audioAnalysis.kickPhase  ?? 0;
-    const fr_snare      = audioAnalysis.snarePhase ?? 0;
-    const fr_hihat      = audioAnalysis.hihatPhase ?? 0;
-    const fr_burstCount = sF.sparksBurstCount ?? 30;
-
-    if (fr_kick > 0.5 && prevKickRef.current <= 0.5) {
-      spawnBurst(burstGeo, fr_burstCount, fr_styleVal, fr_time);
-    }
-    prevKickRef.current = fr_kick;
-
-    if (fr_snare > 0.5 && prevSnareRef.current <= 0.5) {
-      spawnBurst(burstGeo, Math.round(fr_burstCount * 0.4), fr_styleVal, fr_time);
-    }
-    prevSnareRef.current = fr_snare;
-
-    // Hihat: probabilistic micro-spawn (no rising edge needed)
-    const fr_hihatChance = fr_hihat * 0.5 * 0.016;  // ~1 frame delta
-    if (Math.random() < fr_hihatChance) {
-      spawnBurst(burstGeo, 1, fr_styleVal, fr_time);
-    }
-
-    // Scale both layers to match logo size + beat pulse.
-    // Mirrors CenterLogo's formula: logoSize = settings.logo.size * min(vmin/900, 1)
+    // Logo world-size (mirrors CenterLogo formula)
     const { width, height } = state.size;
-    const fr_vmin       = Math.min(width, height);
-    const fr_vpScale    = Math.min(fr_vmin / 900, 1);
-    const fr_logoSize   = (sF.size ?? 240) * fr_vpScale;
-    const fr_totalScale = fr_logoSize * (1.0 + fr_beatPulse * 0.15);
-    fr_aU.uLogoSize.value = fr_logoSize;
-    fr_bU.uLogoSize.value = fr_logoSize;
-    if (ambientRef.current) ambientRef.current.scale.set(fr_totalScale, fr_totalScale, 1);
-    if (burstRef.current)   burstRef.current.scale.set(fr_totalScale, fr_totalScale, 1);
+    const fr_vmin           = Math.min(width, height);
+    const fr_vpScale        = Math.min(fr_vmin / 900, 1);
+    const fr_logoSize       = (sF.size ?? 240) * fr_vpScale;
+    const fr_totalScale     = fr_logoSize * (1.0 + fr_beatPuls * 0.15);
+
+    // Per-style gravity / drag adjustments (visual tuning)
+    const FR_WELD_GRAVITY    = fr_sparksGravity;
+    const FR_WELD_DRAG       = fr_sparksDrag;
+    const FR_VOLCANIC_GRAVITY = fr_sparksGravity * 0.3;
+    const FR_VOLCANIC_DRAG   = fr_sparksDrag * 0.7;
+    const FR_AMBIENT_GRAVITY  = fr_sparksGravity * 0.6;
+    const FR_AMBIENT_DRAG    = fr_sparksDrag * 0.85;
+
+    const fr_kick   = audioAnalysis.kickPhase  ?? 0;
+    const fr_hihat  = audioAnalysis.hihatPhase ?? 0;
+    const fr_vocal  = audioAnalysis.vocalPhase ?? 0;
+    const fr_beat   = audioAnalysis.beatPhase  ?? 0;
+
+    // Update material uniforms helper
+    const fr_updateMat = (
+      mat: THREE.ShaderMaterial,
+      gravity: number,
+      drag: number,
+    ) => {
+      const u = mat.uniforms;
+      u.uTime.value       = fr_time;
+      u.uGravity.value    = gravity;
+      u.uDrag.value       = drag;
+      u.uBaseSize.value   = fr_sparksSize * 4.0;
+      u.uBeatPulse.value  = fr_beat;
+      u.uVocalBoost.value = fr_vocal;
+      u.uKick.value       = fr_kick;
+      u.uHihat.value      = fr_hihat;
+      u.uLogoSize.value   = fr_logoSize;
+    };
+
+    if (fr_weldOn) {
+      fr_updateMat(weldMat, FR_WELD_GRAVITY, FR_WELD_DRAG);
+      if (weldRef.current) weldRef.current.scale.set(fr_totalScale, fr_totalScale, 1);
+    }
+    if (fr_volcanicOn) {
+      fr_updateMat(volcanicMat, FR_VOLCANIC_GRAVITY, FR_VOLCANIC_DRAG);
+      if (volcanicRef.current) volcanicRef.current.scale.set(fr_totalScale, fr_totalScale, 1);
+    }
+    if (fr_ambientOn) {
+      fr_updateMat(ambientMat, FR_AMBIENT_GRAVITY, FR_AMBIENT_DRAG);
+      if (ambientRef.current) ambientRef.current.scale.set(fr_totalScale, fr_totalScale, 1);
+    }
+
+    // Burst material
+    if (fr_weldOn) {
+      const u = burstMat.uniforms;
+      u.uTime.value     = fr_time;
+      u.uGravity.value  = FR_WELD_GRAVITY;
+      u.uDrag.value     = FR_WELD_DRAG;
+      u.uBaseSize.value = fr_sparksSize * 6.0;
+      u.uLogoSize.value = fr_logoSize;
+      if (burstRef.current) burstRef.current.scale.set(fr_totalScale, fr_totalScale, 1);
+
+      // Rising-edge kick burst
+      if (fr_kick > 0.5 && prevKickRef.current <= 0.5) {
+        const fr_n = Math.round(fr_sparksBurst * (fr_kick * 0.5 + 0.5));
+        fr_spawnBurst(burstGeo, fr_n, fr_time, fr_sparksSpread, fr_sparksSpeed);
+      }
+      prevKickRef.current = fr_kick;
+
+      // Rising-edge snare (smaller burst)
+      const fr_snare = audioAnalysis.snarePhase ?? 0;
+      if (fr_snare > 0.5 && prevSnareRef.current <= 0.5) {
+        fr_spawnBurst(burstGeo, Math.round(fr_sparksBurst * 0.4), fr_time, fr_sparksSpread, fr_sparksSpeed);
+      }
+      prevSnareRef.current = fr_snare;
+    } else {
+      prevKickRef.current  = 0;
+      prevSnareRef.current = 0;
+    }
   });
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
-      <points
-        ref={ambientRef}
-        position={[0, 0, 0.15]}
-        renderOrder={9}
-        frustumCulled={false}
-      >
+      {/* Weld ambient pool */}
+      <points ref={weldRef} position={[0, 0, 0.15]} renderOrder={9} frustumCulled={false}>
+        <primitive object={weldGeo}  attach="geometry" />
+        <primitive object={weldMat}  attach="material" />
+      </points>
+
+      {/* Volcanic ambient pool */}
+      <points ref={volcanicRef} position={[0, 0, 0.16]} renderOrder={9} frustumCulled={false}>
+        <primitive object={volcanicGeo} attach="geometry" />
+        <primitive object={volcanicMat} attach="material" />
+      </points>
+
+      {/* Ambient pool */}
+      <points ref={ambientRef} position={[0, 0, 0.17]} renderOrder={9} frustumCulled={false}>
         <primitive object={ambientGeo} attach="geometry" />
         <primitive object={ambientMat} attach="material" />
       </points>
-      <points
-        ref={burstRef}
-        position={[0, 0, 0.15]}
-        renderOrder={9}
-        frustumCulled={false}
-      >
+
+      {/* Weld burst pool */}
+      <points ref={burstRef} position={[0, 0, 0.15]} renderOrder={9} frustumCulled={false}>
         <primitive object={burstGeo} attach="geometry" />
         <primitive object={burstMat} attach="material" />
       </points>
@@ -440,16 +507,16 @@ export function LogoSparks() {
   );
 }
 
-// ─── CPU burst helper ──────────────────────────────────────────────────────────
+// ─── CPU burst helper ──────────────────────────────────────────────────────
 
-// Round-robin cursor (module-level; resets on file reload / hot-reload)
-let burstCursor = 0;
+let fr_burstCursor = 0;
 
-function spawnBurst(
+function fr_spawnBurst(
   geo: THREE.BufferGeometry,
   count: number,
-  styleVal: number,
   currentTime: number,
+  _spread: number,
+  speedMul: number,
 ): void {
   const fr_aStarts     = geo.attributes['aStart']     as THREE.BufferAttribute;
   const fr_aVelocities = geo.attributes['aVelocity']  as THREE.BufferAttribute;
@@ -457,40 +524,24 @@ function spawnBurst(
   const fr_aLifetimes  = geo.attributes['aLifetime']  as THREE.BufferAttribute;
 
   for (let n = 0; n < count; n++) {
-    const fr_i     = burstCursor++ % BURST_COUNT;
+    const fr_i     = fr_burstCursor++ % BURST_POOL_SIZE;
     const fr_angle = Math.random() * Math.PI * 2;
-    const fr_r     = LOGO_RADIUS_DEFAULT * (0.95 + Math.random() * 0.15);
+    const fr_r     = LOGO_RADIUS_DEFAULT * (0.95 + Math.random() * 0.1);
+    const fr_speed = (3.0 + Math.random() * 4.0) * speedMul;
+    const fr_life  = 0.3 + Math.random() * 0.5;
 
-    let fr_speed: number;
-    let fr_lifetime: number;
-
-    if (styleVal === 0) {               // weld
-      fr_speed    = 3.0 + Math.random() * 5.0;
-      fr_lifetime = 0.3 + Math.random() * 0.5;
-    } else if (styleVal === 1) {        // volcanic
-      fr_speed    = 0.4 + Math.random() * 1.2;
-      fr_lifetime = 1.0 + Math.random() * 2.5;
-    } else {                            // ambient
-      fr_speed    = 0.6 + Math.random() * 1.8;
-      fr_lifetime = 0.6 + Math.random() * 1.4;
-    }
-
-    const fr_upBias = styleVal === 1 ? 0.8 : 0.3;
-
-    fr_aStarts.setXYZ(
-      fr_i,
+    fr_aStarts.setXYZ(fr_i,
       Math.cos(fr_angle) * fr_r,
       Math.sin(fr_angle) * fr_r,
       0,
     );
-    fr_aVelocities.setXYZ(
-      fr_i,
+    fr_aVelocities.setXYZ(fr_i,
       Math.cos(fr_angle) * fr_speed + (Math.random() - 0.5) * 0.3,
-      Math.sin(fr_angle) * fr_speed + Math.random() * fr_upBias,
+      Math.sin(fr_angle) * fr_speed + Math.random() * 0.3,
       (Math.random() - 0.5) * 0.2,
     );
     fr_aSpawnTimes.setX(fr_i, currentTime);
-    fr_aLifetimes.setX(fr_i, fr_lifetime);
+    fr_aLifetimes.setX(fr_i, fr_life);
   }
 
   fr_aStarts.needsUpdate     = true;

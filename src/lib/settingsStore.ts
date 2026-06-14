@@ -1,6 +1,11 @@
 /**
  * Settings Store (Zustand + localStorage persist)
  *
+ * v15: Sparks rework — replaced sparksEnabled + sparksStyle enum with 3 independent
+ *       toggle fields: sparksWeldEnabled, sparksVolcanicEnabled, sparksAmbientEnabled.
+ *       Removed sparksSpawnMix. Per-style spawn geometry is baked into each pool.
+ *       Old settings are wiped on first load (migrate → DEFAULT_SETTINGS).
+ *
  * v14: Added sparks/embers system under logo.fire (12 new fields).
  *       sparksEnabled, sparksStyle, sparksCount, sparksSize, sparksSpeed,
  *       sparksBurstCount, sparksLifetime, sparksGravity, sparksDrag,
@@ -231,18 +236,18 @@ export type Settings = {
     fireFreqStart: number;      // 20..20000 Hz
     fireFreqEnd: number;        // 20..20000 Hz
     fireSensitivity: number;    // 0.1..5.0 fire beat detector sensitivity
-    // ── Sparks / Embers (v14) ──────────────────────────────────────────
-    sparksEnabled:    boolean;       // master toggle
-    sparksStyle:      'weld' | 'volcanic' | 'ambient'; // particle behaviour mode
-    sparksCount:      number;        // ambient pool size: 50..300
+    // ── Sparks / Embers (v15) — 3 independent toggles ────────────────────
+    sparksWeldEnabled:     boolean;  // sharp white-hot sparks, radial bursts
+    sparksVolcanicEnabled: boolean;  // slow orange rising embers
+    sparksAmbientEnabled:  boolean;  // constant soft floating glow
+    sparksCount:      number;        // particles per pool: 30..200
     sparksSize:       number;        // base size multiplier: 0.3..3.0
     sparksSpeed:      number;        // initial velocity multiplier: 0.3..3.0
-    sparksBurstCount: number;        // particles per kick burst: 0..80
+    sparksBurstCount: number;        // particles per kick burst (weld only): 0..80
     sparksLifetime:   number;        // max lifetime in seconds: 0.3..3.0
     sparksGravity:    number;        // downward acceleration: 0..8
     sparksDrag:       number;        // drag coefficient: 0.5..4.0
     sparksSpread:     number;        // radial spread angle (radians): 0..1.5 (~85°)
-    sparksSpawnMix:   number;        // 0=rim only, 1=rim+flame-tip mix: 0..1
     sparksOpacity:    number;        // overall opacity multiplier: 0..1
   };
 
@@ -506,10 +511,11 @@ const DEFAULT_SETTINGS: Settings = {
     fireFreqStart: 20,
     fireFreqEnd: 200,
     fireSensitivity: 1.0,
-    // Sparks / Embers (v14) — default OFF
-    sparksEnabled:    false,
-    sparksStyle:      'weld',
-    sparksCount:      150,
+    // Sparks / Embers (v15) — all default OFF
+    sparksWeldEnabled:     false,
+    sparksVolcanicEnabled: false,
+    sparksAmbientEnabled:  false,
+    sparksCount:      80,
     sparksSize:       1.0,
     sparksSpeed:      1.0,
     sparksBurstCount: 30,
@@ -517,7 +523,6 @@ const DEFAULT_SETTINGS: Settings = {
     sparksGravity:    2.5,
     sparksDrag:       2.0,
     sparksSpread:     0.4,
-    sparksSpawnMix:   0.3,
     sparksOpacity:    0.9,
   },
 
@@ -616,9 +621,9 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v14',
+      name: 'audiovisualizer:settings:v15',
       storage: createJSONStorage(() => localStorage),
-      version: 14,
+      version: 15,
       migrate: () => ({ settings: DEFAULT_SETTINGS }),
     },
   ),
