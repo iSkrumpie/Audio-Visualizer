@@ -18,6 +18,7 @@ import { getSettings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
 import { useSettingsStore } from '@/lib/settingsStore';
 import { useBeatDetectorRegistration } from './AudioScene';
 import { FreqBeatDetector } from '@/lib/audioUtils';
+import { usePhaseSource } from '@/hooks/usePhaseSource';
 
 const REF_VMIN = 900;
 
@@ -380,6 +381,30 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
   useBeatDetectorRegistration(logoBeatDetector);
   useBeatDetectorRegistration(fireBeatDetector);
 
+  // v13: phase sources for logo and fire. Logo uses kickPhase (low-freq
+  // energy), fire uses a higher band - vocals are a natural fit for
+  // 'fire reacts to vocal entries' (e.g. a singer holds a note and the
+  // fire flares with the sustained energy). Both stay registered for
+  // export-reset compatibility.
+  const logoPhaseSrc = usePhaseSource({
+    detector: logoBeatDetector,
+    precomputedPhase: () => audioAnalysis.kickPhase,
+    liveFn: () => {
+      const sL = getSettings().logo;
+      logoBeatDetector.setSensitivity(sL.beatFxSensitivity ?? 1.0);
+      return logoBeatDetector.update(audioAnalysis.rawFreqData, sL.beatFxFreqStart, sL.beatFxFreqEnd);
+    },
+  });
+  const firePhaseSrc = usePhaseSource({
+    detector: fireBeatDetector,
+    precomputedPhase: () => audioAnalysis.vocalPhase,
+    liveFn: () => {
+      const sF = getSettings().logo;
+      fireBeatDetector.setSensitivity(sF.fireSensitivity ?? 1.0);
+      return fireBeatDetector.update(audioAnalysis.rawFreqData, sF.fireFreqStart, sF.fireFreqEnd);
+    },
+  });
+
   // ── useFrame: update all reactive state ─────────────────────────────────────
   useFrame((state, delta) => {
     const s   = getSettings().logo;
@@ -393,10 +418,20 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
 
     // ── Frequency energy ──────────────────────────────────────────────────────
     const rawData    = audioAnalysis.rawFreqData;
-    logoBeatDetector.setSensitivity(s.beatFxSensitivity ?? 1.0);
-    fireBeatDetector.setSensitivity(s.fireSensitivity ?? 1.0);
-    const logoBeat   = logoBeatDetector.update(rawData, s.beatFxFreqStart, s.beatFxFreqEnd);
-    const fireBeat   = fireBeatDetector.update(rawData, s.fireFreqStart, s.fireFreqEnd);
+    // v13: pull phases from the active source (precomputed or live).
+    // Fire also needs the raw energy for the bass-driven fire lift —
+    // we still call the live detector in 'precomputed' mode just for
+    // its `.energy` field (cheap, no double-firing because the
+    // detector only updates if update() is called).
+    const logoBeat   = logoPhaseSrc();
+    const fireBeat   = firePhaseSrc();
+    if (s.fireEnabled) {
+      // Keep the fire detector in sync for its .energy reading even
+      // in precomputed mode (the energy drives uFrBass, the bass-
+      // modulated flame height independent of the beat phase).
+      fireBeatDetector.setSensitivity(s.fireSensitivity ?? 1.0);
+      fireBeatDetector.update(rawData, s.fireFreqStart, s.fireFreqEnd);
+    }
     const fireEnergy = fireBeatDetector.energy;
 
     // ── Logo mesh ─────────────────────────────────────────────────────────────

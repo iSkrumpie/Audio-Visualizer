@@ -9,6 +9,7 @@ import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { getSettings } from '@/lib/settingsStore';
 import { FreqBeatDetector } from '@/lib/audioUtils';
 import { useBeatDetectorRegistration } from './AudioScene';
+import { usePhaseSource } from '@/hooks/usePhaseSource';
 import nebulaVert from './shaders/nebula.vert';
 import nebulaFrag from './shaders/nebula.frag';
 
@@ -21,6 +22,23 @@ export function NebulaPlane() {
   const meshRef = useRef<THREE.Mesh>(null);
   const nebulaBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
   useBeatDetectorRegistration(nebulaBeatDetector);
+
+  // v13: nebula pulse source. In precomputed mode, uses hihatPhase
+  // (high-frequency transients pulse the nebula so it 'breathes'
+  // with the high-end sparkle). Falls back to the live detector.
+  const nebulaPhaseSrc = usePhaseSource({
+    detector: nebulaBeatDetector,
+    precomputedPhase: () => audioAnalysis.hihatPhase,
+    liveFn: () => {
+      const bgN = getSettings().background;
+      nebulaBeatDetector.setSensitivity(bgN.nebulaBeatSensitivity ?? 1.0);
+      return nebulaBeatDetector.update(
+        audioAnalysis.rawFreqData,
+        bgN.nebulaBeatFreqStart ?? 40,
+        bgN.nebulaBeatFreqEnd ?? 120,
+      );
+    },
+  });
 
   const uniforms = useMemo(() => ({
     uTime:        { value: 0 },
@@ -51,12 +69,7 @@ export function NebulaPlane() {
     // Beat pulse mode: use FreqBeatDetector if nebulaBeatMode enabled
     let audioPulse = 0;
     if (bg.nebulaBeatMode) {
-      nebulaBeatDetector.setSensitivity(bg.nebulaBeatSensitivity ?? 1.0);
-      audioPulse = nebulaBeatDetector.update(
-        audioAnalysis.rawFreqData,
-        bg.nebulaBeatFreqStart ?? 40,
-        bg.nebulaBeatFreqEnd ?? 120,
-      );
+      audioPulse = nebulaPhaseSrc();
     }
 
     mat.uniforms.uTime.value += delta;

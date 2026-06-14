@@ -13,6 +13,7 @@ import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { useBeatDetectorRegistration } from './AudioScene';
 import { getSettings } from '@/lib/settingsStore';
 import { FreqBeatDetector } from '@/lib/audioUtils';
+import { usePhaseSource } from '@/hooks/usePhaseSource';
 
 const MAX_PARTICLES = 400;
 const REF_VMIN      = 900;
@@ -153,6 +154,24 @@ export function GPUParticles() {
   const particleBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
   useBeatDetectorRegistration(particleBeatDetector);
 
+  // v13: particle phase source. Default uses snarePhase for the
+  // 'particles burst on snare hit' use case (snare is the most
+  // distinctive percussive element for orbit motion). Falls back to
+  // the live detector in 'live' mode.
+  const particlePhaseSrc = usePhaseSource({
+    detector: particleBeatDetector,
+    precomputedPhase: () => audioAnalysis.snarePhase,
+    liveFn: () => {
+      const spL = getSettings().particles;
+      particleBeatDetector.setSensitivity(spL.reactiveSensitivity ?? 1.0);
+      return particleBeatDetector.update(
+        audioAnalysis.rawFreqData,
+        spL.reactiveFreqStart,
+        spL.reactiveFreqEnd,
+      );
+    },
+  });
+
   const particles = useMemo(() => {
     const accentHue    = hexToHue(getSettings().theme.accent);
     const secondaryHue = hexToHue(getSettings().theme.secondary);
@@ -235,9 +254,14 @@ export function GPUParticles() {
 
     // Audio reactivity from configured Hz range
     const { bass, loudness } = audioAnalysis;
+    // v13: phase source (precomputed snare / live detector). We also
+    // run the live detector in precomputed mode for its .energy field
+    // (the kick force scales with the band's continuous energy, not
+    // just the transient phase).
     particleBeatDetector.setSensitivity(sp.reactiveSensitivity ?? 1.0);
-    const particleBeat = particleBeatDetector.update(audioAnalysis.rawFreqData, sp.reactiveFreqStart, sp.reactiveFreqEnd);
+    particleBeatDetector.update(audioAnalysis.rawFreqData, sp.reactiveFreqStart, sp.reactiveFreqEnd);
     const axisEnergy   = particleBeatDetector.energy;
+    const particleBeat = particlePhaseSrc();
     const kickForce    = Math.pow(particleBeat, 1.5) * 12 * Math.min(scale * 2, 1) * sp.kickBurstStrength;
 
     const count = Math.min(sp.count, MAX_PARTICLES);

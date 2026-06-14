@@ -18,6 +18,7 @@ import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { getSettings } from '@/lib/settingsStore';
 import { FreqBeatDetector } from '@/lib/audioUtils';
 import { useBeatDetectorRegistration } from './AudioScene';
+import { usePhaseSource } from '@/hooks/usePhaseSource';
 
 const bgVert = /* glsl */ `
 varying vec2 vUv;
@@ -495,13 +496,25 @@ export function BackgroundPlane() {
   const beatDetector = useMemo(() => new FreqBeatDetector(48000), []);
   useBeatDetectorRegistration(beatDetector);
 
+  // v13: phase source. Background uses kickPhase as the default
+  // (low-freq energy drives noise/scanline/grid pulses), with
+  // a fallback to the per-component detector in 'live' mode.
+  const bgPhaseSrc = usePhaseSource({
+    detector: beatDetector,
+    precomputedPhase: () => audioAnalysis.kickPhase,
+    liveFn: () => {
+      const bgL = getSettings().background;
+      beatDetector.setSensitivity(bgL.beatFxSensitivity ?? 1.0);
+      return beatDetector.update(audioAnalysis.rawFreqData, bgL.beatFxFreqStart, bgL.beatFxFreqEnd);
+    },
+  });
+
   useFrame((state, delta) => {
     const mat = matRef.current;
     if (!mat) return;
     const s  = getSettings();
     const bg = s.background;
-    beatDetector.setSensitivity(bg.beatFxSensitivity ?? 1.0);
-    const beatPhase = beatDetector.update(audioAnalysis.rawFreqData, bg.beatFxFreqStart, bg.beatFxFreqEnd);
+    const beatPhase = bgPhaseSrc();
 
     // Read width/height from the live R3F state, NOT from the
     // component-level useThree() closure. The export pipeline updates

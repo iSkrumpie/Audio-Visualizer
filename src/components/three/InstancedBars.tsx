@@ -13,6 +13,7 @@ import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { useBeatDetectorRegistration } from './AudioScene';
 import { getSettings } from '@/lib/settingsStore';
 import { FreqBeatDetector } from '@/lib/audioUtils';
+import { usePhaseSource } from '@/hooks/usePhaseSource';
 
 
 const MAX_BARS = 256;
@@ -43,6 +44,28 @@ export function InstancedBars() {
     });
   }, []);
 
+  // v13: phase source — switches between pre-analysis kickPhase and
+  // the legacy per-component FreqBeatDetector based on settings.
+  // Note: usePhaseSource returns a function that reads settings
+  // fresh each call (no re-render needed). The detector is still
+  // created + registered for export-reset compatibility. The liveFn
+  // closure reads the current bars settings (beatFreqStart/End,
+  // beatSensitivity) at call time so the Hz range stays in sync
+  // with the user's settings.
+  const barsPhaseSource = usePhaseSource({
+    detector: barsBeatDetector,
+    precomputedPhase: () => audioAnalysis.kickPhase,
+    liveFn: () => {
+      const bLive = getSettings().bars;
+      barsBeatDetector.setSensitivity(bLive.beatSensitivity ?? 1.0);
+      return barsBeatDetector.update(
+        audioAnalysis.rawFreqData,
+        bLive.beatFreqStart ?? 60,
+        bLive.beatFreqEnd ?? 250,
+      );
+    },
+  });
+
   useFrame((state, delta) => {
     const mesh     = meshRef.current;
     const peakMesh = peakMeshRef.current;
@@ -72,12 +95,10 @@ export function InstancedBars() {
 
     const freq     = audioAnalysis.freqData;
     const loudness = audioAnalysis.loudness;
-    barsBeatDetector.setSensitivity(b.beatSensitivity ?? 1.0);
-    const beat = barsBeatDetector.update(
-      audioAnalysis.rawFreqData,
-      b.beatFreqStart ?? 60,
-      b.beatFreqEnd ?? 250,
-    );
+    // v13: get the active phase. In 'precomputed' mode → audioAnalysis.kickPhase
+    // (separated from bass/snare in the pre-analysis pipeline). In 'live'
+    // mode → the per-component FreqBeatDetector (registered for export reset).
+    const beat = barsPhaseSource();
 
     const totalBars = Math.min(b.count, MAX_BARS);
 

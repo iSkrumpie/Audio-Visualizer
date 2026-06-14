@@ -24,6 +24,7 @@ import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { getSettings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
 import { FreqBeatDetector } from '@/lib/audioUtils';
 import { useBeatDetectorRegistration } from './AudioScene';
+import { usePhaseSource } from '@/hooks/usePhaseSource';
 
 const MAX_BG_PARTICLES = 500;
 const MAX_RAIN         = 1000;
@@ -285,11 +286,62 @@ export function BackgroundFx() {
   useBeatDetectorRegistration(rainBeatDetector);
   useBeatDetectorRegistration(snowBeatDetector);
 
+  // v13: phase sources for the 3 weather effects. Each uses a different
+  // pre-analysis band matched to the effect's character:
+  //   - bgParticles (low-freq ambient puffs) -> kickPhase
+  //   - rain         (mid-high transient)      -> snarePhase
+  //   - snow         (high-freq sparkle)       -> hihatPhase
+  // Falls back to per-component detector in 'live' mode.
+  const bgParticlesPhaseSrc = usePhaseSource({
+    detector: bgParticlesBeatDetector,
+    precomputedPhase: () => audioAnalysis.kickPhase,
+    liveFn: () => {
+      const bgL = getSettings().background;
+      bgParticlesBeatDetector.setSensitivity(
+        bgL.bgParticlesBeatSensitivity ?? DEFAULT_SETTINGS.background.bgParticlesBeatSensitivity,
+      );
+      return bgParticlesBeatDetector.update(
+        audioAnalysis.rawFreqData,
+        bgL.bgParticlesBeatFreqStart ?? DEFAULT_SETTINGS.background.bgParticlesBeatFreqStart,
+        bgL.bgParticlesBeatFreqEnd   ?? DEFAULT_SETTINGS.background.bgParticlesBeatFreqEnd,
+      );
+    },
+  });
+  const rainPhaseSrc = usePhaseSource({
+    detector: rainBeatDetector,
+    precomputedPhase: () => audioAnalysis.snarePhase,
+    liveFn: () => {
+      const bgL = getSettings().background;
+      rainBeatDetector.setSensitivity(
+        bgL.rainBeatSensitivity ?? DEFAULT_SETTINGS.background.rainBeatSensitivity,
+      );
+      return rainBeatDetector.update(
+        audioAnalysis.rawFreqData,
+        bgL.rainBeatFreqStart ?? DEFAULT_SETTINGS.background.rainBeatFreqStart,
+        bgL.rainBeatFreqEnd   ?? DEFAULT_SETTINGS.background.rainBeatFreqEnd,
+      );
+    },
+  });
+  const snowPhaseSrc = usePhaseSource({
+    detector: snowBeatDetector,
+    precomputedPhase: () => audioAnalysis.hihatPhase,
+    liveFn: () => {
+      const bgL = getSettings().background;
+      snowBeatDetector.setSensitivity(
+        bgL.snowBeatSensitivity ?? DEFAULT_SETTINGS.background.snowBeatSensitivity,
+      );
+      return snowBeatDetector.update(
+        audioAnalysis.rawFreqData,
+        bgL.snowBeatFreqStart ?? DEFAULT_SETTINGS.background.snowBeatFreqStart,
+        bgL.snowBeatFreqEnd   ?? DEFAULT_SETTINGS.background.snowBeatFreqEnd,
+      );
+    },
+  });
+
   // ── useFrame ─────────────────────────────────────────────────────────────────
   useFrame((state, delta) => {
     const bg = getSettings().background;
     const { width, height } = state.size;   // MUST read from state.size — NOT closure
-    const rawData = audioAnalysis.rawFreqData;
 
     timeRef.current += delta;
 
@@ -299,14 +351,7 @@ export function BackgroundFx() {
       bgParticlesRef.current.visible = bgEnabled;
     }
     if (bgEnabled) {
-      bgParticlesBeatDetector.setSensitivity(
-        bg.bgParticlesBeatSensitivity ?? DEFAULT_SETTINGS.background.bgParticlesBeatSensitivity,
-      );
-      const bgBeat = bgParticlesBeatDetector.update(
-        rawData,
-        bg.bgParticlesBeatFreqStart ?? DEFAULT_SETTINGS.background.bgParticlesBeatFreqStart,
-        bg.bgParticlesBeatFreqEnd   ?? DEFAULT_SETTINGS.background.bgParticlesBeatFreqEnd,
-      );
+      const bgBeat = bgParticlesPhaseSrc();
 
       const bgCount = Math.min(
         bg.bgParticlesCount ?? DEFAULT_SETTINGS.background.bgParticlesCount,
@@ -328,14 +373,7 @@ export function BackgroundFx() {
       rainRef.current.visible = rainEnabled;
     }
     if (rainEnabled) {
-      rainBeatDetector.setSensitivity(
-        bg.rainBeatSensitivity ?? DEFAULT_SETTINGS.background.rainBeatSensitivity,
-      );
-      const rainBeat = rainBeatDetector.update(
-        rawData,
-        bg.rainBeatFreqStart ?? DEFAULT_SETTINGS.background.rainBeatFreqStart,
-        bg.rainBeatFreqEnd   ?? DEFAULT_SETTINGS.background.rainBeatFreqEnd,
-      );
+      const rainBeat = rainPhaseSrc();
 
       const rainCount = Math.min(
         bg.rainCount ?? DEFAULT_SETTINGS.background.rainCount,
@@ -360,14 +398,7 @@ export function BackgroundFx() {
       snowRef.current.visible = snowEnabled;
     }
     if (snowEnabled) {
-      snowBeatDetector.setSensitivity(
-        bg.snowBeatSensitivity ?? DEFAULT_SETTINGS.background.snowBeatSensitivity,
-      );
-      const snowBeat = snowBeatDetector.update(
-        rawData,
-        bg.snowBeatFreqStart ?? DEFAULT_SETTINGS.background.snowBeatFreqStart,
-        bg.snowBeatFreqEnd   ?? DEFAULT_SETTINGS.background.snowBeatFreqEnd,
-      );
+      const snowBeat = snowPhaseSrc();
 
       const snowCount = Math.min(
         bg.snowCount ?? DEFAULT_SETTINGS.background.snowCount,
