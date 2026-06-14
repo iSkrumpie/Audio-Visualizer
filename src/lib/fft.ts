@@ -70,7 +70,45 @@ export type PrecomputedFrame = {
   highs: number;
   /** min(1, bass*2 + loudness + highs*0.5) — same formula as live */
   energy: number;
+  // ── v13: Per-band onset phases (0..1 each), populated by the offline
+  // multi-band onset detector (precomputeMultiBandOnsets). Used by
+  // components in 'precomputed' detectionMode to drive kick/snare/vocal/hihat
+  // reactions independently. Each is the output of an adaptive-threshold
+  // spectral-flux detector on the corresponding Hz band, smoothed with a
+  // decaying envelope (similar to FreqBeatDetector.phase).
+  kickPhase: number;
+  snarePhase: number;
+  vocalPhase: number;
+  hihatPhase: number;
 };
+
+/**
+ * Multi-band onset detection result (v13). One Float32Array per band,
+ * length = totalFrames (one value per video frame, in the same frame
+ * ordering as the PrecomputedFrame[] returned by precomputeFFT).
+ *
+ * Each value is 0..1, a decaying envelope of the spectral flux in
+ * the corresponding Hz band. Higher = a recent transient (kick hit,
+ * snare hit, vocal onset, hi-hat hit). 0 = no recent transient.
+ *
+ * Populated by precomputeMultiBandOnsets() and aligned with the
+ * precomputeFFT() output so that preAnalysisFrame[i].kickPhase matches
+ * the (i/fps) second of the audio.
+ */
+export type MultiBandOnsets = {
+  kick:  Float32Array;  // 20-150 Hz
+  snare: Float32Array;  // 150-800 Hz
+  vocal: Float32Array;  // 800-4000 Hz
+  hihat: Float32Array;  // 4000-16000 Hz
+};
+
+/** 4 Hz bands used for onset detection. Tuned for music, not speech. */
+export const ONSET_BANDS = [
+  { label: 'kick',  startHz:   20, endHz:   150 },
+  { label: 'snare', startHz:  150, endHz:   800 },
+  { label: 'vocal', startHz:  800, endHz:  4000 },
+  { label: 'hihat', startHz: 4000, endHz: 16000 },
+] as const;
 
 /**
  * Pre-compute all FFT frames for an AudioBuffer.
@@ -140,7 +178,12 @@ export async function precomputeFFT(
     return Array.from({ length: totalFrames }, () => silentFrame());
   }
 
-  // ── Step 2: build the OfflineAudioContext + dual analysers ────────────
+  // ── Step 2: build the OfflineAudioContext + analysers (v13: 6 total) ──
+  // v13: 2 legacy analysers (visual + kick) + 4 band-pass analysers
+  // (kick/snare/vocal/hihat) for multi-band onset detection. Each band
+  // analyser is fed by a BiquadFilter Highpass→Lowpass chain on a
+  // parallel source branch. All 6 are connected to destination so they
+  // process every sample (AnalyserNodes only run when connected downstream).
   const offline = new OfflineAudioContext(
     numChannels,
     audioBuffer.length,
@@ -159,15 +202,62 @@ export async function precomputeFFT(
   kick.minDecibels           = -100;
   kick.maxDecibels           = -30;
 
-  // Wire source through BOTH analysers, each to destination. AnalyserNodes
-  // only process audio when connected downstream, and we want both to
-  // see every sample.
+  // Band analysers — fftSize=1024 is the sweet spot for onset detection:
+  // enough frequency resolution to localise band energy, small enough to
+  // not blow up the per-frame flux computation. smoothing=0 for raw
+  // transients (EMA would smear the onsets we want to detect).
+  const bandAnalysers = ONSET_BANDS.map((band) => {
+    const analyser = offline.createAnalyser();
+    analyser.fftSize               = 1024;
+    analyser.smoothingTimeConstant = 0.0;
+    analyser.minDecibels           = -100;
+    analyser.maxDecibels           = -30;
+    return { band, analyser };
+  });
+
+  // Wire source through both legacy analysers + 4 band chains, each
+  // connected to destination. Each band branch has its own
+  // Highpass→Lowpass biquad pair so the analyser sees only the band's
+  // energy. The filtered branch is NOT routed to destination (no
+  // audible artefact, no double-counting) but the analyser still
+  // processes every sample because the biquad is in series with the
+  // analyser node.
   const source = offline.createBufferSource();
   source.buffer = audioBuffer;
   source.connect(visual);
   source.connect(kick);
   visual.connect(offline.destination);
   kick.connect(offline.destination);
+
+  for (const { band, analyser } of bandAnalysers) {
+    const hp = offline.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = band.startHz;
+    hp.Q.value = 0.7071; // Butterworth Q
+
+    const lp = offline.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = band.endHz;
+    lp.Q.value = 0.7071;
+
+    source.connect(hp);
+    hp.connect(lp);
+    lp.connect(analyser);
+    analyser.connect(offline.destination);
+  }
+
+  // Per-band state for spectral-flux onset detection. Allocated once
+  // outside the suspend-callback so we can mutate them every quantum
+  // without re-allocating. prevMagnitudes holds the previous frame's
+  // band magnitudes (normalised to 0..1). phase is the decaying
+  // envelope (similar to FreqBeatDetector.phase). fluxHistory is a
+  // 10-frame rolling average for adaptive threshold.
+  const bandState = bandAnalysers.map(() => ({
+    prevMagnitudes: new Float32Array(512) as Float32Array, // 1024/2 = 512 bins
+    phase: 0,
+    fluxHistory: new Array(10).fill(0) as number[],
+    historyIdx: 0,
+  }));
 
   // Pre-allocate the result buffer
   const frames: Array<PrecomputedFrame | null> = new Array(totalFrames).fill(null);
@@ -185,7 +275,55 @@ export async function precomputeFFT(
       visual.getByteFrequencyData(freqData);
       kick.getByteFrequencyData(rawFreqData);
 
-      const f: PrecomputedFrame = buildFrame(freqData, rawFreqData);
+      // ── v13: multi-band onset detection (spectral-flux per band) ─────
+      // For each band: read current magnitudes, compute positive flux
+      // vs. previous frame, fire phase=1 on flux > avg*threshold,
+      // decay phase at 0.04/frame (matches FreqBeatDetector cadence).
+      const onsetValues: { kick: number; snare: number; vocal: number; hihat: number } = {
+        kick: 0, snare: 0, vocal: 0, hihat: 0,
+      };
+      const bands: Array<'kick' | 'snare' | 'vocal' | 'hihat'> =
+        ['kick', 'snare', 'vocal', 'hihat'];
+
+      for (let b = 0; b < bandAnalysers.length; b++) {
+        const { analyser } = bandAnalysers[b];
+        const state = bandState[b];
+
+        const magnitudes = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(magnitudes);
+        const magLen = magnitudes.length;
+
+        // Positive spectral flux (sum of curr - prev where curr > prev)
+        let flux = 0;
+        for (let i = 0; i < magLen; i++) {
+          const curr = magnitudes[i] / 255;
+          const prev = state.prevMagnitudes[i];
+          const diff = curr - prev;
+          if (diff > 0) flux += diff;
+          state.prevMagnitudes[i] = curr;
+        }
+        // Normalise by band width (kick=130 Hz, snare=650 Hz, etc.) so
+        // the flux values are comparable across bands.
+        const bandWidth = ONSET_BANDS[b].endHz - ONSET_BANDS[b].startHz;
+        flux /= Math.max(1, bandWidth / 100);
+
+        // Rolling 10-frame average for adaptive threshold
+        state.fluxHistory[state.historyIdx] = flux;
+        state.historyIdx = (state.historyIdx + 1) % state.fluxHistory.length;
+        let sum = 0;
+        for (let i = 0; i < state.fluxHistory.length; i++) sum += state.fluxHistory[i];
+        const avgFlux = sum / state.fluxHistory.length;
+
+        // Fire beat if flux > avg*1.8 AND flux > 0.005
+        if (flux > avgFlux * 1.8 && flux > 0.005) {
+          state.phase = 1.0;
+        }
+        // Decay (matches FreqBeatDetector default decay=0.04)
+        state.phase = Math.max(0, state.phase - 0.04);
+        onsetValues[bands[b]] = state.phase;
+      }
+
+      const f: PrecomputedFrame = buildFrame(freqData, rawFreqData, onsetValues);
 
       // Assign this capture to every video frame in this quantum
       for (const frameIdx of q.frameIndices) {
@@ -224,6 +362,9 @@ export async function precomputeFFT(
 function buildFrame(
   freqData: Uint8Array,
   rawFreqData: Uint8Array,
+  onsets: { kick: number; snare: number; vocal: number; hihat: number } = {
+    kick: 0, snare: 0, vocal: 0, hihat: 0,
+  },
 ): PrecomputedFrame {
   // Mirror `useAudioReactive.ts:124-139` exactly.
   let bassSum = 0;
@@ -249,6 +390,10 @@ function buildFrame(
     loudness,
     highs,
     energy,
+    kickPhase:  onsets.kick,
+    snarePhase: onsets.snare,
+    vocalPhase: onsets.vocal,
+    hihatPhase: onsets.hihat,
   };
 }
 
@@ -260,5 +405,9 @@ function silentFrame(): PrecomputedFrame {
     loudness: 0,
     highs: 0,
     energy: 0,
+    kickPhase: 0,
+    snarePhase: 0,
+    vocalPhase: 0,
+    hihatPhase: 0,
   };
 }
