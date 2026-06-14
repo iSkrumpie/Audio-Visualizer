@@ -78,7 +78,7 @@ export function useAudioReactive() {
     const Ctor =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const ctx = new Ctor();
+    const ctx = new Ctor({ sampleRate: 48000 });
     audioCtxRef.current = ctx;
 
     const source = ctx.createMediaElementSource(audioEl);
