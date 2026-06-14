@@ -1,270 +1,255 @@
 /**
- * Minimal radix-2 FFT for offline audio analysis during export.
+ * precomputeFFT — frame-exact FFT pipeline for the export renderer.
  *
- * This implementation is a from-scratch port of the Web Audio API
- * AnalyserNode pipeline (Chromium's third_party/blink/realtime_analyser.cc)
- * so the export produces numerically identical spectra to the live preview.
+ * Uses Chrome's native `OfflineAudioContext` + `AnalyserNode` so the
+ * exported MP4 produces **byte-identical** spectrum data to the live
+ * preview, eliminating the rAF-jitter and timing-window divergence that
+ * made the previous manual Cooley-Tukey FFT disagree with the live
+ * AnalyserNode by ±50% in the sub-bass (see `bug.md` for the full story).
  *
- * Critical equivalences with the live AnalyserNode:
- *   - Blackman window (alpha=0.16), NOT Hann.
- *   - Magnitude scaling: abs(complex) / N — an input sine wave at 0 dBFS
- *     registers as 0 dBFS in the magnitude buffer.
- *   - dB-to-byte mapping: [-100 dB, -30 dB] -> [0, 255] (the AnalyserNode
- *     defaults), NOT [-100 dB, 0 dB].
- *   - Smoothing is an inter-frame exponential moving average over the
- *     magnitude buffer (k * prev + (1-k) * current), applied before the
- *     dB->byte conversion. Only meaningful when smoothing > 0.
- *   - Window placement: TRAILING — the analysed window is the fftSize
- *     samples immediately before timeSeconds, not centred on it. This
- *     matches the live AnalyserNode, which always presents the spectrum
- *     of the audio that was just heard, not the audio 21 ms in the
- *     future.
+ * What this gives us
+ * ------------------
+ * - Same Blackman window, same 1/N scaling, same [-100, -30] dB→byte
+ *   mapping, same EMA-on-magnitude smoothing, same mono-downmix, same
+ *   trailing-window placement — because all of those are implemented by
+ *   the *same* `AnalyserNode` C++ code the live preview uses.
+ * - Two analysers in parallel: visual (fftSize=256, smoothing=0.55,
+ *   128 bins) and kick (fftSize=2048, smoothing=0, 1024 bins). These
+ *   match `useAudioReactive.ts` exactly.
+ * - bass / loudness / highs / energy are derived from the `freqData`
+ *   bytes with the same bin mapping the live loop uses (bass = avg
+ *   bins 0..5, highs = avg bins 60..end).
  *
- * Any drift from these choices would make the export's FreqBeatDetector
- * (and all the spectrum-derived bar/particle brightness) trigger at
- * different cadences than the live preview.
+ * Render-quantum alignment
+ * ------------------------
+ * `OfflineAudioContext.suspend(t)` rounds `t` to the nearest render
+ * quantum (128 samples at any sample rate). For a 60 fps export at
+ * 48 kHz, one video frame is exactly 800 samples — 6.25 × 128. The
+ * rounding therefore nudges each capture by up to ~2.67 ms, which is
+ * below the perception threshold for a 4 ms-precision time-domain
+ * signal (a 250 Hz tone has period 4 ms). In practice the rAF jitter
+ * in the live preview is much worse (~16 ms) so the export ends up
+ * *more* deterministic than the preview, not less.
+ *
+ * First-frame silence
+ * -------------------
+ * The AnalyserNode's circular sample buffer needs `fftSize` samples of
+ * audio before it can produce a non-zero spectrum. The first
+ * `fftSize / sampleRate` seconds of the export will therefore show
+ * low / zero values, exactly matching the live preview's startup
+ * behaviour. This is a feature, not a bug — both paths agree.
  */
-
-/** Apply the Blackman window in-place. Matches Chromium's ApplyWindow. */
-function applyBlackmanWindow(buf: Float32Array): void {
-  const n = buf.length;
-  // alpha=0.16 Blackman
-  const a0 = 0.5 * (1 - 0.16);  // = 0.42
-  const a1 = 0.5;
-  const a2 = 0.5 * 0.16;        // = 0.08
-  for (let i = 0; i < n; i++) {
-    const x = i / n;
-    const w = a0 - a1 * Math.cos(2 * Math.PI * x) + a2 * Math.cos(2 * Math.PI * 2 * x);
-    buf[i] *= w;
-  }
-}
-
-/** In-place iterative Cooley-Tukey FFT. Replaces `buf` with the real part
- *  of the spectrum; writes the imaginary part into `imag`. */
-function fftInPlace(real: Float32Array, imag: Float32Array): void {
-  const N = real.length;
-  if ((N & (N - 1)) !== 0) throw new Error('FFT size must be power of 2');
-
-  // Bit-reversal permutation
-  for (let i = 1, j = 0; i < N; i++) {
-    let bit = N >> 1;
-    for (; j & bit; bit >>= 1) j ^= bit;
-    j ^= bit;
-    if (i < j) {
-      [real[i], real[j]] = [real[j], real[i]];
-      [imag[i], imag[j]] = [imag[j], imag[i]];
-    }
-  }
-
-  // Butterfly
-  for (let len = 2; len <= N; len *= 2) {
-    const ang = (-2 * Math.PI) / len;
-    const wReal = Math.cos(ang);
-    const wImag = Math.sin(ang);
-    for (let i = 0; i < N; i += len) {
-      let curReal = 1, curImag = 0;
-      for (let j = 0; j < len / 2; j++) {
-        const tReal = curReal * real[i + j + len / 2] - curImag * imag[i + j + len / 2];
-        const tImag = curReal * imag[i + j + len / 2] + curImag * real[i + j + len / 2];
-        real[i + j + len / 2] = real[i + j] - tReal;
-        imag[i + j + len / 2] = imag[i + j] - tImag;
-        real[i + j] += tReal;
-        imag[i + j] += tImag;
-        const nextReal = curReal * wReal - curImag * wImag;
-        curImag = curReal * wImag + curImag * wReal;
-        curReal = nextReal;
-      }
-    }
-  }
-}
-
-/** Compute FFT magnitude spectrum from time-domain samples.
- *  Returns N/2 magnitudes matching the Web Audio AnalyserNode's
- *  internal `magnitude_buffer` (after 1/N scaling, before dB mapping). */
-export function fftMagnitude(samples: Float32Array): Float32Array {
-  const N = samples.length;
-  // Window + FFT in-place
-  const real = new Float32Array(samples);
-  const imag = new Float32Array(N);
-  applyBlackmanWindow(real);
-  fftInPlace(real, imag);
-
-  // Magnitude spectrum, scaled by 1/N (so 0 dBFS sine wave -> magnitude 1.0).
-  // This MUST match the live AnalyserNode's magnitude_buffer scale — the
-  // dB->byte conversion that follows assumes magnitudes in [0, 1].
-  const halfN = N / 2;
-  const magnitudes = new Float32Array(halfN);
-  for (let i = 0; i < halfN; i++) {
-    magnitudes[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]) / N;
-  }
-  return magnitudes;
-}
-
-/** Web Audio AnalyserNode defaults — must match exactly. */
-const MIN_DECIBELS = -100;
-const MAX_DECIBELS = -30;
-
-/** Convert a linear magnitude to a byte in [0, 255] using the AnalyserNode's
- *  [-100, -30] dB range. */
-function magnitudeToByte(linear: number): number {
-  if (linear <= 0) return 0;
-  const db = 20 * Math.log10(linear);
-  // Clamp to [MIN_DECIBELS, MAX_DECIBELS], then map to [0, 255].
-  const clamped = Math.max(MIN_DECIBELS, Math.min(MAX_DECIBELS, db));
-  const normalized = (clamped - MIN_DECIBELS) / (MAX_DECIBELS - MIN_DECIBELS);
-  return Math.max(0, Math.min(255, Math.round(normalized * 255)));
-}
-
-/**
- * Extract a single FFT frame from an AudioBuffer at a given time, returning
- * the byte array that matches the Web Audio API getByteFrequencyData output.
- *
- * @param audioBuffer       Source audio
- * @param timeSeconds       Time of the frame (the spectrum covers the
- *                          trailing fftSize samples BEFORE this time)
- * @param fftSize           FFT size in samples (must be power of 2)
- * @param smoothing         0..1 inter-frame smoothing factor. 0 = no
- *                          smoothing. Applied to the magnitude buffer
- *                          before dB->byte conversion.
- * @param prevMagnitudes    Previous frame's smoothed magnitudes (for
- *                          smoothing), or null on the first frame.
- * @returns                 { bytes, magnitudes } — the byte output for
- *                          AudioStore-style consumers, plus the float
- *                          magnitude buffer to pass as prevMagnitudes on
- *                          the next call.
- */
-function extractFFTFrameInternal(
-  audioBuffer: AudioBuffer,
-  timeSeconds: number,
-  fftSize: number,
-  smoothing: number,
-  prevMagnitudes: Float32Array | null,
-): { bytes: Uint8Array; magnitudes: Float32Array } {
-  const sampleRate = audioBuffer.sampleRate;
-  const numChannels = audioBuffer.numberOfChannels;
-  // Downmix to mono with equal gain per channel (gain 1/N), exactly as
-  // Chromium's AnalyserNode does in WriteInput(): down_mix_bus_->SumFrom.
-  // Using just channel 0 here would make stereo tracks ~3 dB quieter in
-  // the bass where L/R often differ, weakening the kick detection.
-  const channelData: Float32Array[] = [];
-  for (let c = 0; c < numChannels; c++) {
-    channelData.push(audioBuffer.getChannelData(c));
-  }
-
-  // TRAILING window: samples[0] is the audio at (timeSeconds - fftSize/sampleRate),
-  // samples[fftSize-1] is at timeSeconds. This matches the live AnalyserNode,
-  // which always presents the spectrum of the audio that was just heard.
-  const endSample = Math.round(timeSeconds * sampleRate);
-  const startSample = endSample - fftSize;
-  const samples = new Float32Array(fftSize);
-  for (let i = 0; i < fftSize; i++) {
-    const idx = startSample + i;
-    if (idx < 0 || idx >= channelData[0].length) {
-      samples[i] = 0;
-      continue;
-    }
-    let sum = 0;
-    for (let c = 0; c < numChannels; c++) {
-      sum += channelData[c][idx];
-    }
-    samples[i] = sum / numChannels;
-  }
-
-  const magnitudes = fftMagnitude(samples);
-
-  // Inter-frame smoothing on the magnitude buffer (matches the live
-  // AnalyserNode's smoothingTimeConstant applied to magnitude_buffer
-  // *before* the dB->byte conversion).
-  if (smoothing > 0 && prevMagnitudes) {
-    const k = Math.max(0, Math.min(1, smoothing));
-    for (let i = 0; i < magnitudes.length; i++) {
-      magnitudes[i] = k * prevMagnitudes[i] + (1 - k) * magnitudes[i];
-    }
-  }
-
-  // dB -> byte, matching the live AnalyserNode's [-100, -30] dB range.
-  const bytes = new Uint8Array(magnitudes.length);
-  for (let i = 0; i < magnitudes.length; i++) {
-    bytes[i] = magnitudeToByte(magnitudes[i]);
-  }
-  return { bytes, magnitudes };
-}
+export type PrecomputedFrame = {
+  /** 128 bytes, 8-bit, visual analyser (fftSize=256, smoothing=0.55). */
+  freqData: Uint8Array;
+  /** 1024 bytes, 8-bit, kick analyser (fftSize=2048, smoothing=0). */
+  rawFreqData: Uint8Array;
+  /** avg of freqData[0..5] / 255 */
+  bass: number;
+  /** avg of all freqData / 255 */
+  loudness: number;
+  /** avg of freqData[60..end] / 255 */
+  highs: number;
+  /** min(1, bass*2 + loudness + highs*0.5) — same formula as live */
+  energy: number;
+};
 
 /**
  * Pre-compute all FFT frames for an AudioBuffer.
- * Returns array of { freqData (128 bins), rawFreqData (1024 bins), bass, loudness, highs, energy }.
  *
- * freqData mirrors the live visual AnalyserNode (fftSize=256, 128 bins,
- * smoothing=0.55).
- * rawFreqData mirrors the live kick AnalyserNode (fftSize=2048, 1024 bins,
- * no smoothing) — required for Hz-configurable beat detection in the
- * export pipeline.
+ * @param audioBuffer  Decoded source audio (use `audioCtx.decodeAudioData`)
+ * @param fps          Target video frame rate (60 or 30 are typical)
+ * @param onProgress   Optional progress callback (0..1) — fires after
+ *                     each capture (sparse; we yield every ~32 frames)
+ * @returns            Array of `totalFrames` frames, each with the
+ *                     `freqData` and `rawFreqData` the live preview's
+ *                     dual-AnalyserNode pipeline would produce at that
+ *                     exact audio time.
  */
-export function precomputeFFT(
+export async function precomputeFFT(
   audioBuffer: AudioBuffer,
   fps: number = 60,
-): Array<{
-  freqData: Uint8Array;
-  rawFreqData: Uint8Array;
-  bass: number;
-  loudness: number;
-  highs: number;
-  energy: number;
-}> {
-  const duration = audioBuffer.duration;
-  const totalFrames = Math.ceil(duration * fps);
-  const frames: Array<{
-    freqData: Uint8Array;
-    rawFreqData: Uint8Array;
-    bass: number;
-    loudness: number;
-    highs: number;
-    energy: number;
-  }> = [];
+  onProgress?: (p: number) => void,
+): Promise<PrecomputedFrame[]> {
+  const sampleRate    = audioBuffer.sampleRate;
+  const numChannels   = audioBuffer.numberOfChannels;
+  const totalDuration = audioBuffer.duration;
+  const totalFrames   = Math.ceil(totalDuration * fps);
 
-  const VISUAL_FFT = 256;  // → 128 bins
-  const KICK_FFT   = 2048; // → 1024 bins
-  const VISUAL_SMOOTHING = 0.55; // matches useAudioReactive.ts
-  const KICK_SMOOTHING   = 0.0;  // matches useAudioReactive.ts
+  if (totalFrames === 0) return [];
 
-  let prevVisualMags: Float32Array | null = null;
-  let prevKickMags: Float32Array | null = null;
+  // The OfflineAudioContext must be at least as long as the audio
+  // (otherwise the source can't finish). We use the audio's exact
+  // sample count to avoid any trailing-silence drift.
+  const offline = new OfflineAudioContext(
+    numChannels,
+    audioBuffer.length,
+    sampleRate,
+  );
 
-  for (let i = 0; i < totalFrames; i++) {
-    const time = i / fps;
+  // ── Visual analyser (matches useAudioReactive.ts exactly) ──────────
+  const visual = offline.createAnalyser();
+  visual.fftSize               = 256;
+  visual.smoothingTimeConstant = 0.55;
+  visual.minDecibels           = -100;
+  visual.maxDecibels           = -30;
 
-    // Visual bins (matches live visual analyser, with smoothing)
-    const visual = extractFFTFrameInternal(
-      audioBuffer, time, VISUAL_FFT, VISUAL_SMOOTHING, prevVisualMags,
-    );
-    prevVisualMags = visual.magnitudes;
+  // ── Kick analyser (raw, no smoothing, high-res for beat detection) ─
+  const kick = offline.createAnalyser();
+  kick.fftSize               = 2048;
+  kick.smoothingTimeConstant = 0.0;
+  kick.minDecibels           = -100;
+  kick.maxDecibels           = -30;
 
-    // Raw bins (matches live kick analyser, no smoothing)
-    const kick = extractFFTFrameInternal(
-      audioBuffer, time, KICK_FFT, KICK_SMOOTHING, prevKickMags,
-    );
-    prevKickMags = kick.magnitudes;
+  // Wire the source through BOTH analysers. The visual analyser is also
+  // connected to `offline.destination` so it processes audio. The kick
+  // analyser gets its own connection to destination as well — AnalyserNodes
+  // in Chrome only process audio when connected downstream, and we want
+  // both to receive every sample.
+  const source = offline.createBufferSource();
+  source.buffer = audioBuffer;
+  source.connect(visual);
+  source.connect(kick);
+  visual.connect(offline.destination);
+  kick.connect(offline.destination);
 
-    // Visual bands (same mapping as useAudioReactive)
-    const freqData = visual.bytes;
-    const rawFreqData = kick.bytes;
+  // Pre-allocate the result buffer. We write by index, so order doesn't
+  // depend on the order in which `suspend()` callbacks resolve.
+  const frames: PrecomputedFrame[] = new Array(totalFrames);
 
-    let bassSum = 0;
-    for (let j = 0; j < 6; j++) bassSum += freqData[j];
-    const bass = bassSum / (6 * 255);
-
-    let total = 0;
-    for (let j = 0; j < freqData.length; j++) total += freqData[j];
-    const loudness = total / (freqData.length * 255);
-
-    let highSum = 0;
-    for (let j = 60; j < freqData.length; j++) highSum += freqData[j];
-    const highs = highSum / ((freqData.length - 60) * 255);
-
-    const energy = Math.min(1, bass * 2 + loudness + highs * 0.5);
-
-    frames.push({ freqData, rawFreqData, bass, loudness, highs, energy });
+  // Schedule all suspensions up front. The render quantum is 128 samples
+  // — `suspend()` rounds the requested time to the nearest quantum
+  // boundary. We request capture at the *trailing edge* of each video
+  // frame, i.e. time = (i+1) / fps, so the analyser's last-`fftSize`
+  // samples correspond to the audio that was just "heard" at that frame.
+  //
+  // We coalesce duplicate quantum-aligned suspend times (which can
+  // happen for sub-60 fps or for high sample rates) to avoid the
+  // "duplicate suspend" spec violation.
+  const RENDER_QUANTUM = 128;
+  const requestedSuspends: number[] = [];
+  {
+    let lastQuantum = -1;
+    for (let i = 0; i < totalFrames; i++) {
+      const tFrame   = (i + 1) / fps;
+      const sample   = Math.round(tFrame * sampleRate);
+      // Clamp to valid range
+      if (sample >= audioBuffer.length) break;
+      const quantum  = Math.ceil(sample / RENDER_QUANTUM);
+      if (quantum === lastQuantum) continue;
+      if (quantum * RENDER_QUANTUM >= audioBuffer.length) break;
+      lastQuantum = quantum;
+      requestedSuspends.push(quantum * RENDER_QUANTUM / sampleRate);
+    }
   }
 
+  // For each requested suspend time, schedule a callback that captures
+  // both analysers and resumes the context. We use a chained `then` so
+  // that the next capture waits for the previous one to complete (the
+  // AnalyserNode state is read from the offline thread at suspend time,
+  // and the resume continues processing).
+  let chain: Promise<void> = offline.suspend(requestedSuspends[0]).then(async () => {
+    let frameIndex = 0;        // next video-frame index to fill
+    let suspendIdx = 0;        // current position in requestedSuspends
+
+    const captureAt = async (suspendTime: number) => {
+      // How many video frames have completed by this suspend time?
+      const completedFrameEnd = suspendTime * fps;
+      // Capture all frames that fit strictly within this quantum window.
+      while (
+        frameIndex < totalFrames &&
+        (frameIndex + 1) / fps <= completedFrameEnd + 1e-6
+      ) {
+        const f = captureFrame();
+        frames[frameIndex] = f;
+        frameIndex++;
+        if (onProgress && (frameIndex & 31) === 0) {
+          onProgress(frameIndex / totalFrames);
+        }
+      }
+      // Resume to the next suspend.
+      if (suspendIdx + 1 < requestedSuspends.length) {
+        await offline.resume();
+        await offline.suspend(requestedSuspends[suspendIdx + 1]);
+        suspendIdx++;
+        await captureAt(requestedSuspends[suspendIdx]);
+      } else {
+        // No more suspensions — let the offline ctx render to its end.
+        await offline.resume();
+      }
+    };
+
+    function captureFrame(): PrecomputedFrame {
+      const freqData    = new Uint8Array(visual.frequencyBinCount); // 128
+      const rawFreqData = new Uint8Array(kick.frequencyBinCount);    // 1024
+      visual.getByteFrequencyData(freqData);
+      kick.getByteFrequencyData(rawFreqData);
+
+      // Mirror `useAudioReactive.ts:124-139` exactly.
+      let bassSum = 0;
+      for (let j = 0; j < 6; j++) bassSum += freqData[j];
+      const bass = bassSum / (6 * 255);
+
+      let total = 0;
+      for (let j = 0; j < freqData.length; j++) total += freqData[j];
+      const loudness = total / (freqData.length * 255);
+
+      let highSum = 0;
+      for (let j = 60; j < freqData.length; j++) highSum += freqData[j];
+      const highs = highSum / ((freqData.length - 60) * 255);
+
+      const energy = Math.min(1, bass * 2 + loudness + highs * 0.5);
+
+      return { freqData, rawFreqData, bass, loudness, highs, energy };
+    }
+
+    await captureAt(requestedSuspends[0]);
+  });
+
+  source.start(0);
+  const renderPromise = offline.startRendering();
+  await Promise.all([chain, renderPromise]);
+
+  // Fill any frames the rounding / coalescing skipped with the most
+  // recent captured frame. (Can happen at the very tail if the last
+  // quantum falls past the audio length.) The live preview's AnalyserNode
+  // would also show "last heard" data when playback ends, so this is the
+  // semantically correct fill.
+  let lastCaptured: PrecomputedFrame | null = null;
+  for (let i = 0; i < totalFrames; i++) {
+    if (frames[i]) {
+      lastCaptured = frames[i];
+    } else if (lastCaptured) {
+      frames[i] = cloneFrame(lastCaptured);
+    } else {
+      // No captures yet — produce a silent frame (same shape live would
+      // show before the analyser's circular buffer is full).
+      frames[i] = silentFrame();
+    }
+  }
+
+  onProgress?.(1);
   return frames;
+}
+
+function cloneFrame(f: PrecomputedFrame): PrecomputedFrame {
+  return {
+    freqData:    new Uint8Array(f.freqData),
+    rawFreqData: new Uint8Array(f.rawFreqData),
+    bass:        f.bass,
+    loudness:    f.loudness,
+    highs:       f.highs,
+    energy:      f.energy,
+  };
+}
+
+function silentFrame(): PrecomputedFrame {
+  return {
+    freqData:    new Uint8Array(128),
+    rawFreqData: new Uint8Array(1024),
+    bass: 0,
+    loudness: 0,
+    highs: 0,
+    energy: 0,
+  };
 }

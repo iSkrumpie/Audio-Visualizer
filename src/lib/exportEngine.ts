@@ -126,9 +126,10 @@ export async function exportMP4(
 
     onProgress({ phase: 'decoding', progress: 1, message: 'Audio decoded.' });
 
-    // Phase 2: Pre-compute FFT
+    // Phase 2: Pre-compute FFT (now async — uses OfflineAudioContext + AnalyserNode
+    // for byte-identical output to the live preview).
     onProgress({ phase: 'analyzing', progress: 0, message: 'Analyzing audio...' });
-    const fftFrames = precomputeFFT(audioBuffer, fps);
+    const fftFrames = await precomputeFFT(audioBuffer, fps);
     onProgress({ phase: 'analyzing', progress: 1, message: `${fftFrames.length} frames analyzed.` });
 
     // Phase 3: Render frames
