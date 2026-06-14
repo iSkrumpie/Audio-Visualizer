@@ -1,6 +1,22 @@
 /**
  * Settings Store (Zustand + localStorage persist)
  *
+ * v13: Audio detection overhaul. Added:
+ *      - audio.detectionMode: 'live' (legacy spectral-flux on raw FFT) |
+ *        'precomputed' (multi-band onsets + essentia.js BPM/Ticks/Key, pre-analysed)
+ *      - audio.bandSensitivity: per-band gain (kick/snare/vocal/hihat) 0..2
+ *      - audio.preAnalysisProgress: 0..1 progress bar shown while analysis runs
+ *      - bars/particles colorMode extended with 'key-derived' which uses
+ *        the detected key from pre-analysis as the hue basis
+ *      - bars.particles colorMode extended with 'band-driven' which uses
+ *        the kick/snare/vocal/hihat pre-analysis phases for color shifts
+ *
+ * v12: Split glow → outerGlow + innerGlow, added 3 weather FX groups
+ *      (bgParticles/rain/snow) on background.outerGlow stays the primary
+ *      light source, innerGlow adds inward-rim accent.
+ *
+ * v11: Audio-Reactivity Refactor. Added `audio` group, settingsStore v11.
+ *
  * v10: Added per-component sensitivity multipliers (beatFxSensitivity, fireSensitivity,
  *      reactiveSensitivity), bars beat detection fields (beatFreqStart/End/Sensitivity),
  *      and nebula pulse mode (nebulaBeatMode/FreqStart/End/Sensitivity).
@@ -20,6 +36,7 @@
  *
  * Structure:
  *   theme      — global palette (accent, secondary, mode)
+ *   audio      — detection pipeline (mode, per-band sensitivity, key, tempo)
  *   background — everything visual about the background layer + postfx
  *   logo       — center logo settings
  *   bars       — FFT radial bars
@@ -215,7 +232,7 @@ export type Settings = {
     innerRadius: number;        // 60..400
     rotationSpeed: number;      // 0..2
     rotationOnBeat: number;     // 0..5
-    colorMode: 'solid' | 'rainbow' | 'custom' | 'random';
+    colorMode: 'solid' | 'rainbow' | 'custom' | 'random' | 'key-derived' | 'band-driven';
     solidColor: string;
     /** Per-zone colors used in 'custom' colorMode */
     customColors: string[];
@@ -247,6 +264,34 @@ export type Settings = {
     globalBeatFreqEnd: number;
     /** Global beat detector sensitivity multiplier (0.1..5.0, default 1.0) */
     globalBeatSensitivity: number;
+    // ── v13: Pre-analysis pipeline (essentia.js + multi-band onsets) ────────
+    /**
+     * Detection mode. Default 'precomputed' (essentia.js BPM/Ticks/Key +
+     * multi-band onset arrays) — produces frame-accurate beat-sync and
+     * cleaner Kick/Snare/Vocal/HiHat separation. 'live' falls back to
+     * the legacy spectral-flux FreqBeatDetector path.
+     */
+    detectionMode: 'live' | 'precomputed';
+    /** Per-band gain multipliers for the 4 onset bands (kick/snare/vocal/hihat).
+     *  Each band 0..2 — values above 1 amplify the corresponding phase,
+     *  values below 1 dampen it. Applied to audioAnalysis.{kick,snare,vocal,hihat}Phase. */
+    bandSensitivity: {
+      kick: number;
+      snare: number;
+      vocal: number;
+      hihat: number;
+    };
+    /** 0..1 — 0 = analysis not started, 1 = complete. Drives UI progress bar
+     *  on the audio tab in SettingsPanel. Live-mirrored from useAudioReactive. */
+    preAnalysisProgress: number;
+    /** Detected BPM (0 = not analysed yet, otherwise 30..300). */
+    bpm: number;
+    /** Detected musical key (e.g. 'C#', 'F') — empty string = not analysed. */
+    key: string;
+    /** Detected scale ('major' | 'minor' | ''). */
+    scale: 'major' | 'minor' | '';
+    /** How much detected key/bpm influence the colorMode='key-derived'/'band-driven' variants. */
+    keyInfluence: number; // 0..1
   };
 
   particles: {
@@ -260,7 +305,7 @@ export type Settings = {
     opacity: number;            // 0..1
     sizeOnBeat: number;         // 0..3
     // ── Color ──────────────────────────────────────────────────────────
-    colorMode: 'solid' | 'rainbow' | 'custom' | 'random';
+    colorMode: 'solid' | 'rainbow' | 'custom' | 'random' | 'key-derived' | 'band-driven';
     solidColor: string;
     /** Per-zone colors used in 'custom' colorMode */
     customColors: string[];
@@ -470,6 +515,19 @@ const DEFAULT_SETTINGS: Settings = {
     globalBeatFreqStart: 40,
     globalBeatFreqEnd: 120,
     globalBeatSensitivity: 1.0,
+    // v13: pre-analysis pipeline
+    detectionMode: 'precomputed',
+    bandSensitivity: {
+      kick: 1.0,
+      snare: 1.0,
+      vocal: 1.0,
+      hihat: 1.0,
+    },
+    preAnalysisProgress: 0,
+    bpm: 0,
+    key: '',
+    scale: '',
+    keyInfluence: 0.5,
   },
 
   particles: {
@@ -522,9 +580,9 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v12',
+      name: 'audiovisualizer:settings:v13',
       storage: createJSONStorage(() => localStorage),
-      version: 12,
+      version: 13,
       migrate: () => ({ settings: DEFAULT_SETTINGS }),
     },
   ),
