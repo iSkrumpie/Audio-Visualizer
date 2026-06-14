@@ -417,7 +417,8 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     if (outerGlowRef.current) {
       outerGlowRef.current.visible = outerGlowEnabled;
       if (outerGlowEnabled) {
-        const outerPlaneSize = logoSize * (s.outerGlowSize ?? DEFAULT_SETTINGS.logo.outerGlowSize);
+        // beatScale multiplied in so the glow follows the logo's beat-pulse
+        const outerPlaneSize = logoSize * (s.outerGlowSize ?? DEFAULT_SETTINGS.logo.outerGlowSize) * beatScale;
         outerGlowRef.current.position.set(0, 0, -0.1);
         outerGlowRef.current.scale.set(outerPlaneSize, outerPlaneSize, 1);
         outerGlowRef.current.rotation.z = rotRef.current;
@@ -447,11 +448,12 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     // The plane is sized to the LOGO (uIgSize is a shader-side reach, not a
     // plane multiplier — see INNER_GLOW_FRAG). The shader fades from the rim
     // inward based on uIgSize, so a smaller plane would crop the glow ring.
+    // We multiply by beatScale so the glow tracks the logo's beat-pulse.
     const innerGlowEnabled = s.innerGlowEnabled ?? DEFAULT_SETTINGS.logo.innerGlowEnabled;
     if (innerGlowRef.current) {
       innerGlowRef.current.visible = innerGlowEnabled;
       if (innerGlowEnabled) {
-        const innerPlaneSize = logoSize;
+        const innerPlaneSize = logoSize * beatScale;
         innerGlowRef.current.position.set(0, 0, 0.05);
         innerGlowRef.current.scale.set(innerPlaneSize, innerPlaneSize, 1);
         innerGlowRef.current.rotation.z = rotRef.current;
