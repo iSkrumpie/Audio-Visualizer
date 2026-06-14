@@ -419,6 +419,34 @@ input[type='color']::-moz-color-swatch {
  * positioned with inline left/top styles computed from getBoundingClientRect().
  * =========================================================================== */
 
+/* Hint trigger button — default and hover/focus states */
+.hint-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  cursor: help;
+  padding: 0;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.hint-trigger:hover,
+.hint-trigger:focus-visible {
+  color: var(--text);
+  border-color: var(--accent);
+  outline: none;
+}
+
+.hint-trigger:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus-ring, var(--accent));
+}
+
 .hint-popover {
   position: fixed;             /* paired with createPortal + inline left/top */
   z-index: 9999;               /* above all panels, modals, overlays */

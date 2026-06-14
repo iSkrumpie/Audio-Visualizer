@@ -10,6 +10,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSettingsStore, getSettings, type Settings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
 import { usePresetsStore } from '@/lib/presetsStore';
 import { HzRangePicker } from '@/components/HzRangePicker';
+import { Hint } from '@/components/Hint';
+import { SETTING_HINTS, ACCORDION_DESCRIPTIONS, ENUM_HINTS } from '@/lib/hints';
 
 type Section = 'background' | 'logo' | 'bars' | 'particles' | 'audio';
 
@@ -318,15 +320,16 @@ function Header({ onClose, onReset }: { onClose: () => void; onReset: () => void
   );
 }
 
-function FR({ label, children, hint, sub }: { label: string; children: React.ReactNode; hint?: string; sub?: string }) {
+function FR({ label, children, hint, sub, info }: { label: string; children: React.ReactNode; hint?: string; sub?: string; info?: string }) {
   return (
     <div className="mb-3">
       <div className="mb-1 flex items-center justify-between">
         <span
-          className="font-ui text-xs font-medium"
+          className="flex items-center gap-1.5 font-ui text-xs font-medium"
           style={{ color: 'var(--text-muted)' }}
         >
           {label}
+          {info && <Hint text={info} />}
         </span>
         {hint && (
           <span className="font-mono text-[10px]" style={{ color: 'var(--text-dim)' }}>
@@ -550,14 +553,23 @@ function useF<K extends keyof Settings>(group: K, key: keyof Settings[K]) {
   return [value, set] as const;
 }
 
+/**
+ * Look up a plain-language hint for a setting.
+ * Returns undefined if no hint exists (so the (i) icon won\'t render).
+ */
+function hintFor(...pathParts: string[]): string | undefined {
+  return SETTING_HINTS[pathParts.join('.')];
+}
+
 // ── Sections ───────────────────────────────────────────────────────────────
 
 // ── Accordion ────────────────────────────────────────────────────────────────
 
-function Acc({ label, children, defaultOpen = false }: {
+function Acc({ label, children, defaultOpen = false, description }: {
   label: string;
   children: React.ReactNode;
   defaultOpen?: boolean;
+  description?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
@@ -575,7 +587,16 @@ function Acc({ label, children, defaultOpen = false }: {
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </button>
-      {open && <div className="p-3">{children}</div>}
+      {open && (
+        <div className="p-3">
+          {description && (
+            <p className="mb-2 font-ui text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              {description}
+            </p>
+          )}
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -699,35 +720,35 @@ function BackgroundSection() {
 
   return (
     <div>
-      <Acc label="Image" defaultOpen>
-        <FR label="Blur" hint={`${blur}px`}>
+      <Acc label="Image" defaultOpen description={ACCORDION_DESCRIPTIONS['background.image']}>
+        <FR label="Blur" hint={`${blur}px`} info={hintFor('background.blur')}>
           <Sl value={blur as number} min={0} max={40} step={1} onChange={sBlur} />
         </FR>
-        <FR label="Sharpen" hint={`${(sharp as number).toFixed(1)}`}>
+        <FR label="Sharpen" hint={`${(sharp as number).toFixed(1)}`} info={hintFor('background.sharpen')}>
           <Sl value={sharp as number} min={0} max={2} step={0.1} onChange={sSharp} />
         </FR>
-        <FR label="Brightness" hint={`${(bright as number).toFixed(2)}`}>
+        <FR label="Brightness" hint={`${(bright as number).toFixed(2)}`} info={hintFor('background.brightness')}>
           <Sl value={bright as number} min={0.2} max={2.0} step={0.05} onChange={sBright} />
         </FR>
-        <FR label="Saturation" hint={`${(sat as number).toFixed(2)}`}>
+        <FR label="Saturation" hint={`${(sat as number).toFixed(2)}`} info={hintFor('background.saturation')}>
           <Sl value={sat as number} min={0} max={2.0} step={0.05} onChange={sSat} />
         </FR>
-        <FR label="Contrast" hint={`${(cont as number).toFixed(2)}`}>
+        <FR label="Contrast" hint={`${(cont as number).toFixed(2)}`} info={hintFor('background.contrast')}>
           <Sl value={cont as number} min={0.2} max={2.0} step={0.05} onChange={sCont} />
         </FR>
-        <FR label="Hue shift" hint={`${Math.round(hue as number)}°`}>
+        <FR label="Hue shift" hint={`${Math.round(hue as number)}°`} info={hintFor('background.hueShift')}>
           <Sl value={hue as number} min={0} max={360} step={1} onChange={sHue} />
         </FR>
       </Acc>
 
-      <Acc label="Tint">
-        <FR label="Tint color">
+      <Acc label="Tint" description={ACCORDION_DESCRIPTIONS['background.tint']}>
+        <FR label="Tint color" info={hintFor('background.tintColor')}>
           <CP value={tintC as string} onChange={sTintC} />
         </FR>
-        <FR label="Opacity" hint={`${Math.round((tintO as number) * 100)}%`}>
+        <FR label="Opacity" hint={`${Math.round((tintO as number) * 100)}%`} info={hintFor('background.tintOpacity')}>
           <Sl value={tintO as number} min={0} max={1} step={0.01} onChange={sTintO} />
         </FR>
-        <FR label="Blend mode">
+        <FR label="Blend mode" info={ENUM_HINTS['background.tintMode']?.[tintM as string]}>
           <CB
             value={tintM as string}
             options={[
@@ -741,7 +762,7 @@ function BackgroundSection() {
         </FR>
       </Acc>
 
-      <Acc label="Beat FX">
+      <Acc label="Beat FX" description={ACCORDION_DESCRIPTIONS['background.beatFx']}>
         <p className="mb-2 font-mono text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>React to energy in this Hz range</p>
         <HzRangePicker
           startHz={beatFS as number}
@@ -750,48 +771,48 @@ function BackgroundSection() {
           onChangeEnd={sBeatFE}
         />
         <div className="mt-3">
-          <FR label="Scale amount" hint={`${((beat as number) * 100).toFixed(0)}%`}>
+          <FR label="Scale amount" hint={`${((beat as number) * 100).toFixed(0)}%`} info={hintFor('background.scaleOnBeat')}>
             <Sl value={beat as number} min={0} max={0.5} step={0.005} onChange={sBeat} />
           </FR>
-          <FR label="Sensitivity" hint={`${(beatSens as number).toFixed(2)}×`} sub="Lower = more sensitive">
+          <FR label="Sensitivity" hint={`${(beatSens as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.beatFxSensitivity')}>
             <Sl value={beatSens as number} min={0.1} max={5.0} step={0.05} onChange={sBeatSens} />
           </FR>
         </div>
       </Acc>
 
-      <Acc label="Vignette">
+      <Acc label="Vignette" description={ACCORDION_DESCRIPTIONS['background.vignette']}>
         <Tg value={vigE as boolean} onChange={sVigE} label="Enabled" />
         {!!vigE && (
           <div className="mt-3">
-            <FR label="Strength" hint={`${Math.round((vigS as number) * 100)}%`}>
+            <FR label="Strength" hint={`${Math.round((vigS as number) * 100)}%`} info={hintFor('background.vignetteStrength')}>
               <Sl value={vigS as number} min={0} max={1} step={0.02} onChange={sVigS} />
             </FR>
           </div>
         )}
       </Acc>
 
-      <Acc label="Fog">
+      <Acc label="Fog" description={ACCORDION_DESCRIPTIONS['background.fog']}>
         <Tg value={nebE as boolean} onChange={sNebE} label="Enabled" />
         {!!nebE && (
           <div className="mt-3 space-y-2">
-            <FR label="Intensity" hint={`${Math.round((nebI as number) * 100)}%`}>
+            <FR label="Intensity" hint={`${Math.round((nebI as number) * 100)}%`} info={hintFor('background.nebulaIntensity')}>
               <Sl value={nebI as number} min={0} max={1} step={0.01} onChange={sNebI} />
             </FR>
-            <FR label="Color 1"><CP value={nebC1 as string} onChange={sNebC1} /></FR>
-            <FR label="Color 2"><CP value={nebC2 as string} onChange={sNebC2} /></FR>
-            <FR label="Drift speed">
+            <FR label="Color 1" info={hintFor('background.nebulaColor1')}><CP value={nebC1 as string} onChange={sNebC1} /></FR>
+            <FR label="Color 2" info={hintFor('background.nebulaColor2')}><CP value={nebC2 as string} onChange={sNebC2} /></FR>
+            <FR label="Drift speed" info={hintFor('background.nebulaDriftSpeed')}>
               <Sl value={nebD as number} min={0.1} max={3} step={0.05} onChange={sNebD} />
             </FR>
-            <FR label="Reactivity">
+            <FR label="Reactivity" info={hintFor('background.nebulaReactivity')}>
               <Sl value={nebR as number} min={0} max={3} step={0.05} onChange={sNebR} />
             </FR>
-            <FR label="Scale" hint={`${(nebSc as number).toFixed(2)}×`} sub="1.0 fills screen">
+            <FR label="Scale" hint={`${(nebSc as number).toFixed(2)}×`} sub="1.0 fills screen" info={hintFor('background.nebulaScale')}>
               <Sl value={nebSc as number} min={0.1} max={3.0} step={0.05} onChange={sNebSc} />
             </FR>
-            <FR label="Offset X" hint={`${(nebOX as number).toFixed(2)}`}>
+            <FR label="Offset X" hint={`${(nebOX as number).toFixed(2)}`} info={hintFor('background.nebulaOffsetX')}>
               <Sl value={nebOX as number} min={-1} max={1} step={0.05} onChange={sNebOX} />
             </FR>
-            <FR label="Offset Y" hint={`${(nebOY as number).toFixed(2)}`} sub="Negative = down">
+            <FR label="Offset Y" hint={`${(nebOY as number).toFixed(2)}`} sub="Negative = down" info={hintFor('background.nebulaOffsetY')}>
               <Sl value={nebOY as number} min={-1} max={1} step={0.05} onChange={sNebOY} />
             </FR>
             <div className="mt-3 rounded-md border p-2" style={{ borderColor: 'var(--border)' }}>
@@ -805,7 +826,7 @@ function BackgroundSection() {
                     onChangeStart={sNebBFS}
                     onChangeEnd={sNebBFE}
                   />
-                  <FR label="Sensitivity" hint={`${(nebBSens as number).toFixed(2)}×`}>
+                  <FR label="Sensitivity" hint={`${(nebBSens as number).toFixed(2)}×`} info={hintFor('background.nebulaBeatSensitivity')}>
                     <Sl value={nebBSens as number} min={0.1} max={5.0} step={0.05} onChange={sNebBSens} />
                   </FR>
                 </div>
@@ -815,156 +836,156 @@ function BackgroundSection() {
         )}
       </Acc>
 
-      <Acc label="Glow">
-        <EffectCard label="Bloom" enabled={bloom as boolean} onToggle={sBloom}>
-          <FR label="Intensity">
+      <Acc label="Glow" description={ACCORDION_DESCRIPTIONS['background.glow']}>
+        <EffectCard label="Bloom" enabled={bloom as boolean} onToggle={sBloom} info={hintFor('background.bloomEnabled')}>
+          <FR label="Intensity" info={hintFor('background.bloomIntensity')}>
             <Sl value={bloomI as number} min={0} max={3} step={0.05} onChange={sBloomI} />
           </FR>
-          <FR label="Threshold">
+          <FR label="Threshold" info={hintFor('background.bloomThreshold')}>
             <Sl value={bloomT as number} min={0} max={1} step={0.01} onChange={sBloomT} />
           </FR>
         </EffectCard>
       </Acc>
 
-      <Acc label="Color">
-        <EffectCard label="Chromatic aberration" enabled={ca as boolean} onToggle={sCa}>
-          <FR label="Offset">
+      <Acc label="Color" description={ACCORDION_DESCRIPTIONS['background.color']}>
+        <EffectCard label="Chromatic aberration" enabled={ca as boolean} onToggle={sCa} info={hintFor('background.caEnabled')}>
+          <FR label="Offset" info={hintFor('background.caOffset')}>
             <Sl value={caO as number} min={0} max={0.02} step={0.0005} onChange={sCaO} />
           </FR>
         </EffectCard>
-        <EffectCard label="Sepia" enabled={sepia as boolean} onToggle={sSepia}>
-          <FR label="Intensity">
+        <EffectCard label="Sepia" enabled={sepia as boolean} onToggle={sSepia} info={hintFor('background.sepiaEnabled')}>
+          <FR label="Intensity" info={hintFor('background.sepiaIntensity')}>
             <Sl value={sepiaI as number} min={0} max={1} step={0.01} onChange={sSepiaI} />
           </FR>
         </EffectCard>
-        <EffectCard label="Color average" enabled={colAvg as boolean} onToggle={sColAvg} />
+        <EffectCard label="Color average" enabled={colAvg as boolean} onToggle={sColAvg} info={hintFor('background.colorAverageEnabled')} />
       </Acc>
 
-      <Acc label="Effects">
-        <EffectCard label="Noise / grain" enabled={noise as boolean} onToggle={sNoise}>
-          <FR label="Intensity">
+      <Acc label="Effects" description={ACCORDION_DESCRIPTIONS['background.effects']}>
+        <EffectCard label="Noise / grain" enabled={noise as boolean} onToggle={sNoise} info={hintFor('background.noiseEnabled')}>
+          <FR label="Intensity" info={hintFor('background.noiseIntensity')}>
             <Sl value={noiseI as number} min={0} max={1} step={0.01} onChange={sNoiseI} />
           </FR>
-          <FR label="Speed">
+          <FR label="Speed" info={hintFor('background.noiseSpeed')}>
             <Sl value={noiseSp as number} min={0} max={10} step={0.5} onChange={sNoiseSp} />
           </FR>
-          <FR label="Scale">
+          <FR label="Scale" info={hintFor('background.noiseScale')}>
             <Sl value={noiseSc as number} min={0.5} max={5} step={0.1} onChange={sNoiseSc} />
           </FR>
-          <FR label="Beat boost">
+          <FR label="Beat boost" info={hintFor('background.noiseBeatBoost')}>
             <Sl value={noiseBB as number} min={0} max={3} step={0.1} onChange={sNoiseBB} />
           </FR>
           <Tg value={noiseCM as boolean} onChange={sNoiseCM} label="Color grain" />
         </EffectCard>
-        <EffectCard label="Scanlines" enabled={scan as boolean} onToggle={sScan}>
-          <FR label="Density">
+        <EffectCard label="Scanlines" enabled={scan as boolean} onToggle={sScan} info={hintFor('background.scanlineEnabled')}>
+          <FR label="Density" info={hintFor('background.scanDensity')}>
             <Sl value={scanD as number} min={0.5} max={5} step={0.1} onChange={sScanD} />
           </FR>
-          <FR label="Scroll speed">
+          <FR label="Scroll speed" info={hintFor('background.scanScrollSpeed')}>
             <Sl value={scanSS as number} min={-5} max={5} step={0.1} onChange={sScanSS} />
           </FR>
-          <FR label="Thickness">
+          <FR label="Thickness" info={hintFor('background.scanThickness')}>
             <Sl value={scanTh as number} min={0.1} max={0.9} step={0.05} onChange={sScanTh} />
           </FR>
-          <FR label="Beat opacity">
+          <FR label="Beat opacity" info={hintFor('background.scanBeatOpacity')}>
             <Sl value={scanBO as number} min={0} max={2} step={0.1} onChange={sScanBO} />
           </FR>
-          <FR label="Beat density">
+          <FR label="Beat density" info={hintFor('background.scanBeatDensity')}>
             <Sl value={scanBD as number} min={0} max={3} step={0.1} onChange={sScanBD} />
           </FR>
         </EffectCard>
-        <EffectCard label="Glitch" enabled={glitch as boolean} onToggle={sGlitch}>
-          <FR label="Delay" hint={`${(glitchD as number).toFixed(1)}s`} sub="Time between glitches">
+        <EffectCard label="Glitch" enabled={glitch as boolean} onToggle={sGlitch} info={hintFor('background.glitchEnabled')}>
+          <FR label="Delay" hint={`${(glitchD as number).toFixed(1)}s`} sub="Time between glitches" info={hintFor('background.glitchDelay')}>
             <Sl value={glitchD as number} min={0.5} max={10} step={0.5} onChange={sGlitchD} />
           </FR>
-          <FR label="Strength" hint={`${(glitchS as number).toFixed(2)}`}>
+          <FR label="Strength" hint={`${(glitchS as number).toFixed(2)}`} info={hintFor('background.glitchStrength')}>
             <Sl value={glitchS as number} min={0.01} max={0.5} step={0.01} onChange={sGlitchS} />
           </FR>
-          <FR label="RGB split">
+          <FR label="RGB split" info={hintFor('background.glitchRGBSplit')}>
             <Sl value={glRGB as number} min={0} max={0.05} step={0.001} onChange={sGlRGB} />
           </FR>
-          <FR label="Block size">
+          <FR label="Block size" info={hintFor('background.glitchBlockSize')}>
             <Sl value={glBlock as number} min={4} max={64} step={1} onChange={sGlBlock} />
           </FR>
-          <FR label="Block probability">
+          <FR label="Block probability" info={hintFor('background.glitchBlockProb')}>
             <Sl value={glProb as number} min={0} max={1} step={0.05} onChange={sGlProb} />
           </FR>
-          <FR label="Vertical mix">
+          <FR label="Vertical mix" info={hintFor('background.glitchVertical')}>
             <Sl value={glVert as number} min={0} max={1} step={0.05} onChange={sGlVert} />
           </FR>
-          <FR label="Decay speed">
+          <FR label="Decay speed" info={hintFor('background.glitchDecay')}>
             <Sl value={glDecay as number} min={0.5} max={8} step={0.5} onChange={sGlDecay} />
           </FR>
           <Tg value={glSync as boolean} onChange={sGlSync} label="Beat sync" />
         </EffectCard>
-        <EffectCard label="Pixelation" enabled={pixel as boolean} onToggle={sPixel}>
-          <FR label="Granularity">
+        <EffectCard label="Pixelation" enabled={pixel as boolean} onToggle={sPixel} info={hintFor('background.pixelationEnabled')}>
+          <FR label="Granularity" info={hintFor('background.pixelGranularity')}>
             <Sl value={pixelG as number} min={1} max={30} step={1} onChange={sPixelG} />
           </FR>
-          <FR label="Beat size boost">
+          <FR label="Beat size boost" info={hintFor('background.pixelBeatSize')}>
             <Sl value={pixBS as number} min={0} max={200} step={5} onChange={sPixBS} />
           </FR>
-          <FR label="Wave distortion">
+          <FR label="Wave distortion" info={hintFor('background.pixelWave')}>
             <Sl value={pixW as number} min={0} max={1} step={0.05} onChange={sPixW} />
           </FR>
-          <FR label="Wave speed">
+          <FR label="Wave speed" info={hintFor('background.pixelWaveSpeed')}>
             <Sl value={pixWS as number} min={0} max={3} step={0.1} onChange={sPixWS} />
           </FR>
         </EffectCard>
-        <EffectCard label="Dot screen" enabled={dot as boolean} onToggle={sDot}>
-          <FR label="Scale">
+        <EffectCard label="Dot screen" enabled={dot as boolean} onToggle={sDot} info={hintFor('background.dotScreenEnabled')}>
+          <FR label="Scale" info={hintFor('background.dotScale')}>
             <Sl value={dotS as number} min={0.1} max={3} step={0.05} onChange={sDotS} />
           </FR>
-          <FR label="Rotation">
+          <FR label="Rotation" info={hintFor('background.dotRotation')}>
             <Sl value={dotRot as number} min={0} max={45} step={1} onChange={sDotRot} />
           </FR>
-          <FR label="Rotation speed">
+          <FR label="Rotation speed" info={hintFor('background.dotRotSpeed')}>
             <Sl value={dotRS as number} min={0} max={2} step={0.05} onChange={sDotRS} />
           </FR>
-          <FR label="Beat scale">
+          <FR label="Beat scale" info={hintFor('background.dotBeatScale')}>
             <Sl value={dotBS as number} min={0} max={2} step={0.1} onChange={sDotBS} />
           </FR>
-          <FR label="Color separation">
+          <FR label="Color separation" info={hintFor('background.dotColorSep')}>
             <Sl value={dotCS as number} min={0} max={1} step={0.05} onChange={sDotCS} />
           </FR>
         </EffectCard>
-        <EffectCard label="Grid" enabled={grid as boolean} onToggle={sGrid}>
-          <FR label="Scale">
+        <EffectCard label="Grid" enabled={grid as boolean} onToggle={sGrid} info={hintFor('background.gridEnabled')}>
+          <FR label="Scale" info={hintFor('background.gridScale')}>
             <Sl value={gridS as number} min={0.1} max={5} step={0.1} onChange={sGridS} />
           </FR>
-          <FR label="Color"><CP value={gridCl as string} onChange={sGridCl} /></FR>
-          <FR label="Pulse strength">
+          <FR label="Color" info={hintFor('background.gridColor')}><CP value={gridCl as string} onChange={sGridCl} /></FR>
+          <FR label="Pulse strength" info={hintFor('background.gridPulseStrength')}>
             <Sl value={gridPS as number} min={0} max={3} step={0.1} onChange={sGridPS} />
           </FR>
-          <FR label="Wave distortion">
+          <FR label="Wave distortion" info={hintFor('background.gridWave')}>
             <Sl value={gridW as number} min={0} max={1} step={0.05} onChange={sGridW} />
           </FR>
-          <FR label="Wave speed">
+          <FR label="Wave speed" info={hintFor('background.gridWaveSpeed')}>
             <Sl value={gridWS as number} min={0} max={5} step={0.1} onChange={sGridWS} />
           </FR>
-          <FR label="Movement">
+          <FR label="Movement" info={hintFor('background.gridMovement')}>
             <Sl value={gridMv as number} min={0} max={2} step={0.05} onChange={sGridMv} />
           </FR>
         </EffectCard>
       </Acc>
 
-      <Acc label="Weather FX">
+      <Acc label="Weather FX" description={ACCORDION_DESCRIPTIONS['background.weather']}>
         <p className="mb-2 font-mono text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>Backdrop particles, rain and snow behind all other elements</p>
 
-        <EffectCard label="Background particles" enabled={bgPE as boolean} onToggle={sBgPE}>
-          <FR label="Count" hint={`${bgPCnt}`}>
+        <EffectCard label="Background particles" enabled={bgPE as boolean} onToggle={sBgPE} info={hintFor('background.bgParticlesEnabled')}>
+          <FR label="Count" hint={`${bgPCnt}`} info={hintFor('background.bgParticlesCount')}>
             <Sl value={bgPCnt as number} min={0} max={500} step={10} onChange={sBgPCnt} />
           </FR>
-          <FR label="Speed">
+          <FR label="Speed" info={hintFor('background.bgParticlesSpeed')}>
             <Sl value={bgPSp as number} min={0} max={3} step={0.05} onChange={sBgPSp} />
           </FR>
-          <FR label="Size" hint={`${(bgPSz as number).toFixed(1)}px`}>
+          <FR label="Size" hint={`${(bgPSz as number).toFixed(1)}px`} info={hintFor('background.bgParticlesSize')}>
             <Sl value={bgPSz as number} min={0.5} max={10} step={0.1} onChange={sBgPSz} />
           </FR>
-          <FR label="Opacity" hint={`${Math.round((bgPOp as number) * 100)}%`}>
+          <FR label="Opacity" hint={`${Math.round((bgPOp as number) * 100)}%`} info={hintFor('background.bgParticlesOpacity')}>
             <Sl value={bgPOp as number} min={0} max={1} step={0.01} onChange={sBgPOp} />
           </FR>
-          <FR label="Color"><CP value={bgPCl as string} onChange={sBgPCl} /></FR>
+          <FR label="Color" info={hintFor('background.bgParticlesColor')}><CP value={bgPCl as string} onChange={sBgPCl} /></FR>
           <div className="mt-2">
             <HzRangePicker
               startHz={bgPFS as number}
@@ -973,33 +994,33 @@ function BackgroundSection() {
               onChangeEnd={sBgPFE}
             />
             <div className="mt-2">
-              <FR label="Sensitivity" hint={`${(bgPSen as number).toFixed(2)}×`} sub="Lower = more sensitive">
+              <FR label="Sensitivity" hint={`${(bgPSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.bgParticlesBeatSensitivity')}>
                 <Sl value={bgPSen as number} min={0.1} max={5.0} step={0.05} onChange={sBgPSen} />
               </FR>
             </div>
           </div>
         </EffectCard>
 
-        <EffectCard label="Rain" enabled={rnE as boolean} onToggle={sRnE}>
-          <FR label="Count" hint={`${rnCnt}`}>
+        <EffectCard label="Rain" enabled={rnE as boolean} onToggle={sRnE} info={hintFor('background.rainEnabled')}>
+          <FR label="Count" hint={`${rnCnt}`} info={hintFor('background.rainCount')}>
             <Sl value={rnCnt as number} min={0} max={1000} step={20} onChange={sRnCnt} />
           </FR>
-          <FR label="Speed">
+          <FR label="Speed" info={hintFor('background.rainSpeed')}>
             <Sl value={rnSp as number} min={0} max={5} step={0.1} onChange={sRnSp} />
           </FR>
-          <FR label="Angle" hint={`${Math.round(rnAng as number)}°`}>
+          <FR label="Angle" hint={`${Math.round(rnAng as number)}°`} info={hintFor('background.rainAngle')}>
             <Sl value={rnAng as number} min={-45} max={45} step={1} onChange={sRnAng} />
           </FR>
-          <FR label="Streak length" hint={`${(rnLen as number).toFixed(1)}`}>
+          <FR label="Streak length" hint={`${(rnLen as number).toFixed(1)}`} info={hintFor('background.rainLength')}>
             <Sl value={rnLen as number} min={0.5} max={8} step={0.1} onChange={sRnLen} />
           </FR>
-          <FR label="Width" hint={`${(rnWid as number).toFixed(1)}`}>
+          <FR label="Width" hint={`${(rnWid as number).toFixed(1)}`} info={hintFor('background.rainWidth')}>
             <Sl value={rnWid as number} min={0.1} max={3} step={0.1} onChange={sRnWid} />
           </FR>
-          <FR label="Opacity" hint={`${Math.round((rnOp as number) * 100)}%`}>
+          <FR label="Opacity" hint={`${Math.round((rnOp as number) * 100)}%`} info={hintFor('background.rainOpacity')}>
             <Sl value={rnOp as number} min={0} max={1} step={0.01} onChange={sRnOp} />
           </FR>
-          <FR label="Color"><CP value={rnCl as string} onChange={sRnCl} /></FR>
+          <FR label="Color" info={hintFor('background.rainColor')}><CP value={rnCl as string} onChange={sRnCl} /></FR>
           <div className="mt-2">
             <HzRangePicker
               startHz={rnFS as number}
@@ -1008,30 +1029,30 @@ function BackgroundSection() {
               onChangeEnd={sRnFE}
             />
             <div className="mt-2">
-              <FR label="Sensitivity" hint={`${(rnSen as number).toFixed(2)}×`} sub="Lower = more sensitive">
+              <FR label="Sensitivity" hint={`${(rnSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.rainBeatSensitivity')}>
                 <Sl value={rnSen as number} min={0.1} max={5.0} step={0.05} onChange={sRnSen} />
               </FR>
             </div>
           </div>
         </EffectCard>
 
-        <EffectCard label="Snow" enabled={snE as boolean} onToggle={sSnE}>
-          <FR label="Count" hint={`${snCnt}`}>
+        <EffectCard label="Snow" enabled={snE as boolean} onToggle={sSnE} info={hintFor('background.snowEnabled')}>
+          <FR label="Count" hint={`${snCnt}`} info={hintFor('background.snowCount')}>
             <Sl value={snCnt as number} min={0} max={600} step={10} onChange={sSnCnt} />
           </FR>
-          <FR label="Speed">
+          <FR label="Speed" info={hintFor('background.snowSpeed')}>
             <Sl value={snSp as number} min={0} max={3} step={0.05} onChange={sSnSp} />
           </FR>
-          <FR label="Size" hint={`${(snSz as number).toFixed(1)}px`}>
+          <FR label="Size" hint={`${(snSz as number).toFixed(1)}px`} info={hintFor('background.snowSize')}>
             <Sl value={snSz as number} min={0.5} max={8} step={0.1} onChange={sSnSz} />
           </FR>
-          <FR label="Sway" hint={`${(snSw as number).toFixed(1)}`}>
+          <FR label="Sway" hint={`${(snSw as number).toFixed(1)}`} info={hintFor('background.snowSway')}>
             <Sl value={snSw as number} min={0} max={3} step={0.1} onChange={sSnSw} />
           </FR>
-          <FR label="Opacity" hint={`${Math.round((snOp as number) * 100)}%`}>
+          <FR label="Opacity" hint={`${Math.round((snOp as number) * 100)}%`} info={hintFor('background.snowOpacity')}>
             <Sl value={snOp as number} min={0} max={1} step={0.01} onChange={sSnOp} />
           </FR>
-          <FR label="Color"><CP value={snCl as string} onChange={sSnCl} /></FR>
+          <FR label="Color" info={hintFor('background.snowColor')}><CP value={snCl as string} onChange={sSnCl} /></FR>
           <div className="mt-2">
             <HzRangePicker
               startHz={snFS as number}
@@ -1040,7 +1061,7 @@ function BackgroundSection() {
               onChangeEnd={sSnFE}
             />
             <div className="mt-2">
-              <FR label="Sensitivity" hint={`${(snSen as number).toFixed(2)}×`} sub="Lower = more sensitive">
+              <FR label="Sensitivity" hint={`${(snSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.snowBeatSensitivity')}>
                 <Sl value={snSen as number} min={0.1} max={5.0} step={0.05} onChange={sSnSen} />
               </FR>
             </div>
@@ -1091,22 +1112,22 @@ function LogoSection_() {
 
   return (
     <div>
-      <FR label=""><Tg value={en as boolean} onChange={sEn} label="Show logo" /></FR>
+      <FR label="" info={hintFor('logo.enabled')}><Tg value={en as boolean} onChange={sEn} label="Show logo" /></FR>
 
-      <Acc label="Size" defaultOpen>
-        <FR label="Size" hint={`${size}px`}>
+      <Acc label="Size" defaultOpen description={ACCORDION_DESCRIPTIONS['logo.size']}>
+        <FR label="Size" hint={`${size}px`} info={hintFor('logo.size')}>
           <Sl value={size as number} min={80} max={1600} step={8} onChange={sSize} />
         </FR>
-        <FR label="Opacity" hint={`${Math.round((op as number) * 100)}%`}>
+        <FR label="Opacity" hint={`${Math.round((op as number) * 100)}%`} info={hintFor('logo.opacity')}>
           <Sl value={op as number} min={0} max={1} step={0.01} onChange={sOp} />
         </FR>
       </Acc>
 
-      <Acc label="Outer Glow">
-        <Tg value={gE as boolean} onChange={sGE} label="Enabled" />
+      <Acc label="Outer Glow" description={ACCORDION_DESCRIPTIONS['logo.outerGlow']}>
+        <FR label="" info={hintFor('logo.outerGlowEnabled')}><Tg value={gE as boolean} onChange={sGE} label="Enabled" /></FR>
         {!!gE && (
           <div className="mt-3 space-y-2">
-            <FR label="Color mode">
+            <FR label="Color mode" info={ENUM_HINTS['logo.outerGlowColorMode']?.[gCM as string]}>
               <CB
                 value={gCM as string}
                 options={[
@@ -1119,10 +1140,10 @@ function LogoSection_() {
               />
             </FR>
             {(gCM as string) === 'solid' && (
-              <FR label="Color"><CP value={gC as string} onChange={sGC} /></FR>
+              <FR label="Color" info={hintFor('logo.outerGlowColor')}><CP value={gC as string} onChange={sGC} /></FR>
             )}
             {((gCM as string) === 'rainbow') && (
-              <FR label="Cycle speed" hint={`${(gCS as number).toFixed(2)}×`}>
+              <FR label="Cycle speed" hint={`${(gCS as number).toFixed(2)}×`} info={hintFor('logo.outerGlowCycleSpeed')}>
                 <Sl value={gCS as number} min={0} max={2} step={0.05} onChange={sGCS} />
               </FR>
             )}
@@ -1158,29 +1179,29 @@ function LogoSection_() {
                   className="mt-1 rounded px-2 py-1 font-ui text-xs"
                   style={{ color: 'var(--accent)', border: '1px solid var(--border)' }}
                 >+ Add color</button>
-                <FR label="Cycle speed" hint={`${(gCS as number).toFixed(2)}×`}>
+                <FR label="Cycle speed" hint={`${(gCS as number).toFixed(2)}×`} info={hintFor('logo.outerGlowCycleSpeed')}>
                   <Sl value={gCS as number} min={0} max={2} step={0.05} onChange={sGCS} />
                 </FR>
               </div>
             )}
-            <FR label="Intensity" hint={`${gI}%`}>
+            <FR label="Intensity" hint={`${gI}%`} info={hintFor('logo.outerGlowIntensity')}>
               <Sl value={gI as number} min={0} max={100} step={1} onChange={sGI} />
             </FR>
-            <FR label="Size" hint={`${(gS as number).toFixed(2)}×`}>
+            <FR label="Size" hint={`${(gS as number).toFixed(2)}×`} info={hintFor('logo.outerGlowSize')}>
               <Sl value={gS as number} min={1.0} max={5.0} step={0.05} onChange={sGS} />
             </FR>
-            <FR label="Blur" hint={`${gB}px`}>
+            <FR label="Blur" hint={`${gB}px`} info={hintFor('logo.outerGlowBlur')}>
               <Sl value={gB as number} min={0} max={50} step={1} onChange={sGB} />
             </FR>
           </div>
         )}
       </Acc>
 
-      <Acc label="Inner Glow">
-        <Tg value={igE as boolean} onChange={sIgE} label="Enabled" />
+      <Acc label="Inner Glow" description={ACCORDION_DESCRIPTIONS['logo.innerGlow']}>
+        <FR label="" info={hintFor('logo.innerGlowEnabled')}><Tg value={igE as boolean} onChange={sIgE} label="Enabled" /></FR>
         {!!igE && (
           <div className="mt-3 space-y-2">
-            <FR label="Color mode">
+            <FR label="Color mode" info={ENUM_HINTS['logo.innerGlowColorMode']?.[igCM as string]}>
               <CB
                 value={igCM as string}
                 options={[
@@ -1193,10 +1214,10 @@ function LogoSection_() {
               />
             </FR>
             {(igCM as string) === 'solid' && (
-              <FR label="Color"><CP value={igC as string} onChange={sIgC} /></FR>
+              <FR label="Color" info={hintFor('logo.innerGlowColor')}><CP value={igC as string} onChange={sIgC} /></FR>
             )}
             {((igCM as string) === 'rainbow') && (
-              <FR label="Cycle speed" hint={`${(igCS as number).toFixed(2)}×`}>
+              <FR label="Cycle speed" hint={`${(igCS as number).toFixed(2)}×`} info={hintFor('logo.innerGlowCycleSpeed')}>
                 <Sl value={igCS as number} min={0} max={2} step={0.05} onChange={sIgCS} />
               </FR>
             )}
@@ -1232,43 +1253,43 @@ function LogoSection_() {
                   className="mt-1 rounded px-2 py-1 font-ui text-xs"
                   style={{ color: 'var(--accent)', border: '1px solid var(--border)' }}
                 >+ Add color</button>
-                <FR label="Cycle speed" hint={`${(igCS as number).toFixed(2)}×`}>
+                <FR label="Cycle speed" hint={`${(igCS as number).toFixed(2)}×`} info={hintFor('logo.innerGlowCycleSpeed')}>
                   <Sl value={igCS as number} min={0} max={2} step={0.05} onChange={sIgCS} />
                 </FR>
               </div>
             )}
-            <FR label="Intensity" hint={`${igI}%`}>
+            <FR label="Intensity" hint={`${igI}%`} info={hintFor('logo.innerGlowIntensity')}>
               <Sl value={igI as number} min={0} max={100} step={1} onChange={sIgI} />
             </FR>
-            <FR label="Reach" hint={`${Math.round((igS as number) * 100)}%`} sub="How far the glow extends inward from the logo edge">
+            <FR label="Reach" hint={`${Math.round((igS as number) * 100)}%`} sub="How far the glow extends inward from the logo edge" info={hintFor('logo.innerGlowSize')}>
               <Sl value={igS as number} min={0.0} max={1.0} step={0.01} onChange={sIgS} />
             </FR>
-            <FR label="Blur" hint={`${igB}px`}>
+            <FR label="Blur" hint={`${igB}px`} info={hintFor('logo.innerGlowBlur')}>
               <Sl value={igB as number} min={0} max={50} step={1} onChange={sIgB} />
             </FR>
           </div>
         )}
       </Acc>
 
-      <Acc label="Fire">
-        <Tg value={fireE as boolean} onChange={sFireE} label="Enabled" />
+      <Acc label="Fire" description={ACCORDION_DESCRIPTIONS['logo.fire']}>
+        <FR label="" info={hintFor('logo.fireEnabled')}><Tg value={fireE as boolean} onChange={sFireE} label="Enabled" /></FR>
         {!!fireE && (
           <div className="mt-3 space-y-2">
-            <FR label="Intensity">
+            <FR label="Intensity" info={hintFor('logo.fireIntensity')}>
               <Sl value={fireI as number} min={0} max={2} step={0.05} onChange={sFireI} />
             </FR>
-            <FR label="Height">
+            <FR label="Height" info={hintFor('logo.fireHeight')}>
               <Sl value={fireH as number} min={0} max={1} step={0.05} onChange={sFireH} />
             </FR>
-            <FR label="Speed">
+            <FR label="Speed" info={hintFor('logo.fireSpeed')}>
               <Sl value={fireSp as number} min={0} max={3} step={0.1} onChange={sFireSp} />
             </FR>
-            <FR label="Reactivity">
+            <FR label="Reactivity" info={hintFor('logo.fireReactivity')}>
               <Sl value={fireR as number} min={0} max={3} step={0.1} onChange={sFireR} />
             </FR>
-            <FR label="Inner color"><CP value={fireCI as string} onChange={sFireCI} /></FR>
-            <FR label="Mid color"><CP value={fireCM as string} onChange={sFireCM} /></FR>
-            <FR label="Outer color"><CP value={fireCO as string} onChange={sFireCO} /></FR>
+            <FR label="Inner color" info={hintFor('logo.fireColorInner')}><CP value={fireCI as string} onChange={sFireCI} /></FR>
+            <FR label="Mid color" info={hintFor('logo.fireColorMid')}><CP value={fireCM as string} onChange={sFireCM} /></FR>
+            <FR label="Outer color" info={hintFor('logo.fireColorOuter')}><CP value={fireCO as string} onChange={sFireCO} /></FR>
             <div className="mt-2">
               <HzRangePicker
                 startHz={fireFS as number}
@@ -1277,7 +1298,7 @@ function LogoSection_() {
                 onChangeEnd={sFireFE}
               />
               <div className="mt-2">
-                <FR label="Sensitivity" hint={`${(fireSn as number).toFixed(2)}×`} sub="Lower = more sensitive">
+                <FR label="Sensitivity" hint={`${(fireSn as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('logo.fireSensitivity')}>
                   <Sl value={fireSn as number} min={0.1} max={5.0} step={0.05} onChange={sFireSn} />
                 </FR>
               </div>
@@ -1286,8 +1307,8 @@ function LogoSection_() {
         )}
       </Acc>
 
-      <Acc label="Animation">
-        <FR label="Beat scale" hint={`${Math.round((bsc as number) * 100)}%`}>
+      <Acc label="Animation" description={ACCORDION_DESCRIPTIONS['logo.animation']}>
+        <FR label="Beat scale" hint={`${Math.round((bsc as number) * 100)}%`} info={hintFor('logo.beatScaleStrength')}>
           <Sl value={bsc as number} min={0} max={1} step={0.05} onChange={sBsc} />
         </FR>
         <div className="mt-2">
@@ -1298,7 +1319,7 @@ function LogoSection_() {
             onChangeEnd={sBFE}
           />
           <div className="mt-2">
-            <FR label="Sensitivity" hint={`${(bSens as number).toFixed(2)}×`} sub="Lower = more sensitive">
+            <FR label="Sensitivity" hint={`${(bSens as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('logo.beatFxSensitivity')}>
               <Sl value={bSens as number} min={0.1} max={5.0} step={0.05} onChange={sBSens} />
             </FR>
           </div>
@@ -1425,8 +1446,8 @@ function AudioSection() {
 
   return (
     <div>
-      <Acc label="Detection Mode" defaultOpen>
-        <FR label="Mode" hint={isPrecomputed ? 'Pre-analysed' : 'Live spectral flux'}>
+      <Acc label="Detection Mode" defaultOpen description={ACCORDION_DESCRIPTIONS['audio.detection']}>
+        <FR label="Mode" hint={isPrecomputed ? 'Pre-analysed' : 'Live spectral flux'} info={ENUM_HINTS['audio.detectionMode']?.[detMode as string]}>
           <CB value={detMode as string}
             options={[
               { value: 'precomputed', label: 'Pre-analysed' },
@@ -1459,7 +1480,7 @@ function AudioSection() {
       </Acc>
 
       {isPrecomputed && hasResults && (
-        <Acc label="Detected Song Metadata" defaultOpen>
+        <Acc label="Detected Song Metadata" defaultOpen description={ACCORDION_DESCRIPTIONS['audio.metadata']}>
           <FR label="Tempo" hint={`${(bpm as number).toFixed(1)} BPM`}>
             <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
               Detected via essentia.js RhythmExtractor2013 (multifeature).
@@ -1478,20 +1499,20 @@ function AudioSection() {
       )}
 
       {isPrecomputed && (
-        <Acc label="Band Sensitivity" defaultOpen>
-          <FR label="Kick" hint={`×${(kickG as any).kick?.toFixed(2) ?? '1.00'}`}>
+        <Acc label="Band Sensitivity" defaultOpen description={ACCORDION_DESCRIPTIONS['audio.bands']}>
+          <FR label="Kick" hint={`×${(kickG as any).kick?.toFixed(2) ?? '1.00'}`} info={hintFor('audio', 'bandSensitivity.kick')}>
             <Sl value={(kickG as any).kick as number} min={0} max={2} step={0.05}
               onChange={(v) => sKickG({ ...(kickG as any), kick: v })} />
           </FR>
-          <FR label="Snare" hint={`×${(snareG as any).snare?.toFixed(2) ?? '1.00'}`}>
+          <FR label="Snare" hint={`×${(snareG as any).snare?.toFixed(2) ?? '1.00'}`} info={hintFor('audio', 'bandSensitivity.snare')}>
             <Sl value={(snareG as any).snare as number} min={0} max={2} step={0.05}
               onChange={(v) => sSnareG({ ...(snareG as any), snare: v })} />
           </FR>
-          <FR label="Vocal" hint={`×${(vocalG as any).vocal?.toFixed(2) ?? '1.00'}`}>
+          <FR label="Vocal" hint={`×${(vocalG as any).vocal?.toFixed(2) ?? '1.00'}`} info={hintFor('audio', 'bandSensitivity.vocal')}>
             <Sl value={(vocalG as any).vocal as number} min={0} max={2} step={0.05}
               onChange={(v) => sVocalG({ ...(vocalG as any), vocal: v })} />
           </FR>
-          <FR label="Hi-Hat" hint={`×${(hihatG as any).hihat?.toFixed(2) ?? '1.00'}`}>
+          <FR label="Hi-Hat" hint={`×${(hihatG as any).hihat?.toFixed(2) ?? '1.00'}`} info={hintFor('audio', 'bandSensitivity.hihat')}>
             <Sl value={(hihatG as any).hihat as number} min={0} max={2} step={0.05}
               onChange={(v) => sHihatG({ ...(hihatG as any), hihat: v })} />
           </FR>
@@ -1505,8 +1526,8 @@ function AudioSection() {
         </Acc>
       )}
 
-      <Acc label="Key Influence" defaultOpen={false}>
-        <FR label="Key → Color blend" hint={`${((keyInf as number) * 100).toFixed(0)}%`}>
+      <Acc label="Key Influence" defaultOpen={false} description={ACCORDION_DESCRIPTIONS['audio.keyInfluence']}>
+        <FR label="Key → Color blend" hint={`${((keyInf as number) * 100).toFixed(0)}%`} info={hintFor('audio.keyInfluence')}>
           <Sl value={keyInf as number} min={0} max={1} step={0.05} onChange={sKeyInf as (v: number) => void} />
         </FR>
         <FR label="" hint="How strongly the detected key shifts bars/particles when colorMode='Key' or 'Bands'. 0 = no effect (uses neutral hue), 1 = pure key colour.">
@@ -1517,7 +1538,7 @@ function AudioSection() {
         </FR>
       </Acc>
 
-      <Acc label="Legacy Global Beat" defaultOpen={false}>
+      <Acc label="Legacy Global Beat" defaultOpen={false} description={ACCORDION_DESCRIPTIONS['audio.legacy']}>
         <FR label="" hint="These settings apply in both modes (Live always uses them, Precomputed uses them for the global beatPhase driver — logo pulse, glow, etc.)">
           <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
             The 7 per-component FreqBeatDetectors (Background, Logo, Fire, Particles,
@@ -1527,13 +1548,13 @@ function AudioSection() {
             to e.g. emphasise snares (150-800 Hz) over kicks (40-120 Hz).
           </div>
         </FR>
-        <FR label="Freq start (Hz)" hint={`${gbStart} Hz`}>
+        <FR label="Freq start (Hz)" hint={`${gbStart} Hz`} info={hintFor('audio.globalBeatFreqStart')}>
           <Sl value={gbStart as number} min={20} max={20000} step={10} onChange={sGbStart as (v: number) => void} />
         </FR>
-        <FR label="Freq end (Hz)" hint={`${gbEnd} Hz`}>
+        <FR label="Freq end (Hz)" hint={`${gbEnd} Hz`} info={hintFor('audio.globalBeatFreqEnd')}>
           <Sl value={gbEnd as number} min={20} max={20000} step={10} onChange={sGbEnd as (v: number) => void} />
         </FR>
-        <FR label="Sensitivity" hint={`×${(gbSens as number).toFixed(2)}`}>
+        <FR label="Sensitivity" hint={`×${(gbSens as number).toFixed(2)}`} info={hintFor('audio.globalBeatSensitivity')}>
           <Sl value={gbSens as number} min={0.1} max={5} step={0.05} onChange={sGbSens as (v: number) => void} />
         </FR>
       </Acc>
@@ -1570,13 +1591,13 @@ function BarsSection() {
 
   return (
     <div>
-      <FR label=""><Tg value={en as boolean} onChange={sEn} label="Radial bars" /></FR>
+      <FR label="" info={hintFor('bars.enabled')}><Tg value={en as boolean} onChange={sEn} label="Radial bars" /></FR>
 
-      <Acc label="General" defaultOpen>
-        <FR label="Count" hint={`${cnt}`}>
+      <Acc label="General" defaultOpen description={ACCORDION_DESCRIPTIONS['bars.general']}>
+        <FR label="Count" hint={`${cnt}`} info={hintFor('bars.count')}>
           <Sl value={cnt as number} min={8} max={256} step={8} onChange={sCnt} />
         </FR>
-        <FR label="Color mode">
+        <FR label="Color mode" info={ENUM_HINTS['bars.colorMode']?.[cm as string]}>
           <CB value={cm as string}
             options={[
               { value: 'rainbow', label: 'Rainbow' },
@@ -1590,71 +1611,71 @@ function BarsSection() {
           />
         </FR>
         {(cm as string) === 'solid' && (
-          <FR label="Color"><CP value={sc as string} onChange={sSc} /></FR>
+          <FR label="Color" info={hintFor('bars.solidColor')}><CP value={sc as string} onChange={sSc} /></FR>
         )}
         {(cm as string) === 'custom' && <CustomColorEditor group="bars" />}
       </Acc>
 
-      <Acc label="Shape">
-        <FR label="Thickness" hint={`${th}px`}>
+      <Acc label="Shape" description={ACCORDION_DESCRIPTIONS['bars.shape']}>
+        <FR label="Thickness" hint={`${th}px`} info={hintFor('bars.thickness')}>
           <Sl value={th as number} min={1} max={12} step={0.5} onChange={sTh} />
         </FR>
-        <FR label="Gap" hint={`${Math.round((gap as number) * 100)}%`}>
+        <FR label="Gap" hint={`${Math.round((gap as number) * 100)}%`} info={hintFor('bars.gapSize')}>
           <Sl value={gap as number} min={0} max={0.9} step={0.05} onChange={sGap} />
         </FR>
-        <FR label="Min height" hint={`${mh}px`}>
+        <FR label="Min height" hint={`${mh}px`} info={hintFor('bars.minHeight')}>
           <Sl value={mh as number} min={0} max={10} step={0.5} onChange={sMh} />
         </FR>
-        <FR label="Opacity" hint={`${Math.round((op as number) * 100)}%`}>
+        <FR label="Opacity" hint={`${Math.round((op as number) * 100)}%`} info={hintFor('bars.opacity')}>
           <Sl value={op as number} min={0} max={1} step={0.01} onChange={sOp} />
         </FR>
       </Acc>
 
-      <Acc label="Frequency range">
-        <FR label="Low cut" hint={`~${(binToHz(fs as number) / 1000).toFixed(1)} kHz`}>
+      <Acc label="Frequency range" description={ACCORDION_DESCRIPTIONS['bars.frequency']}>
+        <FR label="Low cut" hint={`~${(binToHz(fs as number) / 1000).toFixed(1)} kHz`} info={hintFor('bars.freqStart')}>
           <Sl value={fs as number} min={0} max={120} step={1} onChange={sFs} />
         </FR>
-        <FR label="High cut" hint={`~${(binToHz(fe as number) / 1000).toFixed(1)} kHz`}>
+        <FR label="High cut" hint={`~${(binToHz(fe as number) / 1000).toFixed(1)} kHz`} info={hintFor('bars.freqEnd')}>
           <Sl value={fe as number} min={8} max={128} step={1} onChange={sFe} />
         </FR>
       </Acc>
 
-      <Acc label="Animation">
-        <FR label="Rotation speed">
+      <Acc label="Animation" description={ACCORDION_DESCRIPTIONS['bars.animation']}>
+        <FR label="Rotation speed" info={hintFor('bars.rotationSpeed')}>
           <Sl value={rs as number} min={0} max={2} step={0.05} onChange={sRs} />
         </FR>
-        <FR label="Rotation burst on beat">
+        <FR label="Rotation burst on beat" info={hintFor('bars.rotationOnBeat')}>
           <Sl value={rob as number} min={0} max={5} step={0.1} onChange={sRob} />
         </FR>
-        <FR label="Smoothing" hint={`${(sm as number).toFixed(2)}`} sub="Lower = slower/smoother">
+        <FR label="Smoothing" hint={`${(sm as number).toFixed(2)}`} sub="Lower = slower/smoother" info={hintFor('bars.smoothing')}>
           <Sl value={sm as number} min={0.05} max={0.5} step={0.01} onChange={sSm} />
         </FR>
       </Acc>
 
-      <Acc label="Size & Radius">
-        <FR label="Inner radius" hint={`${ir}px`}>
+      <Acc label="Size & Radius" description={ACCORDION_DESCRIPTIONS['bars.sizeRadius']}>
+        <FR label="Inner radius" hint={`${ir}px`} info={hintFor('bars.innerRadius')}>
           <Sl value={ir as number} min={60} max={400} step={5} onChange={sIr} />
         </FR>
-        <FR label="Length scale" hint={`${(ls as number).toFixed(2)}×`}>
+        <FR label="Length scale" hint={`${(ls as number).toFixed(2)}×`} info={hintFor('bars.lengthScale')}>
           <Sl value={ls as number} min={0.2} max={3.0} step={0.05} onChange={sLs} />
         </FR>
-        <FR label="Reactivity" hint={`${(re as number).toFixed(2)}×`}>
+        <FR label="Reactivity" hint={`${(re as number).toFixed(2)}×`} info={hintFor('bars.reactivity')}>
           <Sl value={re as number} min={0.1} max={3.0} step={0.05} onChange={sRe} />
         </FR>
       </Acc>
 
-      <Acc label="Peak indicators">
-        <Tg value={pe as boolean} onChange={sPe} label="Show peaks" />
+      <Acc label="Peak indicators" description={ACCORDION_DESCRIPTIONS['bars.peaks']}>
+        <FR label="" info={hintFor('bars.peakEnabled')}><Tg value={pe as boolean} onChange={sPe} label="Show peaks" /></FR>
         {!!pe && (
           <div className="mt-2">
-            <FR label="Decay" hint={`${(pd as number).toFixed(3)}`}>
+            <FR label="Decay" hint={`${(pd as number).toFixed(3)}`} info={hintFor('bars.peakDecay')}>
               <Sl value={pd as number} min={0.980} max={0.999} step={0.001} onChange={sPd} />
             </FR>
           </div>
         )}
       </Acc>
 
-      <Acc label="Beat Boost">
+      <Acc label="Beat Boost" description={ACCORDION_DESCRIPTIONS['bars.beat']}>
         <p className="mb-2 font-mono text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>Frequency range for bar-height beat boost</p>
         <HzRangePicker
           startHz={bbtFS as number}
@@ -1663,7 +1684,7 @@ function BarsSection() {
           onChangeEnd={sBbtFE}
         />
         <div className="mt-2">
-          <FR label="Sensitivity" hint={`${(bbtSn as number).toFixed(2)}×`} sub="Lower = more sensitive">
+          <FR label="Sensitivity" hint={`${(bbtSn as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('bars.beatSensitivity')}>
             <Sl value={bbtSn as number} min={0.1} max={5.0} step={0.05} onChange={sBbtSn} />
           </FR>
         </div>
@@ -1701,13 +1722,13 @@ function ParticlesSection() {
 
   return (
     <div>
-      <FR label=""><Tg value={en as boolean} onChange={sEn} label="Particles" /></FR>
+      <FR label="" info={hintFor('particles.enabled')}><Tg value={en as boolean} onChange={sEn} label="Particles" /></FR>
 
-      <Acc label="General" defaultOpen>
-        <FR label="Count" hint={`${cnt}`}>
+      <Acc label="General" defaultOpen description={ACCORDION_DESCRIPTIONS['particles.general']}>
+        <FR label="Count" hint={`${cnt}`} info={hintFor('particles.count')}>
           <Sl value={cnt as number} min={0} max={400} step={10} onChange={sCnt} />
         </FR>
-        <FR label="Color mode">
+        <FR label="Color mode" info={ENUM_HINTS['particles.colorMode']?.[cm as string]}>
           <CB value={cm as string}
             options={[
               { value: 'solid',   label: 'Solid' },
@@ -1721,13 +1742,13 @@ function ParticlesSection() {
           />
         </FR>
         {(cm as string) === 'solid' && (
-          <FR label="Color"><CP value={sc as string} onChange={sSc} /></FR>
+          <FR label="Color" info={hintFor('particles.solidColor')}><CP value={sc as string} onChange={sSc} /></FR>
         )}
         {(cm as string) === 'custom' && <CustomColorEditor group="particles" />}
       </Acc>
 
-      <Acc label="Shape & Size">
-        <FR label="Shape">
+      <Acc label="Shape & Size" description={ACCORDION_DESCRIPTIONS['particles.shape']}>
+        <FR label="Shape" info={ENUM_HINTS['particles.particleShape']?.[sh as string]}>
           <CB value={sh as string}
             options={[
               { value: 'circle',  label: 'Circle' },
@@ -1737,13 +1758,13 @@ function ParticlesSection() {
             onChange={sSh as (v: string) => void}
           />
         </FR>
-        <FR label="Size" hint={`${(sz as number).toFixed(1)}px`}>
+        <FR label="Size" hint={`${(sz as number).toFixed(1)}px`} info={hintFor('particles.size')}>
           <Sl value={sz as number} min={0.5} max={8} step={0.1} onChange={sSz} />
         </FR>
-        <FR label="Size burst on beat">
+        <FR label="Size burst on beat" info={hintFor('particles.sizeOnBeat')}>
           <Sl value={sob as number} min={0} max={3} step={0.05} onChange={sSob} />
         </FR>
-        <FR label="Blend mode">
+        <FR label="Blend mode" info={ENUM_HINTS['particles.blendMode']?.[bm as string]}>
           <CB value={bm as string}
             options={[
               { value: 'additive', label: 'Additive' },
@@ -1752,16 +1773,16 @@ function ParticlesSection() {
             onChange={sBm as (v: string) => void}
           />
         </FR>
-        <FR label="Opacity" hint={`${Math.round((op as number) * 100)}%`}>
+        <FR label="Opacity" hint={`${Math.round((op as number) * 100)}%`} info={hintFor('particles.opacity')}>
           <Sl value={op as number} min={0} max={1} step={0.01} onChange={sOp} />
         </FR>
       </Acc>
 
-      <Acc label="Orbit">
-        <FR label="Orbit radius" hint={`${or}px`}>
+      <Acc label="Orbit" description={ACCORDION_DESCRIPTIONS['particles.orbit']}>
+        <FR label="Orbit radius" hint={`${or}px`} info={hintFor('particles.orbitRadius')}>
           <Sl value={or as number} min={80} max={500} step={5} onChange={sOr} />
         </FR>
-        <FR label="Orbit mode">
+        <FR label="Orbit mode" info={ENUM_HINTS['particles.orbitMode']?.[om as string]}>
           <CB value={om as string}
             options={[
               { value: 'circular',   label: 'Circle' },
@@ -1772,20 +1793,20 @@ function ParticlesSection() {
           />
         </FR>
         {(om as string) === 'elliptical' && (
-          <FR label="Y/X ratio" hint={`${(er as number).toFixed(2)}`}>
+          <FR label="Y/X ratio" hint={`${(er as number).toFixed(2)}`} info={hintFor('particles.ellipseRatio')}>
             <Sl value={er as number} min={0.3} max={1.0} step={0.05} onChange={sEr} />
           </FR>
         )}
-        <FR label="Speed">
+        <FR label="Speed" info={hintFor('particles.speed')}>
           <Sl value={sp as number} min={0} max={3} step={0.05} onChange={sSp} />
         </FR>
-        <FR label="Spread">
+        <FR label="Spread" info={hintFor('particles.spread')}>
           <Sl value={spr as number} min={0} max={3} step={0.05} onChange={sSpr} />
         </FR>
       </Acc>
 
-      <Acc label="Physics">
-        <FR label="Kick burst">
+      <Acc label="Physics" description={ACCORDION_DESCRIPTIONS['particles.physics']}>
+        <FR label="Kick burst" info={hintFor('particles.kickBurstStrength')}>
           <Sl value={kb as number} min={0} max={3} step={0.05} onChange={sKb} />
         </FR>
         <div className="mt-1">
@@ -1796,32 +1817,32 @@ function ParticlesSection() {
             onChangeEnd={sRFE}
           />
           <div className="mt-2">
-            <FR label="Sensitivity" hint={`${(rSens as number).toFixed(2)}×`} sub="Lower = more sensitive">
+            <FR label="Sensitivity" hint={`${(rSens as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('particles.reactiveSensitivity')}>
               <Sl value={rSens as number} min={0.1} max={5.0} step={0.05} onChange={sRSens} />
             </FR>
           </div>
         </div>
       </Acc>
 
-      <Acc label="Connections">
-        <Tg value={cl as boolean} onChange={sCl} label="Connection lines" />
+      <Acc label="Connections" description={ACCORDION_DESCRIPTIONS['particles.connections']}>
+        <FR label="" info={hintFor('particles.connectionLines')}><Tg value={cl as boolean} onChange={sCl} label="Connection lines" /></FR>
         {!!cl && (
           <div className="mt-3 space-y-2">
-            <FR label="Max distance" hint={`${cd}px`} sub="Capped at 200 particles when enabled">
+            <FR label="Max distance" hint={`${cd}px`} sub="Capped at 200 particles when enabled" info={hintFor('particles.connectionDistance')}>
               <Sl value={cd as number} min={20} max={200} step={5} onChange={sCd} />
             </FR>
-            <FR label="Line opacity" hint={`${Math.round((co as number) * 100)}%`}>
+            <FR label="Line opacity" hint={`${Math.round((co as number) * 100)}%`} info={hintFor('particles.connectionOpacity')}>
               <Sl value={co as number} min={0} max={1} step={0.01} onChange={sCo} />
             </FR>
           </div>
         )}
       </Acc>
 
-      <Acc label="Flicker">
-        <Tg value={tw as boolean} onChange={sTw} label="Twinkle" />
+      <Acc label="Flicker" description={ACCORDION_DESCRIPTIONS['particles.flicker']}>
+        <FR label="" info={hintFor('particles.twinkle')}><Tg value={tw as boolean} onChange={sTw} label="Twinkle" /></FR>
         {!!tw && (
           <div className="mt-2">
-            <FR label="Speed">
+            <FR label="Speed" info={hintFor('particles.twinkleSpeed')}>
               <Sl value={tws as number} min={0.5} max={3} step={0.1} onChange={sTws} />
             </FR>
           </div>
@@ -1832,13 +1853,18 @@ function ParticlesSection() {
 }
 
 function EffectCard({
-  label, enabled, onToggle, children,
+  label, enabled, onToggle, children, info,
 }: {
-  label: string; enabled: boolean; onToggle: (v: boolean) => void; children?: React.ReactNode;
+  label: string; enabled: boolean; onToggle: (v: boolean) => void; children?: React.ReactNode; info?: string;
 }) {
   return (
     <div className="mb-2 rounded-lg border p-3" style={{ borderColor: 'var(--border)', background: 'var(--bg-elev-2)' }}>
-      <Tg value={enabled} onChange={onToggle} label={label} />
+      <div className="flex items-center gap-1.5">
+        <div className="flex-1 min-w-0">
+          <Tg value={enabled} onChange={onToggle} label={label} />
+        </div>
+        {info && <Hint text={info} />}
+      </div>
       {enabled && children && <div className="mt-3">{children}</div>}
     </div>
   );
