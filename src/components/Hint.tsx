@@ -349,7 +349,12 @@ export function Hint({
         onMouseLeave={startHideHover}
       >
         {/* Arrow triangle */}
-        <span style={arrowStyle(pos.actualSide)} aria-hidden="true" />
+        <span
+          className="hint-arrow"
+          data-side={pos.actualSide}
+          style={arrowStyle(pos.actualSide)}
+          aria-hidden="true"
+        />
         {text}
       </motion.div>
     </AnimatePresence>

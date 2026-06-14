@@ -470,116 +470,18 @@ input[type='color']::-moz-color-swatch {
   -webkit-backdrop-filter: blur(8px) saturate(1.2);
 }
 
-/* Arrow/triangle pointing toward the trigger. Positioned absolutely within
- * the popover, on the side OPPOSITE the trigger (i.e. the side closest to
- * the popover's outer edge).
+/* Arrow/triangle pointing toward the trigger.
  *
- * The Hint component already renders a small CSS triangle via
- * ::before/::after on the popover. The Hint passes an inline class or
- * data-attribute to indicate the side: data-side="right" means the trigger
- * is to the right of the popover, so the arrow should be on the popover's
- * RIGHT edge pointing right. */
+ * The <Hint/> component renders this as a real DOM element:
+ *   <span className="hint-arrow" data-side="right|left|top|bottom" />
+ * Position and the colored border sides are set INLINE in Hint.tsx
+ * (arrowStyle()) based on the side. This CSS block only provides
+ * the underlying triangle shape and a hover/focus outline. */
 
-.hint-popover::before {
-  content: '';
-  position: absolute;
-  width: 0;
-  height: 0;
-  border: 6px solid transparent;
-  /* Default: hidden. The Hint component toggles a data-side attribute. */
-  display: none;
-}
-
-/* Trigger on the right → arrow on the popover's right edge, pointing right */
-.hint-popover[data-side="right"]::before {
-  display: block;
-  right: -12px;
-  top: 50%;
-  transform: translateY(-50%);
-  border-left-color: var(--border-strong);
-  border-right: 0;
-}
-.hint-popover[data-side="right"]::after {
-  content: '';
-  position: absolute;
-  right: -11px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0;
-  height: 0;
-  border: 6px solid transparent;
-  border-left-color: var(--bg-elev-2);
-  border-right: 0;
-  z-index: 1;
-}
-
-/* Trigger below the popover → arrow on the bottom edge, pointing down */
-.hint-popover[data-side="bottom"]::before {
-  display: block;
-  bottom: -12px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-top-color: var(--border-strong);
-  border-bottom: 0;
-}
-.hint-popover[data-side="bottom"]::after {
-  content: '';
-  position: absolute;
-  bottom: -11px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border: 6px solid transparent;
-  border-top-color: var(--bg-elev-2);
-  border-bottom: 0;
-  z-index: 1;
-}
-
-/* Trigger on the left → arrow on the popover's left edge, pointing left */
-.hint-popover[data-side="left"]::before {
-  display: block;
-  left: -12px;
-  top: 50%;
-  transform: translateY(-50%);
-  border-right-color: var(--border-strong);
-  border-left: 0;
-}
-.hint-popover[data-side="left"]::after {
-  content: '';
-  position: absolute;
-  left: -11px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0;
-  height: 0;
-  border: 6px solid transparent;
-  border-right-color: var(--bg-elev-2);
-  border-left: 0;
-  z-index: 1;
-}
-
-/* Trigger above the popover → arrow on the top edge, pointing up */
-.hint-popover[data-side="top"]::before {
-  display: block;
-  top: -12px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-bottom-color: var(--border-strong);
-  border-top: 0;
-}
-.hint-popover[data-side="top"]::after {
-  content: '';
-  position: absolute;
-  top: -11px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 0;
-  height: 0;
-  border: 6px solid transparent;
-  border-bottom-color: var(--bg-elev-2);
-  border-top: 0;
-  z-index: 1;
+.hint-arrow {
+  /* The arrow itself is a pure CSS-border triangle; its color and
+   * side are controlled by the inline styles from arrowStyle(). */
+  pointer-events: none; /* don't interfere with the popover hover */
 }
 
 /* Disable backdrop-filter on browsers without support (graceful degrade).
