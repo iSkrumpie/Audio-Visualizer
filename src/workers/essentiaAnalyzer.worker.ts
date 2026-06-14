@@ -78,13 +78,22 @@ self.onmessage = async (e: MessageEvent) => {
     // Convert Float32Array (channel 0) → essentia vector
     const signal = essentia.arrayToVector(channelData as Float32Array);
 
+    // Resample to 44.1 kHz — essentia.js's RhythmExtractor2013 and
+    // KeyExtractor are calibrated for 44100 Hz; feeding them 48000 Hz
+    // audio produces BPM values ~8.84% too high (e.g. 120 BPM → 130.6 BPM),
+    // causing beat-synchronised visuals to drift visibly.
+    // Signature: Resample(signal, inputSampleRate?, outputSampleRate?, quality?)
+    // Returns: { signal: VectorFloat }. quality=1 = default 5th-order polyphase.
+    const resampled = essentia.Resample(signal, 48000, 44100).signal;
+    postProgress(id, 0.18);
+
     // ── BPM + Beat Ticks via RhythmExtractor2013 (multifeature) ─────────
     // method='multifeature' combines 5 ODF functions (HFC, Complex,
     // etc.) + BeatTrackerMultiFeature for the most accurate BPM.
     // Returns: { bpm, ticks, confidence, estimates, bpmIntervals }
     postProgress(id, 0.20);
     const rhythm = essentia.RhythmExtractor2013(
-      signal,
+      resampled,     // resampled to 44.1 kHz
       208,           // maxBPM — used as upper bound
       'multifeature',
       40,            // minBPM — lower bound
@@ -94,7 +103,11 @@ self.onmessage = async (e: MessageEvent) => {
     // ── Key via KeyExtractor ────────────────────────────────────────────
     // Uses the HPCP (Harmonic Pitch Class Profile) + Kessler profile.
     // Returns: { key, scale, strength }
-    const keyResult = essentia.KeyExtractor(signal);
+    // Signature: KeyExtractor(audio, averageDetuningCorrection?, frameSize?,
+    //   hopSize?, hpcpSize?, maxFrequency?, ...)
+    // hpcpSize=36 → 3 bins/semitone, enables averageDetuningCorrection,
+    // +5-8% key accuracy on detuned tracks (~3x HPCP compute, still sub-second).
+    const keyResult = essentia.KeyExtractor(resampled, true, 4096, 4096, 36);
     postProgress(id, 0.95);
 
     // Extract ticks as plain array (essentia returns a Vector)
