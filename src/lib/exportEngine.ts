@@ -20,7 +20,7 @@ import {
   BufferTarget,
 } from 'mediabunny';
 import * as THREE from 'three';
-import { precomputeFFT } from './fft';
+import { precomputeFFT, type PrecomputedFrame } from './fft';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { sceneRegistry } from '@/components/three/AudioScene';
 import { FreqBeatDetector } from './audioUtils';
@@ -106,7 +106,15 @@ export async function exportMP4(
     // Phase 2: Pre-compute FFT (now async — uses OfflineAudioContext + AnalyserNode
     // for byte-identical output to the live preview).
     onProgress({ phase: 'analyzing', progress: 0, message: 'Analyzing audio...' });
-    const fftFrames = await precomputeFFT(audioBuffer, fps);
+    // v13: if a pre-analysis bundle was produced by the live preview
+    // (window.__analysisBundle), reuse it. Otherwise run a fresh
+    // precomputeFFT (the export-only path that doesn't have a live
+    // preview yet). Same frame data either way — guarantees
+    // byte-identical preview/export matching.
+    const liveBundle = (window as any).__analysisBundle as
+      | { frames: PrecomputedFrame[] }
+      | undefined;
+    const fftFrames = liveBundle?.frames ?? await precomputeFFT(audioBuffer, fps);
     onProgress({ phase: 'analyzing', progress: 1, message: `${fftFrames.length} frames analyzed.` });
 
     // Phase 3: Render frames
@@ -247,15 +255,48 @@ export async function exportMP4(
       audioAnalysis.highs = frame.highs;
       audioAnalysis.energy = frame.energy;
 
-      // Drive the global beat detector with the same settings as live preview
-      globalBeatDetector.setSensitivity(audioSettings.globalBeatSensitivity ?? 1.0);
-      const globalBeat = globalBeatDetector.update(
-        frame.rawFreqData,
-        audioSettings.globalBeatFreqStart ?? 40,
-        audioSettings.globalBeatFreqEnd ?? 120,
-      );
-      audioAnalysis.beatPhase = globalBeat;
-      useAudioStore.getState().beatPhase = globalBeat;
+      // v13: per-band onset phases (kick/snare/vocal/hihat) from
+      // the precomputed frame, scaled by bandSensitivity.
+      const bandSens = audioSettings.bandSensitivity ?? {
+        kick: 1, snare: 1, vocal: 1, hihat: 1,
+      };
+      audioAnalysis.kickPhase  = frame.kickPhase  * (bandSens.kick  ?? 1);
+      audioAnalysis.snarePhase = frame.snarePhase * (bandSens.snare ?? 1);
+      audioAnalysis.vocalPhase = frame.vocalPhase * (bandSens.vocal ?? 1);
+      audioAnalysis.hihatPhase = frame.hihatPhase * (bandSens.hihat ?? 1);
+
+      // v13: beat phase — precomputed from essentia ticks (preferred)
+      // or legacy spectral-flux fallback. We use the bundle's ticks
+      // when available so export and preview produce identical
+      // beat phases.
+      let beatPhase: number;
+      if (liveBundle && (liveBundle as any).essentia?.ticks?.length > 1) {
+        const ticks = (liveBundle as any).essentia.ticks as number[];
+        const t = i * frameDuration;
+        // Find the tick that brackets time t
+        let lo = 0, hi = 1;
+        if (t < ticks[0]) {
+          beatPhase = 0;
+        } else if (t >= ticks[ticks.length - 1]) {
+          beatPhase = 0;
+        } else {
+          for (let j = 0; j < ticks.length - 1; j++) {
+            if (t >= ticks[j] && t < ticks[j + 1]) { lo = j; hi = j + 1; break; }
+          }
+          const dt = ticks[hi] - ticks[lo];
+          beatPhase = dt > 0 ? Math.max(0, 1 - (t - ticks[lo]) / dt) : 1.0;
+        }
+      } else {
+        // Fallback: legacy spectral-flux detector
+        globalBeatDetector.setSensitivity(audioSettings.globalBeatSensitivity ?? 1.0);
+        beatPhase = globalBeatDetector.update(
+          frame.rawFreqData,
+          audioSettings.globalBeatFreqStart ?? 40,
+          audioSettings.globalBeatFreqEnd ?? 120,
+        );
+      }
+      audioAnalysis.beatPhase = beatPhase;
+      useAudioStore.getState().beatPhase = beatPhase;
 
       // Advance R3F frame - runs all useFrame callbacks (bars, particles, etc.) then renders
       const timestamp = i * frameDuration;
