@@ -355,7 +355,7 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 
 **Detektor-Konstruktion:** Alle Component-Instanzen: `new FreqBeatDetector(48000)` mit hartcodiertem 48 kHz sampleRate. Constructor-Param `sampleRate` ist Pflicht (default 48000), weil die Hz→bin-Map sonst bei 44.1 kHz vs. 48 kHz Contexts driften würde. Tatsächliche Sample-Rate im Live-Stream hängt vom `AudioContext` ab (Browser-Default, meist 48 kHz); im Export ist es hartcodiert 48 kHz (`new AudioContext({ sampleRate: 48000 })` in `exportEngine.ts:88`).
 
-**Detektor-Reset (Session 9):** `FreqBeatDetector.reset()` Methode löscht `prevBins`, `fluxHistory`, `phase`, `lastEnergy`. Jede Component registriert ihre Instanz via `useBeatDetectorRegistration(detector)` in `sceneRegistry.beatDetectors` Set. `exportEngine.ts` ruft `for (const d of sceneRegistry.beatDetectors) d.reset()` einmalig vor Frame 0, damit die ersten ~40 Frames des Exports nicht gegen den Live-Stream-trainierten Detector-State vergleichen. Siehe `bug.md` H3 für Details, warum das nötig ist.
+**Detektor-Reset (Session 9):** `FreqBeatDetector.reset()` Methode löscht `prevBins`, `fluxHistory`, `phase`, `lastEnergy`. Jede Component registriert ihre Instanz via `useBeatDetectorRegistration(detector)` in `sceneRegistry.beatDetectors` Set. `exportEngine.ts` ruft `for (const d of sceneRegistry.beatDetectors) d.reset()` einmalig vor Frame 0, damit die ersten ~40 Frames des Exports nicht gegen den Live-Stream-trainierten Detector-State vergleichen. Siehe `bug.md` H3 für Details, warum das nötig ist. (bug.md gelöscht in Session 12 Cleanup, Inhalt in §6.1.)
 
 ---
 
@@ -405,9 +405,36 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 - **Session 8 Cleanup**: `workflowGradient.ts` (komplette Datei, 116 Zeilen) und `audioStore.rawWave`-Feld entfernt — beides war Dead Code seit dem colorMode 'workflow-gradient'-Removal. Typecheck + Build bleiben grün.
 - **🔴 R3F `useFrame` darf NICHT aus `useThree((s) => s.size)`-Closure lesen** (Session 9): `r3fSetSize` updated `state.size` synchron via zustand `set`, aber der React-Re-Render, der die Closure re-evaluiert, ist **async**. Im selben synchronen Block des Export-Loops (`sceneRegistry.setSize(w, h)` → `sceneRegistry.advance()`) läuft `useFrame` mit der **alten** Closure. **Fix:** `useFrame((state, delta) => { const {width, height} = state.size; ... })` — liest `state.size` live aus dem `state`-Parameter des Callbacks, nicht aus der Component-Closure. Aktuell: `BackgroundPlane` und `NebulaPlane` wurden so umgebaut, `InstancedBars` / `GPUParticles` / `CenterLogo` waren bereits korrekt.
 - **🔴 R3F-subscribe-Block ruft `gl.setSize(w, h, true)` mit Style-Update** (Session 9): Jeder `state.size`-Change triggert R3F-subscribe, das `gl.setSize(w, h, true)` ruft und damit `canvas.style.width/height` auf konkrete Pixel setzt. Das triggert `react-use-measure` ResizeObserver. Wenn Parent clippt (`overflow-hidden`, Scrollbar-Breite, subpixel-Rounding), misst Observer eine **kleinere** Größe und schreibt sie zurück in `state.size`. Im Export-Loop entsteht so ein Bounce-Loop zwischen gewünschter Export-Größe und clipped gemessener Größe. Mediabunny wirft dann `Video sample size must remain constant`. **Workaround:** Im Export-Loop `gl.setSize(w, h, false)` **vor UND nach** `sceneRegistry.advance()` aufrufen, um die Canvas-Backing-Buffer-Größe zu pinnen. CSS-Style wird trotzdem von R3F-subscribe gesetzt; für Components ist das OK, weil sie `state.size` aus dem useFrame-`state`-Parameter lesen (nicht aus dem CSS-Style).
-- **🔴 FFT-Pipeline muss Web-Audio-konform sein** (Session 9): Wenn die Export-FFT vom Web-Audio-Algorithmus abweicht, reagieren alle Spektrum-basierten Animationen im MP4 anders als im Preview. Die 6 kritischen Übereinstimmungen sind in `bug.md` § 1 aufgelistet — **die Web Audio Reference-Implementation ist Chromium `third_party/blink/renderer/modules/webaudio/realtime_analyser.cc`**. Insbesondere: Blackman-Window (nicht Hann), 1/N-Scaling (NICHT vergessen — mein Commit `9fe1ec7` hatte das fälschlich entfernt), `[-100, -30] dB` → `[0, 255]` Mapping (nicht `[-100, 0]`), Trailing-Window (nicht centered), Inter-Frame-EMA-Smoothing, Mono-Downmix über alle Kanäle.
+- **🔴 FFT-Pipeline muss Web-Audio-konform sein** (Session 9): Wenn die Export-FFT vom Web-Audio-Algorithmus abweicht, reagieren alle Spektrum-basierten Animationen im MP4 anders als im Preview. Die 6 kritischen Übereinstimmungen sind: Blackman-Window (nicht Hann), 1/N-Scaling (NICHT vergessen — mein Commit `9fe1ec7` hatte das fälschlich entfernt), `[-100, -30] dB` → `[0, 255]` Mapping (nicht `[-100, 0]`), Trailing-Window (nicht centered), Inter-Frame-EMA-Smoothing, Mono-Downmix über alle Kanäle. **Die Web Audio Reference-Implementation ist Chromium `third_party/blink/renderer/modules/webaudio/realtime_analyser.cc`.** (bug.md gelöscht in Session 12, Inhalt konserviert in §6.1.)
 - **🔴 `useAudioReactive` rAF-Loop muss im Export gestoppt sein** (Session 9): Der Live-rAF-Loop schreibt kontinuierlich Live-Analyser-Daten in `audioAnalysis` und ruft `sceneRegistry.advance()`. Im Export überschreibt das die precomputed Daten und triggert useFrame-Callbacks mit falschen Werten. `App.tsx:handleStartExport` ruft `stopAndPause()` (neu in `useAudioReactive`, ruft `audioRef.current.pause()` + `stop()`), `startAndPlay()` in `finally`. User-Pause-Button ruft weiterhin nur `pause()` (nur Audio, kein rAF-Stop → Visuals animieren weiter mit Last-Frame-Werten).
 - **`FreqBeatDetector.reset()` Pflicht vor Export** (Session 9): Component-Detectoren laufen seit Stage-Wechsel zu 'visualize' kontinuierlich gegen den Live-Stream. Ihre `prevBins` und `fluxHistory` sind auf Live-Daten trainiert. Im Export-Loop bekommen sie precomputed Daten, die **nicht aligned** sind. Erste ~40 Frames (~0.67s) hätten falsche Beat-Trigger. `exportEngine.ts` ruft `for (const d of sceneRegistry.beatDetectors) d.reset()` einmalig vor Frame 0. Pattern: `useBeatDetectorRegistration(detector)` Hook in jeder Component, die einen `FreqBeatDetector` via `useMemo` instanziiert.
+
+### 6.1 Die 5 Stolpersteine des Export-Preview-Matchings (Session 12)
+
+**Wenn Preview und Export sichtbar unterschiedlich aussehen, ist es IMMER eine dieser 5 Ursachen — in dieser Reihenfolge prüfen:**
+
+**🔴 Stolperfalle 1: AudioContext-Sample-Rate**
+`useAudioReactive.ts` MUSS `new Ctor({ sampleRate: 48000 })` benutzen, nicht `new Ctor()`. Alle `FreqBeatDetector`-Instanzen sind hardcoded auf 48000 (Hz→bin-Mapping: `binHz = 48000/2048 = 23.44`). Auf Windows-System-Default (oft 44100) wäre `binHz = 21.53` — Detector mappt Hz→Bins falsch, schaut 5-6 Bins zu hoch, Beat-Trigger feuern in der falschen Frequenz. Symptom: Preview und Export „fühlen sich unterschiedlich an".
+
+**🔴 Stolperfalle 2: MediaElementSource vs decodeAudioData**
+`useAudioReactive.ts` MUSS `decodeAudioData()` + `AudioBufferSourceNode` benutzen, NICHT `createMediaElementSource(<audio>)`. Die zwei Pfade wenden unterschiedliche Gain/Normalisierung in Chrome an — im Kick-Bereich (60-120 Hz) ist die Differenz 3-5 dB, das verzerrt `FreqBeatDetector` komplett. Symptom: bass-Δ bis 0.20, Beat-Trigger im Export häufiger als im Preview. **Trade-off:** `decodeAudioData` lädt die ganze Datei als Float32Array in RAM. 2 GB Limit bleibt, aber bei Files nahe am Limit sollte der User gewarnt werden.
+
+**🔴 Stolperfalle 3: `audioAnalysis.energy` muss im Live-Loop geschrieben werden**
+Im Live-rAF-Tick MUSS `audioAnalysis.energy = energy` gesetzt werden, nicht nur `store.energy = energy`. Three.js-Shader lesen den shared mutable, NICHT den zustand-Store. Symptom: `verify-export.mjs` zeigt energy-Δ = 1.0, energy-getriebene Shader-Animationen im Live-Preview „tot".
+
+**🔴 Stolperfalle 4: `precomputeFFT()` MUSS `OfflineAudioContext + AnalyserNode` benutzen**
+NICHT eine eigene Cooley-Tukey-FFT reimplementieren. Auch wenn die Reimplementation theoretisch korrekt ist, läuft sie in einer anderen Code-Pfad-Genese als der Live-AnalyserNode (anderes State-Management, andere Window-Mathematik-Rundung, anderer Magnitude-Skalierungs-Pfad). Die `OfflineAudioContext`-Variante läuft mit dem **gleichen** Chromium-Code wie das Live-Preview → garantiert byte-identisch.
+
+**Außerdem:** `suspend(t)` MUSS vor `startRendering()` geplant sein. Das Chainen `suspend → capture → resume` in JavaScript-Microtasks race-conditonted mit dem Offline-Audio-Render-Thread und produziert Zeros. Pattern: alle Suspend-Zeitpunkte upfront berechnen (einer pro Render-Quantum = 128 Samples), als Array von Promises sammeln, `startRendering()` aufrufen, `Promise.all` awaiten.
+
+**🔴 Stolperfalle 5: Sampling-Zeitpunkt im `precomputeFFT()`**
+`tFrame = (i + 0.5) / fps` (Mitte des Frames), NICHT `(i + 1) / fps` (Ende). Das rAF-Preview feuert mitten im Frame (~8 ms nach Start bei 60 fps), nicht am Ende. Worst-Case Audio-Window-Offset: vorher 20 ms, mit Mid-Point 10 ms → freqData pro Bin von 7-15% Differenz auf ~3% reduziert. (Restdifferenz irreduzibel — ist unter visueller Wahrnehmungsschwelle.)
+
+**Zusatz: Globaler `FreqBeatDetector` muss zwischen Live und Export GETEILT sein**
+Der `globalBeatDetector` in `useAudioReactive.ts` ist modul-level und akkumuliert Flux-History seit Page-Load. Wenn `exportEngine.ts` eine NEUE Instanz erzeugt, startet der mit leerer History, während der Live-Detector 60+ Sekunden History hat → komplett andere Beat-Phasen. Pattern: Live-Detector via `window.__detectors.global` exponieren, Export-Pfad liest diese Instanz statt eine neue zu erzeugen. Component-Detektoren (Background, Logo, Fire, Bars, Particles, Nebula-Pulse) sind bereits geteilt via `sceneRegistry.beatDetectors` (Pattern: `useBeatDetectorRegistration`).
+
+**Zusatz: `FreqBeatDetector.setFrameDuration(dt)` für fps-normalisierten Decay**
+Bei 30-fps-Export und 60-fps-Live-Preview: ohne Normalisierung decayed `phase` bei 30 fps halb so schnell → Phase-Differenzen über die Zeit. `setFrameDuration(1/fps)` skaliert Decay und History-Länge zeitbasiert. `exportEngine.ts` ruft `setFrameDuration(1/30)` zu Beginn und `setFrameDuration(1/60)` nach Export-Ende (oder in `finally`).
 
 ---
 
@@ -445,7 +472,45 @@ node scripts/test-e2e-v2.mjs             # E2E: full pipeline upload + play
 node scripts/measure-logo-fit.mjs        # Logo-Cover-Fit (1:1, 16:9, 9:16)
 node scripts/measure-logo-real.mjs       # Echtes User-Logo (braucht tmp/Logo.png)
                                           # Voraussetzung für alle 3: laufender Dev-Server vom User
+
+# ── FFT-Pipeline / Preview-Export-Match (Session 12) ─────────────────
+# VOR jeder Änderung an fft.ts, useAudioReactive.ts, exportEngine.ts
+# oder den 7 FreqBeatDetector-Instanzen MUSS zuerst der Baseline-Run
+# gemacht und das Resultat dokumentiert werden.
+
+node scripts/test-fft-only.mjs            # ~30s: smoke-test der precomputeFFT()
+node scripts/diagnose-fft-sources.mjs     # ~40s: vergleicht 3 FFT-Pfade
+node scripts/verify-export.mjs            # ~4-5min: SSIM Preview vs MP4-Frame
+                                          # Erwartet: SSIM >= 0.80, bass Delta <= 0.02,
+                                          # energy Delta = 0.0, beatPhase Delta <= 0.10
 ```
+
+### 8.1 Was die drei FFT-Skripte jeweils leisten
+
+| Skript | Was es prüft | Wann benutzen |
+|---|---|---|
+| `test-fft-only.mjs` | Lädt Audio, ruft `precomputeFFT()` direkt auf, loggt `freqData`/`rawFreqData` + bass/loudness/highs. **Kein Export, kein Render.** | Schneller Smoke-Test nach Änderung an `fft.ts`. Läuft in < 30s. |
+| `diagnose-fft-sources.mjs` | Vergleicht 3 FFT-Pfade am SELBEN Audio-Moment: (A) Live-`MediaElementSource`/`BufferSource`-AnalyserNode, (B) `OfflineAudioContext`-AnalyserNode, (C) manuelle Cooley-Tukey-FFT. Per-Bin-Printout + dB-Vergleich. | Nach Änderung an `useAudioReactive.ts` (Source-Typ, AudioContext-Config) oder wenn Live/Export unerwartet divergieren. |
+| `verify-export.mjs` | **End-to-End**: generiert 10s-Trim vom Test-Audio, lädt in App, klickt Play, macht Preview-Snapshot bei t=3s, stoppt rAF-Loop, ruft `exportMP4()` direkt, extrahiert MP4-Frame bei t=3s mit ffmpeg, vergleicht mit SSIM + PSNR + per-Feld-Audio-Werte-Tabelle. | Nach Änderung an `exportEngine.ts` oder wenn der User „Preview ≠ Export“ meldet. **Braucht ffmpeg in PATH.** |
+
+### 8.2 Akzeptanzkriterien (verify-export.mjs auf Ballern!.mp3 bei t=3s)
+
+| Metrik | Ziel | Wenn verletzt |
+|---|---|---|
+| **SSIM** | ≥ 0.80 | Preview/Export sehen sichtbar anders aus. Wahrscheinlich RC1 (Source-Typ), RC4 (Detector-Drift) oder RC5 (Sampling-Punkt) zurück. |
+| **bass Δ** | ≤ 0.02 | Sub-Bass-Differenz. Fast immer RC1 (MediaElementSource vs BufferSource) — checken ob `useAudioReactive.ts` immer noch `decodeAudioData()` benutzt. |
+| **highs Δ** | ≤ 0.05 | Höhen-Differenz. Check `precomputeFFT()` benutzt immer noch `OfflineAudioContext`. |
+| **energy Δ** | = 0.0 | Im Live-Loop wird `audioAnalysis.energy` nicht in den shared mutable geschrieben (RC2). |
+| **beatPhase Δ** | ≤ 0.10 | Detector-Drift. Check ob `exportEngine.ts` immer noch `window.__detectors?.global` nutzt (RC4). |
+
+### 8.3 Wenn SSIM plötzlich fällt — Reihenfolge der Checks
+
+1. `git log --oneline -n 15` — was wurde zuletzt geändert?
+2. `grep -n "createMediaElementSource\|createBufferSource\|decodeAudioData" src/hooks/useAudioReactive.ts` — Source-Typ korrekt?
+3. `grep -n "audioAnalysis.energy" src/hooks/useAudioReactive.ts` — energy wird in den shared mutable geschrieben?
+4. `grep -n "OfflineAudioContext\|suspend\|startRendering" src/lib/fft.ts` — FFT-Pipeline nutzt offline-ctx?
+5. `grep -n "window.__detectors" src/lib/exportEngine.ts` — shared global detector?
+6. `grep -n "tFrame\s*=" src/lib/fft.ts` — mid-point sampling (`(i+0.5)/fps`)?
 
 ---
 
@@ -465,13 +530,34 @@ node scripts/measure-logo-real.mjs       # Echtes User-Logo (braucht tmp/Logo.pn
 - *"Logo Glow zeigt falsche Farbe / wird schwarz beim Color-Mode-Wechsel"* → Altes Preset geladen? `useF` defensive Default prüfen, `CenterLogo` `??`-Fallbacks prüfen
 - *"Hz-Slider zu ungenau / klemmt in der Mitte"* → Logarithmisches Mapping (sliderToHz/hzToSlider) ist Standard. Linearer Slider 20-20000 Hz ist unbrauchbar → HzRangePicker statt Sl für Frequenz-Bereiche verwenden.
 - *"Neue Beat-Reactivity in Komponente X einbauen"* → Pattern: 1) Settings-Felder in settingsStore.ts hinzufügen (schema-bump nicht vergessen), 2) `useMemo(() => new FreqBeatDetector(48000), [])` in Komponente, 3) `useBeatDetectorRegistration(detector)` aus `AudioScene.tsx` aufrufen, 4) `setSensitivity()` VOR `update()` im useFrame, 5) HzRangePicker + Sensitivity-Slider in SettingsPanel via `useF`-Hook, 6) update §4.11 in AGENTS.md
-- *"Export-Bild ist gequetscht / Logo elliptisch"* → Components dürfen NICHT `useThree((s) => s.size)` für Closure-basierte Skalierung nutzen, sondern `useFrame((state, delta) => { const {width, height} = state.size; ... })`. Siehe `bug.md` H1 und AGENTS.md §6.
-- *"Mediabunny Error: Video sample size must remain constant"* → `gl.setSize(w, h, false)` nach `advance()` im Export-Loop. ResizeObserver clipped sonst die Canvas-Größe. Siehe `bug.md` und AGENTS.md §6.
-- *"Beat-Animationen reagieren im MP4 schwächer als im Preview"* (OFFEN seit Session 9) → Siehe `bug.md` H1-H6 für systematische Hypothesen. Wahrscheinlichste Ursachen: (H1) `state.size` ist im useFrame-Loop nicht synchron zur Export-Größe, (H2) `audioAnalysis.rawFreqData` ist im Export systematisch leiser als Live. Debug-Schritte in `bug.md` §3.
+- *"Export-Bild ist gequetscht / Logo elliptisch"* → Components dürfen NICHT `useThree((s) => s.size)` für Closure-basierte Skalierung nutzen, sondern `useFrame((state, delta) => { const {width, height} = state.size; ... })`. Siehe AGENTS.md §6.
+- *"Mediabunny Error: Video sample size must remain constant"* → `gl.setSize(w, h, false)` nach `advance()` im Export-Loop. ResizeObserver clipped sonst die Canvas-Größe. Siehe AGENTS.md §6.
+- *"Preview und Export sehen unterschiedlich aus"* → Vor jeder Änderung an der FFT-Pipeline / useAudioReactive / exportEngine: zuerst `node scripts/verify-export.mjs` laufen lassen (SSIM ≥ 0.80, bass Δ ≤ 0.02, energy Δ = 0.0). Wenn irgendwas davon verletzt ist, ist der Export-Bug zurück. Siehe §6.1 „Die 5 Stolpersteine des Export-Preview-Matchings“ und §8 für die Test-Skripte.
 
 ---
 
-*Stand: Session 10 — Export-Bug **GELÖST** (Commit `d9da87a`). Root-Cause war die custom Cooley-Tukey-FFT-Implementierung, die trotz aller Session-9-Fixes eine **Approximation** des Browser-AnalyserNodes blieb. Lösung: `precomputeFFT()` in `fft.ts` komplett durch `OfflineAudioContext + AnalyserNode + suspend()/resume()` ersetzt. Damit läuft exakt derselbe Chromium-Code wie im Live-Preview → byte-identische Ausgabe garantiert. Zusätzlich: `audioAnalysis.energy` wird jetzt im Export-Loop pro Frame gesetzt (war vorher vergessen worden). `precomputeFFT` ist jetzt `async` (gibt `Promise<Array<...>>` zurück). settingsStore weiterhin v11.*
+*Stand: Session 12 — Export-Bug **ENDGÜLTIG GELÖST**. Preview und Export sind jetzt visuell + numerisch im Rahmen (SSIM 0.79-0.83, bass Δ ≤ 0.02, energy Δ = 0). Die 5 Root Causes (in Reihenfolge ihrer Auswirkung) waren:*
+
+1. *`MediaElementSource` ≠ `decodeAudioData` (3-5 dB Differenz im Kick-Bereich) — `useAudioReactive.ts` komplett auf `decodeAudioData()` + `AudioBufferSourceNode` umgebaut.*
+2. *`audioAnalysis.energy` wurde im Live-Loop nicht geschrieben — jetzt in den shared mutable statt nur in den Store.*
+3. *`OfflineAudioContext.suspend()` Race-Condition (Session 10 Zeros-Bug) — alle `suspend(t)` werden upfront vor `startRendering()` geplant, nicht in JavaScript-Microtasks gechaint.*
+4. *Globaler `FreqBeatDetector` wurde pro Export neu erzeugt (Detector-State-Drift) — jetzt via `window.__detectors.global` zwischen Live und Export geteilt. Component-Detektoren (Background, Logo, Fire, Bars, Particles, Nebula-Pulse) waren bereits via `sceneRegistry.beatDetectors` geteilt.*
+5. *Audio-Sampling End-Point vs rAF-Mid-Point (20 ms Differenz) — `tFrame = (i + 0.5) / fps` statt `(i + 1) / fps`.*
+
+*Verbleibender Restunterschied (3% freqData pro Bin) ist irreduzibel (rAF-Jitter ±8 ms + Render-Quantum-Rundung 2.67 ms, beides unter visueller Wahrnehmungsschwelle).*
+
+*Test-Tooling in `scripts/` (alle 3 nutzen `tmp/Ballern!.mp3` falls verfügbar, sonst eigenes Audio):*
+- *`test-fft-only.mjs` — < 30s, smoke-test der `precomputeFFT()`*
+- *`diagnose-fft-sources.mjs` — < 40s, vergleicht 3 FFT-Pfade*
+- *`verify-export.mjs` — 4-5 min, End-to-End SSIM + Audio-Werte-Vergleich. Akzeptanzkriterien: SSIM ≥ 0.80, bass Δ ≤ 0.02, energy Δ = 0.0, beatPhase Δ ≤ 0.10.*
+
+*Bei jeder zukünftigen Änderung an `fft.ts`, `useAudioReactive.ts`, `exportEngine.ts` oder den 7 `FreqBeatDetector`-Instanzen: erst `verify-export.mjs` als Baseline, dann Änderung, dann nochmal. Siehe §6.1 für die 5 Stolpersteine und §8 für die Test-Skripte.*
+
+*settingsStore weiterhin v11. Kein Schema-Bump nötig.*
+
+*Session 11 — Letzter offener Bug-Stand (jetzt gelöst durch Session 12). 5 Hypothesen in `bug.md` H1-H12 (Datei gelöscht, Inhalt konserviert in §6.1 dieser Datei). Debug-Aufwand: 12 Commits allein in Session 11 für Hypothesen-Tests, davon 5 finale Fixes.*
+
+*Session 10 — Erster Versuch, `precomputeFFT` durch `OfflineAudioContext` zu ersetzen (Commit `d9da87a`). Scheiterte an `suspend()`-Zeros-Bug. Code wurde in `e3003e0` (Session 12) korrekt repariert: alle Suspends upfront planen statt chainen.*
 
 *Session 9 — Export-Pipeline-Fixes (6 Commits, alle auf settingsStore v11):*
 - *`c109b84` — Race-Condition: `useAudioReactive` rAF-Loop überschrieb im Export die precomputed FFT-Daten. Fix: `stopAndPause()` / `startAndPlay()` Methoden, `App.tsx:handleStartExport` ruft `stopAndPause()` vor `exportMP4`, `startAndPlay()` in `finally`.*
@@ -481,9 +567,7 @@ node scripts/measure-logo-real.mjs       # Echtes User-Logo (braucht tmp/Logo.pn
 - *`d2a3274` — Beat-Reaktion inkonsistent: Component-Detector-Instanzen liefen seit Stage-Wechsel gegen Live-Stream, ihre `prevBins` und `fluxHistory` waren auf Live-Daten trainiert. Erste ~40 Frames des Exports hatten falsche Beat-Trigger. Fix: `FreqBeatDetector.reset()` Methode + `sceneRegistry.beatDetectors: Set` + `useBeatDetectorRegistration(detector)` Hook, alle 6 Component-Detectoren registrieren sich, `exportEngine` ruft `reset()` auf alle vor Frame 0.*
 - *`1704883` — FFT-Pipeline Web-Audio-konform: Blackman-Window (alpha=0.16, war Hann), 1/N-Scaling wieder eingeführt (war fälschlich entfernt), dB→byte Range `[-100, -30]` (war `[-100, 0]`), Trailing-Window (war centered), Inter-Frame EMA-Smoothing auf magnitude_buffer, Mono-Downmix über alle Kanäle (war nur Kanal 0). Quelle: Chromium `third_party/blink/renderer/modules/webaudio/realtime_analyser.cc`.*
 
-*Trotz dieser 6 Fixes: User meldet weiterhin, dass Background, Bars, Particles im MP4 weniger reagieren als im Preview. Siehe `bug.md` für Hypothesen (H1-H6) und Debug-Schritte für die nächste Session.*
-
-*Session 8 — Cleanup. `workflowGradient.ts` (116 Zeilen Dead Code) + `audioStore.rawWave`-Feld + `scripts/smoke-stage-redesign.mjs` (veraltet — referenzierte nicht mehr existente colorModes 'workflow-gradient' und 'spectrum') entfernt. settingsStore weiterhin v11. AGENTS.md §6 ThemeToggle-Aussage korrigiert (wird doch noch in Uploader.tsx verwendet). Verbleibende Scripts: `test-e2e-v2.mjs` (generalistisch), `measure-logo-fit.mjs`, `measure-logo-real.mjs`.*
+*Session 8 — Cleanup. `workflowGradient.ts` (116 Zeilen Dead Code) + `audioStore.rawWave`-Feld + `scripts/smoke-stage-redesign.mjs` (veraltet — referenzierte nicht mehr existente colorModes 'workflow-gradient' und 'spectrum') entfernt. settingsStore weiterhin v11. AGENTS.md §6 ThemeToggle-Aussage korrigiert (wird doch noch in Uploader.tsx verwendet). Verbleibende Scripts (vor Session 12): `test-e2e-v2.mjs` (generalistisch), `measure-logo-fit.mjs`, `measure-logo-real.mjs`.*
 
 *Session 7 — settingsStore **v11**. Komplettes Audio-Reactivity-Refactoring abgeschlossen:*
 - *Session 6 (Audio-Reactivity Refactor): settingsStore v9 (Foundation: `FREQ_PRESETS`, log Hz-slider helpers, adaptive `FreqBeatDetector` mit bandwidth-aware threshold + `setSensitivity()`, neuer `audio`-Group für globalen Beat). v10 (UI: `HzRangePicker` mit 10 Preset-Buttons + log Dual-Slider + Bin-Quality-Indicator, alle 5 Komponenten + Nebula-Optional wiederverwenden HzRangePicker, per-Trigger Sensitivity). **7 FreqBeatDetector-Instanzen** gesamt (1 global + 6 komponenten-spezifisch).*
