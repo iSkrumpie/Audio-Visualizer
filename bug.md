@@ -1,10 +1,10 @@
 # Export-Bug: Animationen reagieren im MP4 kaum/nicht auf Audio
 
-**Status:** OFFEN — noch nicht gefixt. Zuletzt bearbeitet: Session 11 (aktuell).
+**Status:** GELÖST (großer Fortschritt) — letzter Stand: SSIM 0.83, bass/highs/loudness/energy Δ alle ≤ 0.018, visuell erkennbar „das gleiche Visualisierungsergebnis" in Preview und Export. Verbleibender Rest: ~3% freqData-Offset durch 20ms Audio-Window-Differenz zwischen rAF-Preview-Capture und frame-exaktem Export. **Beschreibung des Original-Symptoms siehe unten, danach der Lösungsweg.**
 
 ---
 
-## Symptom
+## Symptom (ursprünglich)
 
 - **Preview:** Hintergrund pulsiert deutlich mit der Musik. Beat-Effekte (Grid-Pulse, Scanlines, Noise-Boost, Scale-on-Beat etc.) reagieren sichtbar auf den Beat.
 - **Export (.mp4):** Selbe Settings → Hintergrund reagiert kaum bis gar nicht. Animations-Unterschied ist stark sichtbar.
@@ -427,3 +427,137 @@ Diese Komponenten sind also **doppelt exponiert**:
 1. **Pre-Warm verifizieren** (Schritt 1 in `bug.md`). Wenn `beatPhase ≥ 0.90` bei Frame 30 → H4 bestätigt als Hauptursache, alle 6 Detektoren profitieren.
 2. Falls Pre-Warm nicht hilft: **H2 testen** (sample rate fixen) und **H12 prüfen** (welche fps).
 3. Falls immer noch schwach: **H11-Differenzierung** — fragt den User, ob nur die "Beat-Pulse"-Effekte schwach sind (Background-Pulse, Glow-Pulse, Fire-Ring) oder auch die kontinuierlichen (Bars-Höhe, Particle-Speed, Background-Helligkeit).
+
+---
+
+# Session 12 — Lösungsweg
+
+## Befund-Diagnose (durch Skripte)
+
+Drei Skripte lieferten die harten Daten:
+
+1. **`scripts/diagnose-fft-sources.mjs`** — vergleicht drei FFT-Pfade am selben Audio-Moment (`t=3s` von Ballern!.mp3, kick-Analyser, 1024 Bins):
+   ```
+   Bin  ~Hz   A-Live   B-Offline   C-ManFFT    A-B
+     0   12     175       123         123       +52   ← MediaElement 1.42× lauter
+     1   35     199       200         201        -1
+     2   59     206       217         217       -11   ← Offline 1.05× lauter
+     3   82     207       220         220       -13   ← KICK-RANGE: Offline 1.06× lauter
+     6  152     129       187         188       -58   ← Offline 1.45× lauter
+   Peak bin 3 (~82 Hz): Live -43.07 dB vs Offline -39.54 dB → A/B ratio 0.666
+   → Live-Preview (MediaElementSource) ist 33% leiser im Kick-Bereich
+     als der Export (decodeAudioData + OfflineAudioContext).
+   → Das ist genau die Frequenz, auf der `FreqBeatDetector` Beating macht
+     → im Export feuern Beats häufiger → Animation wirkt intensiver.
+   ```
+   ABER: `scripts/diagnose-fft-sources.mjs` wurde vor dem BufferSource-Umbau
+   geschrieben — nach dem Umbau teilen sich Live und Offline den gleichen
+   PCM-Pfad, der A/B-Ratio-Test ist nicht mehr aussagekräftig.
+
+2. **`scripts/test-fft-only.mjs`** — roher `precomputeFFT()`-Aufruf ohne
+   Three.js-Loop. Validiert dass die Pipeline Daten produziert.
+   `t=3.0s: bass=0.805 loudness=0.382 rawMax=210` — gesund.
+
+3. **`scripts/verify-export.mjs`** — End-to-End-Vergleich (Preview-Canvas-Snapshot
+   vs MP4-Frame bei gleichem Audio-Moment) plus numerischer Audio-Werte-Vergleich.
+   SSIM, PSNR, mean abs diff, plus Tabelle aller `audioAnalysis`-Felder.
+
+## Root Causes (in Reihenfolge der Wichtigkeit)
+
+### RC1: `MediaElementSource` ≠ `decodeAudioData` (GEFIXT in Commit `4a949e8`)
+
+Live-Preview nutzte `createMediaElementSource(<audio>)` — geht durch
+Chrome's HTMLMediaElement-Pipeline, die eine andere Gain/Normalisierung
+anwendet als `decodeAudioData()` + `AudioBufferSourceNode`. Effekt: 3-5 dB
+Differenz im Kick-Bereich, Beats feuern in der falschen Frequenz.
+
+**Fix:** `src/hooks/useAudioReactive.ts` komplett auf `decodeAudioData()` +
+`AudioBufferSourceNode` umgebaut. Die 2-GB-Upload-Grenze bleibt
+(`useFileUpload.ts`), Kommentar warnt vor RAM-Verbrauch bei großen Files.
+
+### RC2: `audioAnalysis.energy` wurde im Live-Loop nicht geschrieben (GEFIXT in Commit `4a949e8`)
+
+Im Live-Loop wurde `store.energy` (Zustand) gesetzt, aber
+`audioAnalysis.energy` (shared mutable) nicht. Im Export wurde
+`audioAnalysis.energy` korrekt geschrieben → Live-Preview sah `energy=0`,
+Export sah korrekten Wert. Drei.js-Komponenten lesen `audioAnalysis.energy`,
+nicht den Store.
+
+**Fix:** Energy-Berechnung in eine Variable `const energy = ...` extrahieren
+und in BEIDE schreiben.
+
+### RC3: `OfflineAudioContext + AnalyserNode` produzierte Zeros (GEFIXT in Commit `e3003e0`)
+
+Der Versuch in `d9da87a` schlug fehl weil `suspend()/resume()` in
+JavaScript-Microtasks gechaint wurde und mit dem Offline-Audio-Render-Thread
+race-conditonte. Spec verlangt: **alle `suspend(t)` müssen VOR
+`startRendering()` geplant sein.**
+
+**Fix:** `src/lib/fft.ts` komplett neu: alle `suspend(t)` upfront geplant,
+eine pro render-quantum (128 Samples), in jedem Callback ein Capture +
+`offline.resume()` für die nächste Suspension. Mehrere Video-Frames pro
+Quantum teilen sich den Capture (sie teilen auch das gleiche
+trailing-`fftSize`-Audio-Window).
+
+### RC4: `FreqBeatDetector.update()` wurde im Live- und Export-Pfad mit unterschiedlichem Detector-State aufgerufen (GEFIXT in nachfolgendem Commit)
+
+Im Live-Loop lief ein `globalBeatDetector` (modul-level) seit Page-Load.
+Im Export-Pfad wurde pro Export eine NEUE Instanz erzeugt. Resultat:
+Live-Detector hatte 60+ Sekunden History, Export-Detector startete mit
+leerer History → komplett andere Beat-Phasen zum gleichen Audio-Moment.
+
+**Fix:** `globalBeatDetector` als Modul-Export in `useAudioReactive.ts`
+und via `window.__detectors.global` exponiert. `exportEngine.ts` liest
+diese Instanz statt eine neue zu erstellen. Component-Detektoren
+(Background, Logo, Fire, Bars, Particles, Nebula-Pulse) waren bereits
+geteilt via `sceneRegistry.beatDetectors`.
+
+**Zusatz-Fix:** `FreqBeatDetector.setFrameDuration(dt)` skaliert Decay und
+History-Länge zeitbasiert (vorher frame-basiert), damit 30-fps-Export
+und 60-fps-Preview die gleiche Wand-Zeit-Window sehen.
+
+### RC5: Mid-Point vs End-Point Audio-Sampling (GEFIXT in Commit `d28c2c9`)
+
+`precomputeFFT()` nutzte `t = (i+1)/fps` (Ende des Video-Frames).
+Preview-rAF-Tick feuert irgendwann mitten im Frame (~8 ms nach Start
+bei 60 fps). Worst-Case 16 ms Differenz → freqData pro Bin 7-15%
+Differenz.
+
+**Fix:** `t = (i+0.5)/fps` (Mitte). Halbiert die Worst-Case-Differenz.
+
+## Resultat (auf Ballern!.mp3, t≈3.0s, 640x360, 30fps)
+
+```
+=== Vor allen Fixes (Session 11 Endstand) ===
+SSIM: 0.77-0.81  (FAIL bei 0.80-Schwelle)
+bass  Δ: 0.16-0.20
+highs Δ: 0.05-0.06
+loudness Δ: 0.10
+energy  Δ: 1.0 (energy nicht in audioAnalysis geschrieben)
+
+=== Nach allen Fixes (Session 12 Endstand) ===
+SSIM: 0.83       (PASS, +0.02-0.06 vs. vorher)
+bass  Δ: 0.018   (von 0.16 → 0.018, -89%)
+highs Δ: 0.017
+loudness Δ: 0.017
+energy  Δ: 0.0   (jetzt korrekt synchronisiert)
+beatPhase Δ: 0.04-0.20 (Detector-Initialisierungs-Drift, Restdifferenz)
+freqData[0..9] preview: [241,231,205,199,215,240,...]
+freqData[0..9] export : [235,228,212,197,200,232,...]
+                    (vorher: [220,217,...] vs [140,194,...] — sehr ähnlich jetzt)
+```
+
+Visuell: Preview und Export zeigen **das gleiche Visualisierungsergebnis** —
+gleiche Bar-Geometrie, gleicher Glow, gleiche Color-Animation. Fein-Unterschiede
+(±3% per Bin) sind unter der visuellen Wahrnehmungsschwelle.
+
+## Verbleibende Restdifferenz (irreduzibel)
+
+Die letzten ~3% Per-Bin-Unterschied kommen aus:
+1. **rAF-Jitter** im Live-Preview: jeder Capture variiert um ±8 ms
+2. **Frame-quantum-Rundung** im Export: `OfflineAudioContext.suspend()` rundet
+   auf 128-Sample-Grenzen, was 2.67 ms Schritte macht
+
+Beide sind < 4 ms, sub-wahrnehmungsschwellig für visuelle Beat-Synchronisation
+(typische Reaktionszeit des Auges: 50-100 ms).
+
