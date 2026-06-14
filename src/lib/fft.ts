@@ -109,7 +109,15 @@ export async function precomputeFFT(
   const quantumMap = new Map<number, Quantum>();
 
   for (let i = 0; i < totalFrames; i++) {
-    const tFrame = (i + 1) / fps;
+    // Sample the FFT at the MIDPOINT of each video frame rather than the
+    // end. This better matches the moment a rAF tick in the live preview
+    // captures the canvas (which fires somewhere mid-frame, ~8 ms after
+    // the start at 60 fps), and halves the worst-case audio-window offset
+    // between preview and export. The AnalyserNode's trailing-window
+    // behavior still gives us a fftSize-wide spectrum ending at the
+    // quantum boundary — we're just choosing which quantum the frame's
+    // sample point rounds to.
+    const tFrame = (i + 0.5) / fps;
     const sample = Math.round(tFrame * sampleRate);
     if (sample >= audioBuffer.length) break;
     const quantumSample = Math.ceil(sample / RENDER_QUANTUM) * RENDER_QUANTUM;
