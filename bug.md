@@ -246,3 +246,184 @@ d9da87a  feat(export): OfflineAudioContext+AnalyserNode (Session 10) ← Zeros, 
 - `src/lib/exportEngine.ts`: `[EXPORT DEBUG]` Logs für Frames 0-4 und 30-60
 - `src/components/three/BackgroundPlane.tsx`: `[BG useFrame]` Log für Frames 29-35
 - `src/lib/exportEngine.ts`: `window.__exportFrameIdx` global flag
+
+---
+
+## Weitere Ursachen-Hypothesen (Skrumpie, Session 11.5)
+
+Bug 3 (FreqBeatDetector Adaptive-Threshold) ist plausibel, erklärt aber nur die **Beat-Phasen-basierten Animationen** (Background-`uBeatPhase`, Logo-Glow, Fire-Ring, Nebula-Pulse, Bars-Beat-Boost). User-Beobachtung "alle Animationen reagieren schwächer" umfasst aber auch **kontinuierliche** Animationen, die `audioAnalysis.bass/loudness/highs/energy/freqData` lesen — die gar nicht durch den Detektor laufen. Hier die Verdachtsmomente, die `bug.md` noch nicht systematisch prüft:
+
+### H1) `bass`/`loudness`/`highs` werden im Live-Loop zusätzlich manipuliert, im Export aber roh übernommen
+
+**`useAudioReactive.ts:140-141` (Live-Preview):**
+```typescript
+store.bass = bass;
+store.loudness = loudness;
+store.highs = highs;
+store.energy = Math.min(1, bass * 2 + loudness * 1 + highs * 0.5);
+```
+
+**`fft.ts:227` (Export-`precomputeFFT`):**
+```typescript
+const energy = Math.min(1, bass * 2 + loudness + highs * 0.5);
+```
+
+**Unterschied:** Live hat `loudness * 1`, Export hat `loudness` (ohne `*1` — semantisch identisch, OK). ABER: `useAudioReactive.ts:124-126` schreibt zusätzlich `audioAnalysis.bass = bass` etc. — das ist OK für den direkten Three.js-Pfad.
+
+**Wirklich verdächtig:** Im Live-Loop werden `--audio-bright-boost` und `--audio-sat-boost` als CSS-Custom-Properties gesetzt (Zeilen 129-130):
+```typescript
+const brightBoost = Math.pow(bass, 2.0) * 0.45 + Math.pow(loudness, 2.0) * 0.15;
+const satBoost = Math.pow(bass, 1.6) * 1.2 + Math.pow(loudness, 1.6) * 0.4;
+```
+
+Das wirkt nur auf CSS-Konsumenten, nicht auf die Three.js-Shader. Trotzdem — **prüfen, ob im Export-Code-Pfad CSS-Vars für irgendwas konsumiert werden, das auf den Canvas durchschlägt** (z.B. wenn die SettingsPanel-CSS-Vars `--accent` etc. den Theme-Tint beeinflusst, der im Shader landet).
+
+### H2) Live-AudioContext nutzt System-Sample-Rate, alle `FreqBeatDetector`-Instanzen sind hardcoded auf 48000
+
+**Code-Beleg:**
+- `useAudioReactive.ts:65` — `const Ctor = window.AudioContext || ...; const ctx = new Ctor();` — **kein** `sampleRate`-Argument.
+- `BackgroundPlane.tsx:484` — `new FreqBeatDetector(48000)` (hardcoded).
+- `CenterLogo.tsx` (vermutlich gleich), `InstancedBars.tsx:74`, `GPUParticles.tsx`, `NebulaPlane.tsx` — alle hardcoded 48000.
+- `exportEngine.ts:240` — `new FreqBeatDetector(audioBuffer.sampleRate)` — nutzt die *tatsächliche* Sample-Rate (typisch 48000, weil `new AudioContext({ sampleRate: 48000 })` in Zeile 78 erzwungen wird).
+
+**Was passiert, wenn der User in Windows-System-Sample-Rate 44100 hat:**
+- Live: `AnalyserNode` läuft mit 44100 Hz → `binHz = 21.53 Hz/bin` → tatsächliche Frequenz in Bin 4 = 86 Hz
+- Detector: `binHz = 48000/2048 = 23.44 Hz/bin` → erwartet in Bin 4 = 94 Hz
+- **Detector liest 5-6 Bins zu hoch** → falsche Frequenz wird analysiert → andere Bass-Spitzen, andere Beat-Cadence
+
+**Test:** In Chrome DevTools auf `chrome://media-internals/` die Audio-Rate checken. Wenn != 48000, ist das die Ursache für **mismatchende Beat-Trigger** zwischen Live und Export. Der Export ist korrekt, der Live-Preview ist falsch — oder umgekehrt, je nach Song.
+
+**Fix:** `useAudioReactive.ts:65` → `const ctx = new Ctor({ sampleRate: 48000 });`
+
+### H3) `dpr={Math.min(window.devicePixelRatio, 2)}` schlägt unterschiedlich durch
+
+`AudioScene.tsx:117` setzt das DPR. Im Preview wirkt DPR=2 (typisch auf HiDPI) → Canvas-Backing-Buffer ist 2× so groß wie CSS-Größe. Im Export wird `gl.setPixelRatio(1)` (exportEngine.ts:144) gesetzt.
+
+**Unterschiedliche Konsequenzen:**
+- **Shader-Sampling:** `uResolution` uniform wird in `useFrame` mit `state.size` (= CSS-Pixel) gesetzt (BackgroundPlane.tsx:537). Texel-Berechnungen mit `1.0/uResolution` rechnen also in CSS-Pixeln → konsistent.
+- **Geometry-Skalierung:** Ortho-Camera-Frustum in CSS-Pixeln, alle Meshes in CSS-Pixeln → konsistent.
+
+**Wahrscheinlich nicht das Problem**, aber **nicht ausgeschlossen**, dass DPR-abhängige Render-Targets oder Postprocessing-Pass-Auflösungen anders samplen. Würde aber normalerweise Schärfe-Unterschiede produzieren, nicht Reaktions-Unterschiede.
+
+### H4) `useFrame`-Callbacks werden in der Reihenfolge registriert — könnte `audioAnalysis.beatPhase` vs. `audioAnalysis.freqData` Race auslösen
+
+`exportEngine.ts:300-307` setzt **pro Frame**:
+1. `audioAnalysis.freqData.set(...)` (Zeile 268)
+2. `audioAnalysis.rawFreqData.set(...)` (Zeile 269)
+3. `audioAnalysis.bass/loudness/highs/energy` (Zeile 270-273)
+4. **Globalen** `FreqBeatDetector.update()` (Zeile 287-292) → schreibt `audioAnalysis.beatPhase`
+5. `sceneRegistry.advance(timestamp)` (Zeile 312) → triggert alle `useFrame`s
+
+**Reihenfolge im `useFrame` der Komponenten** (ungewiss, weil R3F-Internes):
+- **Background-`useFrame`**: ruft `beatDetector.update()` (Component-Instanz, NICHT global) → liest `rawFreqData`, schreibt `uBeatPhase` Uniform. **Nutzt `audioAnalysis.beatPhase` NICHT.**
+- **CenterLogo-`useFrame`**: 2 Component-Detectoren → lesen `rawFreqData`, schreiben Logo-Uniforms. **Nutzt `audioAnalysis.beatPhase` NICHT.**
+- **InstancedBars-`useFrame`**: `barsBeatDetector.update()` → `barH += beat * 25 * scale`. **Nutzt Component-Phase, nicht global.**
+- **GPUParticles-`useFrame`**: `particleBeatDetector.update()` → lesen `rawFreqData`, schreiben Particle-Uniforms. **Nutzt Component-Phase.**
+
+**Aha:** Die 4 Komponenten mit Component-Detektoren hängen **gar nicht** am globalen `audioAnalysis.beatPhase`! Sie haben eigene Phasen.
+
+Der globale `audioAnalysis.beatPhase` wird nirgendwo in einer `useFrame` gelesen (suche-bestätigt: nur in `useAudioReactive.ts:165` als Self-Assignment). Er wird in `useAudioStore.getState().beatPhase` gespiegelt — aber kein Konsument außer dem Debug-Log.
+
+**Konsequenz für Bug 3:** Selbst wenn der globale Detector perfekt funktioniert, **rettet er nicht** Background, Logo, Fire, Bars, Particles. Jeder Component-Detektor hat sein eigenes `prevBins` und `fluxHistory`, sein eigenes `resetForExport()`/`resetPhaseAndPrevBins()`. Bug 3 ist also **6 separate Bugs**, einer pro Detector-Instanz.
+
+**Pre-Warm deckt das schon ab** (Commit `3c832a4`) — wenn er funktioniert, profitieren alle 6 Detektoren. Wenn nicht, muss man pro Detector debuggen.
+
+### H5) `useFrame` schreibt Uniforms aus `getSettings()` — ABER: Settings-Lookup passiert pro Frame, nicht pro Mount
+
+In jeder `useFrame` wird `getSettings()` neu aufgerufen (BackgroundPlane.tsx:502, alle anderen gleich). Das ist OK und kein Re-Render — `getSettings()` ist ein direkter Store-Read.
+
+**ABER:** Es gibt **keinen Re-Subscribe** auf Settings-Änderungen. Wenn der User während des Exports eine Sensitivity ändert, wird sie beim nächsten Frame übernommen. Das ist gewollt.
+
+**Mögliches Problem:** Wenn eine Sensitivity **zwischen dem Zeitpunkt des `precomputeFFT` und dem `useFrame`-Read geändert wird** (z.B. das Settings-Panel ist während des Exports offen), liest der Detector einen anderen Wert als der, mit dem `precomputeFFT` lief. Das beeinflusst nur die Schwellenwert-Logik, nicht die FFT-Daten — also nur Beat-Trigger, nicht kontinuierliche Animationen. **Wahrscheinlich nicht relevant.**
+
+### H6) Hardcoded Reaktivitäts-Faktoren in Shadern sind statisch, nicht aus Settings gelesen
+
+Suche in `BackgroundPlane.tsx` zeigt Faktoren wie `* 0.5`, `* 0.45`, `* 0.3` etc. — das sind Hardcoded Mixer im Shader zwischen `uBeatPhase` (0..1) und der visuellen Größe. Diese sind in **beiden** Pfaden identisch.
+
+ABER: Wenn `uBeatPhase` im Export niedrigere Maximalwerte erreicht als im Live (wegen Bug 3 oder H2), sehen alle so gemixten Effekte im Export schwächer aus — **ohne dass ein Sensitivity-Regler hilft**, weil die Mixer statisch sind.
+
+**Test:** Wenn `audioAnalysis.beatPhase` im Live konstant 0.5-0.95 erreicht, im Export aber nur 0.1-0.4, ist der visuelle Effekt zwangsläufig 2-3x schwächer. Bug 3 fixen sollte das beheben.
+
+### H7) `audioAnalysis.energy` wird im Live-Loop mit anderer Formel berechnet als im Export
+
+**Live (`useAudioReactive.ts:139`):**
+```typescript
+store.energy = Math.min(1, bass * 2 + loudness * 1 + highs * 0.5);
+```
+
+**Export (`fft.ts:227`):**
+```typescript
+const energy = Math.min(1, bass * 2 + loudness + highs * 0.5);
+```
+
+Mathematisch identisch (`loudness * 1` == `loudness`). **Kein Bug, nur Toter Code im Live-Loop.**
+
+### H8) `useAudioReactive` schreibt `--audio-bright-boost` und `--audio-sat-boost` als CSS-Vars, im Export NICHT
+
+Live: Zeilen 129-134 setzen CSS-Custom-Properties auf `document.documentElement`. Diese werden von der **SettingsPanel** (und möglicherweise anderen UI-Elementen) konsumiert.
+
+Export: exportEngine schreibt diese CSS-Vars **nicht**. Während des Exports ist die SettingsPanel vom Export-Overlay überdeckt, also fällt das nicht auf. ABER: wenn die SettingsPanel weiterhin gerendert wird und z.B. **Vignette-Strength** oder **Tint** aus den CSS-Vars liest, könnte das einen subtilen visuellen Unterschied im Modal-Bereich erzeugen.
+
+**Wahrscheinlich nicht relevant für den Canvas-Render.**
+
+### H9) `BackgroundPlane` setzt `uBeatPhase` aus dem Component-Detector, NICHT aus dem globalen
+
+Code-Beleg (BackgroundPlane.tsx:503-504):
+```typescript
+const beatPhase = beatDetector.update(audioAnalysis.rawFreqData, bg.beatFxFreqStart, bg.beatFxFreqEnd);
+// ...mat.uniforms.uBeatPhase.value = beatPhase; (später in der Funktion)
+```
+
+Das ist der **Background-spezifische** Beat, frequenzlimitiert auf `bg.beatFxFreqStart/End` und mit `bg.beatFxSensitivity` kalibriert. **Vollständig unabhängig** vom globalen `audioAnalysis.beatPhase`.
+
+**Konsequenz:** Bug 3 betrifft jeden Detector einzeln. Der Pre-Warm-Pass in `exportEngine.ts:227-247` schickt 80 Frames aus Song-Mitte durch `sceneRegistry.advance()` — das ruft **alle** `useFrame`s auf, also aktualisieren sich **alle** Component-Detectoren. Das ist der korrekte Fix-Pfad. Wenn er nicht hilft, dann ist H2 (sample rate) wahrscheinlicher.
+
+### H10) `--beat-glow` CSS-Var wird im Live-Loop gesetzt, im Export NICHT
+
+`useAudioReactive.ts:160-163` setzt `--beat-glow` basierend auf dem globalen `beatPhase`. Im Export schreibt `exportEngine.ts:294` den globalen `beatPhase` in `useAudioStore.getState().beatPhase`, aber **nicht** in die CSS-Var.
+
+**Konsequenz:** Falls irgendein UI-Element `--beat-glow` für Styling nutzt (z.B. die SettingsPanel-Buttons für Beat-Sensitivity), ist das im Export statisch auf seinem letzten Live-Wert. **Wahrscheinlich nicht relevant für den Canvas-Render.**
+
+### H11) `InstancedBars`-Reactivity und `GPUParticles`-Reactivity
+
+`InstancedBars.tsx:75` — `barsBeatDetector.setSensitivity(b.beatSensitivity ?? 1.0)` — das ist der **Beat-Boost**, nicht die kontinuierliche Height-Reaktivität. Die Height-Mapping-Logik (`freqStart/freqEnd` + `reactivity`) liest `audioAnalysis.freqData` direkt, NICHT den Detektor.
+
+**`GPUParticles.tsx:238`** — gleiche Struktur: `particleBeatDetector` für Beat-Boost, `audioAnalysis.freqData`/Orbit-Logik separat.
+
+Diese Komponenten sind also **doppelt exponiert**:
+1. **Beat-Boost** (geht durch `FreqBeatDetector` → betroffen von Bug 3 + H2)
+2. **Kontinuierliche Animation** (geht durch `freqData`/`bass`/`loudness` → **nicht** betroffen von Bug 3)
+
+**Wenn nur die Beat-Boost-Effekte schwach sind, die kontinuierlichen aber OK → Bug 3 ist die Ursache.**
+**Wenn beide schwach sind → H2 (sample rate) oder eine Bug-Variante, die `freqData`/`bass`/`loudness` mitbetreffen würde.**
+
+### H12) Mögliche stille Verfälschung: `live.update()` wird durchschnittlich häufiger aufgerufen als `export.update()`
+
+**Live:** rAF-Tick ≈ 60-120 Hz je nach Refresh-Rate. Manche Browser-Setups throttle rAF auf 60 Hz. Detector bekommt **60 Updates/sec**.
+
+**Export:** `sceneRegistry.advance()` wird mit `fps=60` (oder 30 für manche Presets) aufgerufen → **60 Updates/sec** bei 1080p60, **30 Updates/sec** bei 1080p30.
+
+**Problem:** Der Detektor wurde mit `historyLen=40` (≈ 0.67s bei 60 fps) kalibriert. Bei 30 fps wären 40 Frames = 1.33s. Detector merkt sich `historyLen` als Frame-Count, nicht als Zeit-Count. Das heißt:
+- 30-fps-Export mit `historyLen=40` schaut **doppelt so weit in die Vergangenheit** wie der Live-Preview
+- `avgFlux` basiert auf einem anderen Zeit-Fenster → andere Beats feuern
+
+**Test:** Welche fps hat der User eingestellt? Wenn 30, ist das ein **echter Bug**. Wenn 60, ist es OK.
+
+**Fix:** `historyLen` müsste zeitbasiert sein, nicht frame-basiert — `Math.round(0.67 * fps)`.
+
+---
+
+## Verdachts-Ranking (was zuerst prüfen)
+
+| # | Hypothese | Wahrscheinlichkeit | Aufwand | Test |
+|---|-----------|-------------------|---------|------|
+| 1 | H4 (Bug 3 × 6 Detektoren) | **HOCH** | Niedrig (Pre-Warm testen) | Console-Log bei Frame 30 nach Commit `3c832a4` |
+| 2 | H2 (sample rate mismatch) | MITTEL | Niedrig (1-Zeilen Fix) | `chrome://media-internals/` checken |
+| 3 | H12 (fps-abhängige `historyLen`) | MITTEL bei 30-fps-Export | Mittel | User nach fps fragen |
+| 4 | H1/H7/H10 (CSS-Var + `energy` Differenzen) | NIEDRIG | Niedrig | irrelevant für Canvas-Render |
+| 5 | H3 (DPR-Mismatch) | NIEDRIG | Niedrig | irrelevant für Reaktivität, nur Schärfe |
+
+**Empfohlene Reihenfolge:**
+1. **Pre-Warm verifizieren** (Schritt 1 in `bug.md`). Wenn `beatPhase ≥ 0.90` bei Frame 30 → H4 bestätigt als Hauptursache, alle 6 Detektoren profitieren.
+2. Falls Pre-Warm nicht hilft: **H2 testen** (sample rate fixen) und **H12 prüfen** (welche fps).
+3. Falls immer noch schwach: **H11-Differenzierung** — fragt den User, ob nur die "Beat-Pulse"-Effekte schwach sind (Background-Pulse, Glow-Pulse, Fire-Ring) oder auch die kontinuierlichen (Bars-Höhe, Particle-Speed, Background-Helligkeit).

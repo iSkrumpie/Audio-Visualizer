@@ -5,14 +5,15 @@
  *
  * Detects whether the exported MP4 shows weaker audio-reactive animations
  * than the live canvas preview by:
- *   1. Spawning a Vite dev server
- *   2. Uploading a generated WAV with a clear 120-BPM kick beat
- *   3. Letting the visualizer play and taking a canvas snapshot at ~1.5 s
- *   4. Stopping the rAF analysis loop (prevents race with export pipeline)
- *   5. Calling exportMP4() directly via dynamic import inside page.evaluate()
- *   6. Saving the resulting MP4 and extracting the same-timestamp frame via ffmpeg
- *   7. Computing SSIM (structural similarity) between preview and export frame
- *   8. Printing RESULT: PASS / FAIL with similarity score
+ *   1. Trimming the real test song (tmp/Ballern!.mp3) to 10 s via ffmpeg
+ *   2. Spawning a Vite dev server
+ *   3. Uploading the trimmed MP3 to the visualizer
+ *   4. Letting the visualizer play and taking a canvas snapshot at t=3.0 s
+ *   5. Stopping the rAF analysis loop (prevents race with export pipeline)
+ *   6. Calling exportMP4() directly via dynamic import inside page.evaluate()
+ *   7. Saving the resulting MP4 and extracting the same-timestamp frame via ffmpeg
+ *   8. Computing SSIM (structural similarity) between preview and export frame
+ *   9. Printing RESULT: PASS / FAIL with similarity score
  *
  * Usage:
  *   node scripts/verify-export.mjs
@@ -20,6 +21,7 @@
  * Prerequisites:
  *   - ffmpeg in PATH
  *   - playwright installed (npm i)
+ *   - tmp/Ballern!.mp3 exists (real test song)
  *   - App builds / dev-server can start (no pre-existing server needed)
  *
  * Artifacts are saved in tmp/verify-export/.
@@ -32,14 +34,15 @@ import { join } from 'node:path';
 import { chromium } from 'playwright';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
-const APP_DIR    = process.cwd();
-const OUT        = join(APP_DIR, 'tmp', 'verify-export');
-const WAV_PATH   = join(OUT, 'test-beat.wav');
-const PREVIEW    = join(OUT, 'preview.png');
-const PREV_SCALED= join(OUT, 'preview-scaled.png');
-const EXPORT_MP4 = join(OUT, 'export.mp4');
-const EXP_FRAME  = join(OUT, 'export-frame.png');
-const DIFF       = join(OUT, 'diff.png');
+const APP_DIR      = process.cwd();
+const OUT          = join(APP_DIR, 'tmp', 'verify-export');
+const SOURCE_MP3   = join(APP_DIR, 'tmp', 'Ballern!.mp3');
+const TRIMMED_MP3  = join(OUT, 'ballern-trimmed.mp3');
+const PREVIEW      = join(OUT, 'preview.png');
+const PREV_SCALED  = join(OUT, 'preview-scaled.png');
+const EXPORT_MP4   = join(OUT, 'export.mp4');
+const EXP_FRAME    = join(OUT, 'export-frame.png');
+const DIFF         = join(OUT, 'diff.png');
 
 // ── Export params (small = fast test) ────────────────────────────────────────
 const EXP_W   = 640;
@@ -47,9 +50,12 @@ const EXP_H   = 360;
 const EXP_FPS = 30;
 
 // ── Snapshot / comparison time ────────────────────────────────────────────────
-// Beat occurs every 500 ms starting at 0.5 s → beats at 0.5, 1.0, 1.5, 2.0 …
-// We snapshot at ~1.5 s (third beat) and extract the MP4 frame at the same time.
-const SNAP_TIME = 1.5; // seconds
+// The trimmed file is the first 10 s of Ballern!.mp3.
+// t=3.0 s is well past any intro and should show strong beats/bars.
+const SNAP_TIME = 3.0; // seconds
+
+// ── Trim parameters ───────────────────────────────────────────────────────────
+const TRIM_DURATION = 10; // seconds
 
 // ── Pass threshold ────────────────────────────────────────────────────────────
 // SSIM: 1.0 = identical, 0.0 = totally different.
@@ -59,63 +65,6 @@ const PASS_THRESHOLD = 0.80;
 mkdirSync(OUT, { recursive: true });
 
 function log(...a) { console.log('[verify-export]', ...a); }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// WAV generator: 4 s mono 48 kHz PCM-16
-//   0.0–0.5 s  silence intro
-//   0.5–3.0 s  80 Hz kick every 500 ms (120 BPM)
-//   3.0–4.0 s  silence outro
-// Each kick is a short exponentially-decaying 80 Hz sinusoid with harmonics and
-// a small frequency sweep to give the FFT a rich, distinct spike.
-// ─────────────────────────────────────────────────────────────────────────────
-function generateBeatWav() {
-  const SR       = 48000;
-  const DURATION = 4.0;
-  const INTRO    = 0.5;
-  const BPM_INT  = 0.5;   // seconds per beat
-  const KICK_DUR = 0.09;  // kick transient length
-  const KICK_HZ  = 80;
-  const OUTRO    = 3.0;   // content ends at 3.0 s
-
-  const N = Math.floor(SR * DURATION);
-  const buf = Buffer.alloc(44 + N * 2);
-
-  // WAV header (mono, 16-bit PCM, 48 kHz)
-  buf.write('RIFF', 0);                    buf.writeUInt32LE(36 + N * 2, 4);
-  buf.write('WAVE', 8);                    buf.write('fmt ', 12);
-  buf.writeUInt32LE(16, 16);               buf.writeUInt16LE(1, 20);   // PCM
-  buf.writeUInt16LE(1, 22);                buf.writeUInt32LE(SR, 24);  // mono
-  buf.writeUInt32LE(SR * 2, 28);           buf.writeUInt16LE(2, 32);
-  buf.writeUInt16LE(16, 34);               buf.write('data', 36);
-  buf.writeUInt32LE(N * 2, 40);
-
-  for (let i = 0; i < N; i++) {
-    const t  = i / SR;
-    let   s  = 0;
-
-    if (t >= INTRO && t < OUTRO) {
-      const phase = (t - INTRO) % BPM_INT;
-      if (phase < KICK_DUR) {
-        // Exponential envelope: fast attack, short decay
-        const env  = Math.exp(-phase / (KICK_DUR * 0.35)) * (1 - phase / KICK_DUR);
-        // Frequency sweep (pitch drops quickly — typical acoustic kick)
-        const sweep = KICK_HZ * (1 + 2.5 * Math.exp(-phase / 0.018));
-        const kw    = 2 * Math.PI * sweep * phase;
-        // Fundamental + harmonics for a rich FFT profile
-        s = Math.sin(kw)       * env * 0.80
-          + Math.sin(kw * 2)   * env * 0.22
-          + Math.sin(kw * 3)   * env * 0.10
-          + Math.sin(kw * 0.5) * env * 0.35;   // sub-bass thump
-      }
-    }
-
-    buf.writeInt16LE(
-      Math.max(-32767, Math.min(32767, Math.round(s * 32767))),
-      44 + i * 2,
-    );
-  }
-  return buf;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vite helper
@@ -180,11 +129,18 @@ async function main() {
   let browser = null;
 
   try {
-    // 1. Generate test audio
-    log('Generating test WAV (4 s, 80 Hz kick at 120 BPM) …');
-    const wav = generateBeatWav();
-    writeFileSync(WAV_PATH, wav);
-    log(`WAV: ${WAV_PATH}  (${wav.length} bytes)`);
+    // 1. Trim real test song to 10 seconds
+    log(`Trimming ${SOURCE_MP3} to ${TRIM_DURATION} s …`);
+    const trimR = ffmpeg(
+      '-y', '-i', SOURCE_MP3,
+      '-t', String(TRIM_DURATION),
+      '-c', 'copy',
+      TRIMMED_MP3,
+    );
+    if (trimR.status !== 0) {
+      throw new Error(`ffmpeg trim failed (exit ${trimR.status}):\n${trimR.stderr.slice(-400)}`);
+    }
+    log(`Trimmed MP3: ${TRIMMED_MP3}`);
 
     // 2. Start Vite
     vite = await startVite();
@@ -218,8 +174,8 @@ async function main() {
     await sleep(500);
 
     // 5. Upload audio
-    log('Uploading test audio …');
-    await page.locator('input[type="file"][accept*="audio"]').setInputFiles(WAV_PATH);
+    log('Uploading trimmed test audio …');
+    await page.locator('input[type="file"][accept*="audio"]').setInputFiles(TRIMMED_MP3);
     await sleep(600);
 
     // 6. Click Play → visualizer stage
@@ -266,10 +222,11 @@ async function main() {
     if (!sceneReady) log('WARNING: sceneRegistry.gl is still null — snapshot may be a blank frame');
     else             log('Scene ready ✓');
 
-    // 9. Seek to SNAP_TIME so the live preview shows a BEAT frame.
+    // 9. Seek to SNAP_TIME so the live preview shows a beat frame.
+    //    t=3.0 s of the trimmed file should have strong bar/particle activity.
     //    The app registers `audiovisualizer:seek` in useAudioReactive — dispatching
     //    it seeks the detached Audio element to the requested timestamp.
-    log(`Seeking audio to t = ${SNAP_TIME} s (beat frame) …`);
+    log(`Seeking audio to t = ${SNAP_TIME} s (beat frame of trimmed file) …`);
     await page.evaluate((t) => {
       window.dispatchEvent(new CustomEvent('audiovisualizer:seek', { detail: { time: t } }));
     }, SNAP_TIME);
@@ -291,6 +248,40 @@ async function main() {
     });
     writeFileSync(PREVIEW, Buffer.from(canvasB64, 'base64'));
     log(`Preview saved: ${PREVIEW}`);
+
+    // 9b. Diagnostic: read audioAnalysis values at preview time
+    log('Reading preview audioAnalysis diagnostics …');
+    const previewDiag = await page.evaluate(async () => {
+      const mod = await import('/src/hooks/useAudioReactive.ts');
+      const { audioAnalysis } = mod;
+      const fd = Array.from(audioAnalysis.freqData);
+      const rd = Array.from(audioAnalysis.rawFreqData);
+      let fdMax = 0, rdMax = 0;
+      for (const v of fd) if (v > fdMax) fdMax = v;
+      for (const v of rd) if (v > rdMax) rdMax = v;
+      return {
+        bass:               audioAnalysis.bass,
+        loudness:           audioAnalysis.loudness,
+        highs:              audioAnalysis.highs,
+        energy:             audioAnalysis.energy,
+        beatPhase:          audioAnalysis.beatPhase,
+        freqDataFirst10:    fd.slice(0, 10),
+        rawFreqDataFirst10: rd.slice(0, 10),
+        freqDataMax:        fdMax,
+        rawFreqDataMax:     rdMax,
+        sampleRate:         window.__audioCtx?.sampleRate ?? null,
+      };
+    });
+    log('[DIAG preview] bass='      + previewDiag.bass.toFixed(4) +
+        ' loudness='                 + previewDiag.loudness.toFixed(4) +
+        ' highs='                    + previewDiag.highs.toFixed(4) +
+        ' energy='                   + previewDiag.energy.toFixed(4) +
+        ' beatPhase='                + previewDiag.beatPhase.toFixed(4));
+    log('[DIAG preview] freqData[0..9]='    + JSON.stringify(previewDiag.freqDataFirst10));
+    log('[DIAG preview] rawFreqData[0..9]=' + JSON.stringify(previewDiag.rawFreqDataFirst10));
+    log('[DIAG preview] freqData.max='      + previewDiag.freqDataMax +
+        ' rawFreqData.max='                 + previewDiag.rawFreqDataMax);
+    log('[DIAG preview] AudioContext.sampleRate=' + previewDiag.sampleRate);
 
     // 10. Stop the rAF loop (prevents race with export's precomputed FFT writes)
     log('Stopping rAF analysis loop …');
@@ -318,21 +309,23 @@ async function main() {
     page.setDefaultTimeout(240_000); // 4-min timeout for the export evaluate
 
     const exportResult = await page.evaluate(
-      async ({ w, h, fps }) => {
+      async ({ w, h, fps, snapTime }) => {
         try {
           // Dynamic-import the modules. In Vite dev mode these are served at
           // their source paths and deduplicated via the browser module registry,
           // so we get the SAME singletons (sceneRegistry, audioAnalysis) that
           // the React app uses.
-          const [engineMod, storeMod, sceneMod] = await Promise.all([
+          const [engineMod, storeMod, sceneMod, analyticsMod] = await Promise.all([
             import('/src/lib/exportEngine.ts'),
             import('/src/lib/audioStore.ts'),
             import('/src/components/three/AudioScene.tsx'),
+            import('/src/hooks/useAudioReactive.ts'),
           ]);
 
-          const { exportMP4 }   = engineMod;
+          const { exportMP4 }     = engineMod;
           const { useAudioStore } = storeMod;
           const { sceneRegistry } = sceneMod;
+          const { audioAnalysis } = analyticsMod;
 
           // Sanity check: if sceneRegistry.gl is null, the dynamic import returned
           // a different module instance and the export will fail with "scene not ready".
@@ -346,15 +339,50 @@ async function main() {
           const audioFile = useAudioStore.getState().audioFile;
           if (!audioFile) throw new Error('No audioFile in Zustand store');
 
-          // Run the export
-          const blob = await exportMP4(audioFile, {
-            width: w, height: h, fps,
-            videoBitrate: 2_000_000,
-            audioBitrate: 128_000,
-            onProgress: (p) => {
-              console.log('[EXPORT PROGRESS]', p.phase, (p.progress * 100).toFixed(0) + '%', p.message);
-            },
-          });
+          // ── Diagnostic: capture audioAnalysis at the frame closest to snapTime ──
+          const targetFrame = Math.round(snapTime * fps);
+          let frameCount = 0;
+          window.__exportDiag = null;
+          const origAdvance = sceneRegistry.advance;
+          sceneRegistry.advance = function(ts) {
+            if (frameCount === targetFrame && audioAnalysis) {
+              const fd = Array.from(audioAnalysis.freqData);
+              const rd = Array.from(audioAnalysis.rawFreqData);
+              let fdMax = 0, rdMax = 0;
+              for (const v of fd) if (v > fdMax) fdMax = v;
+              for (const v of rd) if (v > rdMax) rdMax = v;
+              window.__exportDiag = {
+                frame:              frameCount,
+                bass:               audioAnalysis.bass,
+                loudness:           audioAnalysis.loudness,
+                highs:              audioAnalysis.highs,
+                energy:             audioAnalysis.energy,
+                beatPhase:          audioAnalysis.beatPhase,
+                freqDataFirst10:    fd.slice(0, 10),
+                rawFreqDataFirst10: rd.slice(0, 10),
+                freqDataMax:        fdMax,
+                rawFreqDataMax:     rdMax,
+              };
+            }
+            frameCount++;
+            return origAdvance.call(sceneRegistry, ts);
+          };
+
+          let blob;
+          try {
+            // Run the export
+            blob = await exportMP4(audioFile, {
+              width: w, height: h, fps,
+              videoBitrate: 2_000_000,
+              audioBitrate: 128_000,
+              onProgress: (p) => {
+                console.log('[EXPORT PROGRESS]', p.phase, (p.progress * 100).toFixed(0) + '%', p.message);
+              },
+            });
+          } finally {
+            // Always restore original advance, even on error
+            sceneRegistry.advance = origAdvance;
+          }
 
           // Convert Blob → base64 via FileReader (avoids stack overflow on large arrays)
           const base64 = await new Promise((res, rej) => {
@@ -369,11 +397,30 @@ async function main() {
           return { ok: false, error: String(e), stack: e?.stack ?? '' };
         }
       },
-      { w: EXP_W, h: EXP_H, fps: EXP_FPS },
+      { w: EXP_W, h: EXP_H, fps: EXP_FPS, snapTime: actualSnapTime },
     );
 
     if (!exportResult.ok) {
       throw new Error(`Export failed in browser:\n${exportResult.error}\n${exportResult.stack}`);
+    }
+
+    // 11b. Diagnostic: read export audioAnalysis from window.__exportDiag
+    log('Reading export audioAnalysis diagnostics …');
+    const exportDiag = await page.evaluate(() => window.__exportDiag ?? null);
+    if (exportDiag) {
+      log('[DIAG export] frame=' + exportDiag.frame +
+          ' (t≈' + (exportDiag.frame / EXP_FPS).toFixed(3) + 's)');
+      log('[DIAG export] bass='      + exportDiag.bass.toFixed(4) +
+          ' loudness='               + exportDiag.loudness.toFixed(4) +
+          ' highs='                  + exportDiag.highs.toFixed(4) +
+          ' energy='                 + exportDiag.energy.toFixed(4) +
+          ' beatPhase='              + exportDiag.beatPhase.toFixed(4));
+      log('[DIAG export] freqData[0..9]='    + JSON.stringify(exportDiag.freqDataFirst10));
+      log('[DIAG export] rawFreqData[0..9]=' + JSON.stringify(exportDiag.rawFreqDataFirst10));
+      log('[DIAG export] freqData.max='      + exportDiag.freqDataMax +
+          ' rawFreqData.max='                + exportDiag.rawFreqDataMax);
+    } else {
+      log('[DIAG export] WARNING: window.__exportDiag is null — frame capture may have missed');
     }
 
     log(`Export complete — ${(exportResult.byteLength / 1024 / 1024).toFixed(2)} MB`);
@@ -383,11 +430,12 @@ async function main() {
     writeFileSync(EXPORT_MP4, mp4Buf);
     log(`MP4 saved: ${EXPORT_MP4}`);
 
-    // 13. Extract the frame at SNAP_TIME from the MP4.
-    //     We always use the fixed SNAP_TIME for the MP4 side (not actualSnapTime,
-    //     which may be slightly past SNAP_TIME due to the audio advancing after seek).
-    //     This ensures the export frame is at a known beat position (t=1.5s = 3rd beat).
-    const snapSecs = SNAP_TIME.toFixed(3);
+    // 13. Extract the frame at actualSnapTime from the MP4.
+    //     We use the ACTUAL live-preview time (not SNAP_TIME) so that both the
+    //     preview snapshot and the export frame are taken at the same beat position.
+    //     The live-preview time advances ~200-300ms past SNAP_TIME during the
+    //     300ms sleep, so comparing at SNAP_TIME would compare different moments.
+    const snapSecs = actualSnapTime.toFixed(3);
     log(`Extracting MP4 frame at t = ${snapSecs} s …`);
     const extractR = ffmpeg('-y', '-i', EXPORT_MP4, '-ss', snapSecs, '-vframes', '1', EXP_FRAME);
     if (extractR.status !== 0 && !extractR.stderr.includes('frame=')) {
@@ -452,7 +500,44 @@ async function main() {
       }
     }
 
-    // 19. Final report
+    // 19. Diagnostic comparison table
+    if (previewDiag && exportDiag) {
+      const fmtN = (v) => (typeof v === 'number' ? v.toFixed(4) : String(v));
+      const fmtDelta = (a, b) => {
+        if (typeof a !== 'number' || typeof b !== 'number') return '?';
+        const d = b - a;
+        return (d >= 0 ? '+' : '') + d.toFixed(4);
+      };
+      const fmtArr = (arr) => JSON.stringify(arr);
+      const col = (s, w) => String(s).padEnd(w);
+
+      log('');
+      log('═══════════════════════════════════════════════════════════════════════');
+      log(`=== AUDIO ANALYSIS COMPARISON at t≈${SNAP_TIME.toFixed(1)}s ===`);
+      log('Field              | Preview        | Export         | Δ');
+      log('-------------------+----------------+----------------+----------------');
+      const row = (label, pv, ev) =>
+        log(col(label, 19) + '| ' + col(fmtN(pv), 15) + '| ' + col(fmtN(ev), 15) + '| ' + fmtDelta(pv, ev));
+      row('bass',           previewDiag.bass,      exportDiag.bass);
+      row('loudness',       previewDiag.loudness,  exportDiag.loudness);
+      row('highs',          previewDiag.highs,     exportDiag.highs);
+      row('energy',         previewDiag.energy,    exportDiag.energy);
+      row('beatPhase',      previewDiag.beatPhase, exportDiag.beatPhase);
+      row('freqData.max',   previewDiag.freqDataMax,    exportDiag.freqDataMax);
+      row('rawFreqData.max',previewDiag.rawFreqDataMax, exportDiag.rawFreqDataMax);
+      log('freqData[0..9]     | ' + col(fmtArr(previewDiag.freqDataFirst10), 15) +
+          '| ' + fmtArr(exportDiag.freqDataFirst10));
+      log('rawFreqData[0..9]  | ' + col(fmtArr(previewDiag.rawFreqDataFirst10), 15) +
+          '| ' + fmtArr(exportDiag.rawFreqDataFirst10));
+      log('AudioContext.rate  | ' + col(String(previewDiag.sampleRate ?? 'N/A'), 15) + '| (offline ctx, same)');
+      log('═══════════════════════════════════════════════════════════════════════');
+      log('');
+    } else {
+      log('[DIAG] WARNING: One or both diagnostic snapshots are missing — table skipped.');
+      log('  previewDiag: ' + (previewDiag ? 'OK' : 'NULL') + '  exportDiag: ' + (exportDiag ? 'OK' : 'NULL'));
+    }
+
+    // 20. Final report
     log('');
     log('══════════════════════════════════════════════');
     log('ARTIFACTS');
