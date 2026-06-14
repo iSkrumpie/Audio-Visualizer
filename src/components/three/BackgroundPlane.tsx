@@ -503,16 +503,6 @@ export function BackgroundPlane() {
     beatDetector.setSensitivity(bg.beatFxSensitivity ?? 1.0);
     const beatPhase = beatDetector.update(audioAnalysis.rawFreqData, bg.beatFxFreqStart, bg.beatFxFreqEnd);
 
-    // [BG DEBUG] Log beat detection inside useFrame for export frames 29-35
-    const __ef = (window as unknown as Record<string, number>).__exportFrameIdx;
-    if (__ef !== undefined && __ef >= 29 && __ef <= 35) {
-      console.log(`[BG useFrame] exportFrame=${__ef} beatPhase=${beatPhase.toFixed(4)}`,
-        `rawData[0-5]=[${[0,1,2,3,4,5].map(b=>audioAnalysis.rawFreqData[b]).join(',')}]`,
-        `beatFxFreq=${bg.beatFxFreqStart}-${bg.beatFxFreqEnd}Hz`,
-        `sensitivity=${(bg.beatFxSensitivity??1).toFixed(2)}`,
-        `scaleOnBeat=${bg.scaleOnBeat}`);
-    }
-
     // Read width/height from the live R3F state, NOT from the
     // component-level useThree() closure. The export pipeline updates
     // state.size synchronously (zustand set), but the React re-render

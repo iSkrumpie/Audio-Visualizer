@@ -90,11 +90,7 @@ export async function exportMP4(
     onProgress({ phase: 'decoding', progress: 0, message: 'Decoding audio...' });
     const arrayBuffer = await audioFile.arrayBuffer();
 
-    // [EXPORT DEBUG] Check ArrayBuffer before decode
-    console.log('[EXPORT DEBUG] arrayBuffer.byteLength:', arrayBuffer.byteLength);
-
     const audioCtx = new AudioContext({ sampleRate: 48000 });
-    console.log('[EXPORT DEBUG] AudioContext state before decode:', audioCtx.state);
 
     // Ensure AudioContext is running - a suspended context may fail to decode
     // correctly on some Chrome versions (autoplay-policy timing).
@@ -104,25 +100,6 @@ export async function exportMP4(
 
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
     audioCtx.close();
-
-    // [EXPORT DEBUG] Check AudioBuffer after decode
-    {
-      const ch0 = audioBuffer.getChannelData(0);
-      let maxAbs = 0;
-      const checkLen = Math.min(ch0.length, audioBuffer.sampleRate * 2); // first 2 seconds
-      for (let _i = 0; _i < checkLen; _i++) { const a = Math.abs(ch0[_i]); if (a > maxAbs) maxAbs = a; }
-      console.log('[EXPORT DEBUG] AudioBuffer:', {
-        length: audioBuffer.length,
-        sampleRate: audioBuffer.sampleRate,
-        durationSec: audioBuffer.duration.toFixed(2),
-        channels: audioBuffer.numberOfChannels,
-        maxAbsFirst2sec: maxAbs.toFixed(6),
-        sample_100:  ch0[100]?.toFixed(8),
-        sample_1000: ch0[1000]?.toFixed(8),
-        sample_5000: ch0[5000]?.toFixed(8),
-        sample_48000: ch0[48000]?.toFixed(8),
-      });
-    }
 
     onProgress({ phase: 'decoding', progress: 1, message: 'Audio decoded.' });
 
@@ -269,19 +246,6 @@ export async function exportMP4(
       audioAnalysis.loudness = frame.loudness;
       audioAnalysis.highs = frame.highs;
       audioAnalysis.energy = frame.energy;
-
-      // Track current export frame for in-component diagnostics.
-      (window as unknown as Record<string, unknown>).__exportFrameIdx = i;
-
-      // [EXPORT DEBUG] Log frames 0-4 and 30-60 to verify FFT data quality.
-      // rawFreqData.max should be >> 0 where music is loud (beats, bass).
-      if (i < 5 || (i >= 30 && i <= 60)) {
-        let rawMax = 0, freqMax = 0;
-        for (let _d = 0; _d < frame.rawFreqData.length; _d++) if (frame.rawFreqData[_d] > rawMax) rawMax = frame.rawFreqData[_d];
-        for (let _d = 0; _d < frame.freqData.length; _d++) if (frame.freqData[_d] > freqMax) freqMax = frame.freqData[_d];
-        if (rawMax > 0 || freqMax > 0 || i < 5 || i === 30) // always print 0-4 and 30; skip zeros in 31-60
-          console.log(`[EXPORT DEBUG] Frame ${i}: rawFreqData.max=${rawMax} freqData.max=${freqMax} bass=${frame.bass.toFixed(3)} loudness=${frame.loudness.toFixed(3)}`);
-      }
 
       // Drive the global beat detector with the same settings as live preview
       globalBeatDetector.setSensitivity(audioSettings.globalBeatSensitivity ?? 1.0);
