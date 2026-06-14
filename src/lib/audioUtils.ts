@@ -126,16 +126,16 @@ export class FreqBeatDetector {
   /**
    * @param sampleRate        AnalyserNode sample rate in Hz (default 48000)
    * @param historyLen        Frames for rolling flux average (default 40 ≈ 0.67s at 60fps)
-   * @param baseThresholdMul  Flux must exceed avg × this to trigger (default 1.8)
-   * @param minFlux           Absolute minimum flux to prevent silence triggers (default 0.005)
-   * @param decay             Phase decay per frame (default 0.04 → ~25 frames full decay)
+   * @param baseThresholdMul  Flux must exceed avg × this to trigger (default 1.5)
+   * @param minFlux           Absolute minimum flux to prevent silence triggers (default 0.002)
+   * @param decay             Phase decay per frame (default 0.08 → ~12 frames full decay (~200ms at 60fps))
    */
   constructor(
     sampleRate = 48000,
     historyLen = 40,
-    baseThresholdMul = 1.8,
-    minFlux = 0.005,
-    decay = 0.04,
+    baseThresholdMul = 1.5,
+    minFlux = 0.002,
+    decay = 0.08,
   ) {
     this.binHz = sampleRate / 2048;
     this.historyLen = historyLen;
