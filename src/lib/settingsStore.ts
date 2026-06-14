@@ -131,6 +131,39 @@ export type Settings = {
     gridColor: string;          // line color
     // ── Color average ──────────────────────────────────────────────────
     colorAverageEnabled: boolean;
+    // ── Background Particles ──────────────────────────────────────────
+    bgParticlesEnabled: boolean;
+    bgParticlesCount: number;       // 0..500
+    bgParticlesSpeed: number;       // 0..3
+    bgParticlesSize: number;        // 0.5..10
+    bgParticlesOpacity: number;     // 0..1
+    bgParticlesColor: string;
+    bgParticlesBeatFreqStart: number;   // 20..20000 Hz
+    bgParticlesBeatFreqEnd: number;     // 20..20000 Hz
+    bgParticlesBeatSensitivity: number; // 0.1..5.0
+    // ── Rain ────────────────────────────────────────────────────────────
+    rainEnabled: boolean;
+    rainCount: number;              // 0..1200
+    rainSpeed: number;              // 0..5
+    rainAngle: number;              // -45..45 degrees (positive = lean right)
+    rainLength: number;             // 0.5..8 (streak length in px at REF_VMIN)
+    rainWidth: number;              // 0.1..3 (streak width factor)
+    rainColor: string;
+    rainOpacity: number;            // 0..1
+    rainBeatFreqStart: number;      // 20..20000 Hz
+    rainBeatFreqEnd: number;        // 20..20000 Hz
+    rainBeatSensitivity: number;    // 0.1..5.0
+    // ── Snow ────────────────────────────────────────────────────────────
+    snowEnabled: boolean;
+    snowCount: number;              // 0..600
+    snowSpeed: number;              // 0..3
+    snowSize: number;               // 0.5..8
+    snowColor: string;
+    snowOpacity: number;            // 0..1
+    snowSway: number;               // 0..3
+    snowBeatFreqStart: number;      // 20..20000 Hz
+    snowBeatFreqEnd: number;        // 20..20000 Hz
+    snowBeatSensitivity: number;    // 0.1..5.0
   };
 
   logo: {
@@ -142,15 +175,24 @@ export type Settings = {
     beatFxFreqStart: number;      // 20..20000 Hz
     beatFxFreqEnd: number;        // 20..20000 Hz
     beatFxSensitivity: number;    // 0.1..5.0 detector sensitivity multiplier
-    // ── Glow ───────────────────────────────────────────────────────────
-    glowEnabled: boolean;
-    glowIntensity: number;      // 0..100
-    glowColor: string;
-    glowSize: number;           // 1.0..5.0 (relative to logo)
-    glowBlur: number;           // 0..50, softness of glow spread
-    glowColorMode: 'solid' | 'rainbow' | 'custom' | 'random';
-    glowCycleSpeed: number;     // 0..2 (rainbow/custom/random cycle speed)
-    glowCustomColors: string[]; // custom mode: list of colors to cycle through
+    // ── Outer Glow ─────────────────────────────────────────────────────
+    outerGlowEnabled: boolean;
+    outerGlowIntensity: number;      // 0..100
+    outerGlowColor: string;
+    outerGlowSize: number;           // 1.0..5.0 (relative to logo)
+    outerGlowBlur: number;           // 0..50, softness of glow spread
+    outerGlowColorMode: 'solid' | 'rainbow' | 'custom' | 'random';
+    outerGlowCycleSpeed: number;     // 0..2 (rainbow/custom/random cycle speed)
+    outerGlowCustomColors: string[]; // custom mode: list of colors to cycle through
+    // ── Inner Glow ─────────────────────────────────────────────────────
+    innerGlowEnabled: boolean;
+    innerGlowIntensity: number;      // 0..100
+    innerGlowColor: string;
+    innerGlowSize: number;           // 0.5..5.0 (relative to logo)
+    innerGlowBlur: number;           // 0..50, softness of glow spread
+    innerGlowColorMode: 'solid' | 'rainbow' | 'custom' | 'random';
+    innerGlowCycleSpeed: number;     // 0..2 (rainbow/custom/random cycle speed)
+    innerGlowCustomColors: string[]; // custom mode: list of colors to cycle through
     // ── Fire effect ────────────────────────────────────────────────────
     fireEnabled: boolean;
     fireIntensity: number;      // 0..2
@@ -327,6 +369,36 @@ const DEFAULT_SETTINGS: Settings = {
     gridMovement: 0,
     gridColor: '#6366F1',
     colorAverageEnabled: false,
+    bgParticlesEnabled: false,
+    bgParticlesCount: 150,
+    bgParticlesSpeed: 0.3,
+    bgParticlesSize: 2.0,
+    bgParticlesOpacity: 0.6,
+    bgParticlesColor: '#FFFFFF',
+    bgParticlesBeatFreqStart: 20,
+    bgParticlesBeatFreqEnd: 200,
+    bgParticlesBeatSensitivity: 1.0,
+    rainEnabled: false,
+    rainCount: 600,
+    rainSpeed: 1.5,
+    rainAngle: 8,
+    rainLength: 1.5,
+    rainWidth: 0.6,
+    rainColor: '#A8C8FF',
+    rainOpacity: 0.5,
+    rainBeatFreqStart: 2000,
+    rainBeatFreqEnd: 8000,
+    rainBeatSensitivity: 1.0,
+    snowEnabled: false,
+    snowCount: 250,
+    snowSpeed: 0.4,
+    snowSize: 2.0,
+    snowColor: '#FFFFFF',
+    snowOpacity: 0.85,
+    snowSway: 0.5,
+    snowBeatFreqStart: 3000,
+    snowBeatFreqEnd: 12000,
+    snowBeatSensitivity: 1.0,
   },
 
   logo: {
@@ -337,14 +409,22 @@ const DEFAULT_SETTINGS: Settings = {
     beatFxFreqStart: 20,
     beatFxFreqEnd: 200,
     beatFxSensitivity: 1.0,
-    glowEnabled: true,
-    glowIntensity: 50,
-    glowColor: '#6366F1',
-    glowSize: 1.15,
-    glowBlur: 15,
-    glowColorMode: 'solid',
-    glowCycleSpeed: 0.3,
-    glowCustomColors: ['#6366F1', '#22D3EE', '#F472B6', '#F59E0B'],
+    outerGlowEnabled: true,
+    outerGlowIntensity: 50,
+    outerGlowColor: '#6366F1',
+    outerGlowSize: 1.15,
+    outerGlowBlur: 15,
+    outerGlowColorMode: 'solid',
+    outerGlowCycleSpeed: 0.3,
+    outerGlowCustomColors: ['#6366F1', '#22D3EE', '#F472B6', '#F59E0B'],
+    innerGlowEnabled: false,
+    innerGlowIntensity: 0,
+    innerGlowColor: '#6366F1',
+    innerGlowSize: 1.0,
+    innerGlowBlur: 15,
+    innerGlowColorMode: 'solid',
+    innerGlowCycleSpeed: 0.3,
+    innerGlowCustomColors: ['#6366F1', '#22D3EE', '#F472B6', '#F59E0B'],
     fireEnabled: false,
     fireIntensity: 1.0,
     fireHeight: 0.3,
@@ -440,9 +520,9 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v11',
+      name: 'audiovisualizer:settings:v12',
       storage: createJSONStorage(() => localStorage),
-      version: 11,
+      version: 12,
       migrate: () => ({ settings: DEFAULT_SETTINGS }),
     },
   ),
