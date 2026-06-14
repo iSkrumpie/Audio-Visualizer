@@ -14,6 +14,7 @@ import { useBeatDetectorRegistration } from './AudioScene';
 import { getSettings } from '@/lib/settingsStore';
 import { FreqBeatDetector } from '@/lib/audioUtils';
 import { usePhaseSource } from '@/hooks/usePhaseSource';
+import { keyToPalette, bandPhasesToColor } from '@/lib/keyColors';
 
 const MAX_PARTICLES = 400;
 const REF_VMIN      = 900;
@@ -338,6 +339,41 @@ export function GPUParticles() {
         const hue = ((i / count) * 360 + timeRef.current * 30) % 360;
         const l   = (40 + bass * 35 + loudness * 20) / 100;
         [r, g_, b_] = hslToRgb(hue / 360, 0.9, l);
+      } else if (sp.colorMode === 'key-derived') {
+        // v13: key-derived colour. Each particle gets one of the
+        // 4 palette colours, alternating by index. Falls back to
+        // theme.accent when no key has been detected.
+        const palette = keyToPalette(audioAnalysis.key, audioAnalysis.scale);
+        if (palette) {
+          const paletteArr = [palette.primary, palette.secondary, palette.accent, palette.deep];
+          const c = paletteArr[i % paletteArr.length];
+          // Mix with theme.accent by keyInfluence
+          const keyC = new THREE.Color(c);
+          if (s.theme?.accent) {
+            const accent = new THREE.Color(s.theme.accent);
+            keyC.lerp(accent, 1 - (s.audio?.keyInfluence ?? 0.5));
+          }
+          [r, g_, b_] = [keyC.r, keyC.g, keyC.b];
+        } else {
+          [r, g_, b_] = hexToRgb(s.theme.accent);
+        }
+      } else if (sp.colorMode === 'band-driven') {
+        // v13: band-driven colour. Each particle gets a band weight
+        // based on its index (first quarter = kick, second = snare,
+        // etc.), and its RGB comes from the band-phases blend.
+        const bandIdx = i % 4;
+        let k = 0, sn = 0, v = 0, h = 0;
+        if      (bandIdx === 0) { k = audioAnalysis.kickPhase  * 1.5; sn = audioAnalysis.snarePhase * 0.3; v = audioAnalysis.vocalPhase * 0.2; h = audioAnalysis.hihatPhase * 0.2; }
+        else if (bandIdx === 1) { k = audioAnalysis.kickPhase  * 0.3; sn = audioAnalysis.snarePhase * 1.5; v = audioAnalysis.vocalPhase * 0.2; h = audioAnalysis.hihatPhase * 0.4; }
+        else if (bandIdx === 2) { k = audioAnalysis.kickPhase  * 0.2; sn = audioAnalysis.snarePhase * 0.3; v = audioAnalysis.vocalPhase * 1.5; h = audioAnalysis.hihatPhase * 0.3; }
+        else                    { k = audioAnalysis.kickPhase  * 0.1; sn = audioAnalysis.snarePhase * 0.2; v = audioAnalysis.vocalPhase * 0.3; h = audioAnalysis.hihatPhase * 1.5; }
+        const cssColor = bandPhasesToColor(k, sn, v, h);
+        const bandC = new THREE.Color(cssColor);
+        if (s.theme?.accent) {
+          const accent = new THREE.Color(s.theme.accent);
+          bandC.lerp(accent, 1 - (s.audio?.keyInfluence ?? 0.5));
+        }
+        [r, g_, b_] = [bandC.r, bandC.g, bandC.b];
       } else {
         // random — 4 colors fixed at session start
         [r, g_, b_] = randomColors[i % randomColors.length];

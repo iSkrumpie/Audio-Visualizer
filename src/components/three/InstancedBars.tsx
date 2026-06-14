@@ -14,6 +14,7 @@ import { useBeatDetectorRegistration } from './AudioScene';
 import { getSettings } from '@/lib/settingsStore';
 import { FreqBeatDetector } from '@/lib/audioUtils';
 import { usePhaseSource } from '@/hooks/usePhaseSource';
+import { keyToPalette, bandPhasesToColor } from '@/lib/keyColors';
 
 
 const MAX_BARS = 256;
@@ -151,6 +152,46 @@ export function InstancedBars() {
       } else if (b.colorMode === 'random') {
         // 4 colors generated once per session, cycled per bar
         colorObj.copy(randomColors[i % randomColors.length]);
+      } else if (b.colorMode === 'key-derived') {
+        // v13: colour from the detected key. The 4-colour palette
+        // (primary/secondary/accent/deep) is cycled by FFT bin position
+        // (low-freq bars get primary, mid get secondary, high-mid
+        // get accent, top get deep). Fall back to theme.accent if
+        // no key has been detected yet.
+        const palette = keyToPalette(audioAnalysis.key, audioAnalysis.scale);
+        if (palette) {
+          const fftNorm = fftBin / 127; // 0..1
+          let color: string;
+          if (fftNorm < 0.33)      color = palette.primary;
+          else if (fftNorm < 0.66) color = palette.secondary;
+          else if (fftNorm < 0.85) color = palette.accent;
+          else                     color = palette.deep;
+          // Mix with theme.accent by keyInfluence
+          colorObj.set(color);
+          if (s.theme?.accent) {
+            const accent = new THREE.Color(s.theme.accent);
+            colorObj.lerp(accent, 1 - (s.audio?.keyInfluence ?? 0.5));
+          }
+        } else {
+          colorObj.set(s.theme.accent);
+        }
+      } else if (b.colorMode === 'band-driven') {
+        // v13: colour = weighted HSL blend of the 4 band phases.
+        // Bars with low-freq FFT bin get the kick weight (more red),
+        // high-freq bars get the hihat weight (more cyan).
+        const bandWeight = fftBin < 30 ? 'kick' : fftBin < 60 ? 'snare' : fftBin < 100 ? 'vocal' : 'hihat';
+        let k = 0, s_ = 0, v = 0, h = 0;
+        if (bandWeight === 'kick')  { k = audioAnalysis.kickPhase  * 1.5; s_ = audioAnalysis.snarePhase * 0.3; v = audioAnalysis.vocalPhase * 0.2; h = audioAnalysis.hihatPhase * 0.2; }
+        else if (bandWeight === 'snare') { k = audioAnalysis.kickPhase  * 0.3; s_ = audioAnalysis.snarePhase * 1.5; v = audioAnalysis.vocalPhase * 0.2; h = audioAnalysis.hihatPhase * 0.4; }
+        else if (bandWeight === 'vocal') { k = audioAnalysis.kickPhase  * 0.2; s_ = audioAnalysis.snarePhase * 0.3; v = audioAnalysis.vocalPhase * 1.5; h = audioAnalysis.hihatPhase * 0.3; }
+        else                              { k = audioAnalysis.kickPhase  * 0.1; s_ = audioAnalysis.snarePhase * 0.2; v = audioAnalysis.vocalPhase * 0.3; h = audioAnalysis.hihatPhase * 1.5; }
+        const cssColor = bandPhasesToColor(k, s_, v, h);
+        colorObj.set(cssColor);
+        // Blend with theme.accent by keyInfluence
+        if (s.theme?.accent) {
+          const accent = new THREE.Color(s.theme.accent);
+          colorObj.lerp(accent, 1 - (s.audio?.keyInfluence ?? 0.5));
+        }
       } else {
         colorObj.set(b.solidColor || s.theme.accent);
       }
