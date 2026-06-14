@@ -1,5 +1,5 @@
 /**
- * CenterLogo — center logo with:
+ * CenterLogo - center logo with:
  *  - Outer glow (ShaderMaterial radial falloff plane, outward from logo edge)
  *  - Inner glow (soft falloff from logo edge inward toward center, additive)
  *  - Fire ring effect (fBm procedural fire via RingGeometry + ShaderMaterial)
@@ -81,7 +81,7 @@ void main() {
   vec2  ig_center  = vUv - 0.5;
   float ig_dist    = length(ig_center) * 2.0;
 
-  // ig_reach: 0..1 — how far from the rim the glow reaches inward
+  // ig_reach: 0..1 - how far from the rim the glow reaches inward
   float ig_reach   = clamp(uIgSize, 0.0, 1.0);
   // distance INTO the glow band, starting at the rim (0 at rim, grows toward center)
   float ig_into     = max(0.0, ig_reach - ig_dist);
@@ -192,7 +192,7 @@ void main() {
 `;
 
 // ─── Shared glow color computation ───────────────────────────────────────────
-// Module-level helper — computes glow color into `target` based on colorMode.
+// Module-level helper - computes glow color into `target` based on colorMode.
 // Called for both outer and inner glows with their own hueRef instances.
 
 function computeGlowColor(
@@ -373,7 +373,7 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     side:           THREE.DoubleSide,
   }), [fireUniforms]);
 
-  // ── Fire geometry — rebuilds when fireHeight changes ─────────────────────────
+  // ── Fire geometry - rebuilds when fireHeight changes ─────────────────────────
   const fireHeightRef  = useRef<number>(-1);
   const fireGeoRef     = useRef<THREE.RingGeometry | null>(null);
   const logoBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
@@ -381,14 +381,19 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
   useBeatDetectorRegistration(logoBeatDetector);
   useBeatDetectorRegistration(fireBeatDetector);
 
-  // v13: phase sources for logo and fire. Logo uses kickPhase (low-freq
-  // energy), fire uses a higher band - vocals are a natural fit for
-  // 'fire reacts to vocal entries' (e.g. a singer holds a note and the
-  // fire flares with the sustained energy). Both stay registered for
+  // v13.1: phase sources for logo and fire. Both now use the user's
+  // configured Hz range (beatFxFreqStart/End for logo, fireFreqStart/
+  // End for fire) to weight-blend the 4 pre-analysis bands via
+  // computeWeightedPhase(). The v13 hard-coded mapping (logo→kick,
+  // fire→vocal) is gone — the user's intent in the HzRangePicker
+  // now actually drives the result. Both stay registered for
   // export-reset compatibility.
   const logoPhaseSrc = usePhaseSource({
     detector: logoBeatDetector,
-    precomputedPhase: () => audioAnalysis.kickPhase,
+    getPrecomputedRange: () => {
+      const sL = getSettings().logo;
+      return { startHz: sL.beatFxFreqStart, endHz: sL.beatFxFreqEnd };
+    },
     liveFn: () => {
       const sL = getSettings().logo;
       logoBeatDetector.setSensitivity(sL.beatFxSensitivity ?? 1.0);
@@ -397,7 +402,10 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
   });
   const firePhaseSrc = usePhaseSource({
     detector: fireBeatDetector,
-    precomputedPhase: () => audioAnalysis.vocalPhase,
+    getPrecomputedRange: () => {
+      const sF = getSettings().logo;
+      return { startHz: sF.fireFreqStart, endHz: sF.fireFreqEnd };
+    },
     liveFn: () => {
       const sF = getSettings().logo;
       fireBeatDetector.setSensitivity(sF.fireSensitivity ?? 1.0);
@@ -419,7 +427,7 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     // ── Frequency energy ──────────────────────────────────────────────────────
     const rawData    = audioAnalysis.rawFreqData;
     // v13: pull phases from the active source (precomputed or live).
-    // Fire also needs the raw energy for the bass-driven fire lift —
+    // Fire also needs the raw energy for the bass-driven fire lift -
     // we still call the live detector in 'precomputed' mode just for
     // its `.energy` field (cheap, no double-firing because the
     // detector only updates if update() is called).
@@ -481,7 +489,7 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
 
     // ── Inner Glow plane ─────────────────────────────────────────────────────
     // The plane is sized to the LOGO (uIgSize is a shader-side reach, not a
-    // plane multiplier — see INNER_GLOW_FRAG). The shader fades from the rim
+    // plane multiplier - see INNER_GLOW_FRAG). The shader fades from the rim
     // inward based on uIgSize, so a smaller plane would crop the glow ring.
     // We multiply by beatScale so the glow tracks the logo's beat-pulse.
     const innerGlowEnabled = s.innerGlowEnabled ?? DEFAULT_SETTINGS.logo.innerGlowEnabled;
@@ -549,26 +557,26 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
 
   return (
     <>
-      {/* Outer glow plane — smooth radial falloff, sits behind logo */}
+      {/* Outer glow plane - smooth radial falloff, sits behind logo */}
       <mesh ref={outerGlowRef} renderOrder={5}>
         <primitive object={outerGlowGeo} attach="geometry" />
         <primitive object={outerGlowMat} attach="material" />
       </mesh>
 
-      {/* Fire ring — procedural fBm flames around logo edge */}
+      {/* Fire ring - procedural fBm flames around logo edge */}
       <mesh ref={fireRef} renderOrder={7}>
-        {/* Initial geometry — rebuilt in useFrame when fireHeight changes */}
+        {/* Initial geometry - rebuilt in useFrame when fireHeight changes */}
         <ringGeometry args={[0.5, 0.5 + 0.3, 128, 32]} />
         <primitive object={fireMat} attach="material" />
       </mesh>
 
-      {/* Inner glow plane — additive, sits in front of logo, behind fire */}
+      {/* Inner glow plane - additive, sits in front of logo, behind fire */}
       <mesh ref={innerGlowRef} renderOrder={8}>
         <primitive object={innerGlowGeo} attach="geometry" />
         <primitive object={innerGlowMat} attach="material" />
       </mesh>
 
-      {/* Logo mesh — on top */}
+      {/* Logo mesh - on top */}
       <mesh ref={meshRef} renderOrder={6}>
         <primitive object={logoGeo} attach="geometry" />
         <meshBasicMaterial

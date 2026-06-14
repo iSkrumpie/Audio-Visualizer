@@ -155,13 +155,19 @@ export function GPUParticles() {
   const particleBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
   useBeatDetectorRegistration(particleBeatDetector);
 
-  // v13: particle phase source. Default uses snarePhase for the
-  // 'particles burst on snare hit' use case (snare is the most
-  // distinctive percussive element for orbit motion). Falls back to
-  // the live detector in 'live' mode.
+  // v13.1: particle phase source. Reads the user's reactiveFreqStart/
+  // End Hz range and uses computeWeightedPhase() to weight-blend the
+  // 4 pre-analysis bands. v13 had this hard-coded to snarePhase, which
+  // meant a "Kick" or "Sub-Bass" selection on the particle Hz slider
+  // would not trigger the particle kick burst even when the audio had
+  // kick hits. The user's intent in the HzRangePicker now actually
+  // drives the result.
   const particlePhaseSrc = usePhaseSource({
     detector: particleBeatDetector,
-    precomputedPhase: () => audioAnalysis.snarePhase,
+    getPrecomputedRange: () => {
+      const spL = getSettings().particles;
+      return { startHz: spL.reactiveFreqStart, endHz: spL.reactiveFreqEnd };
+    },
     liveFn: () => {
       const spL = getSettings().particles;
       particleBeatDetector.setSensitivity(spL.reactiveSensitivity ?? 1.0);

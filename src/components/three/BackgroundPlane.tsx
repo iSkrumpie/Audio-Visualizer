@@ -496,12 +496,18 @@ export function BackgroundPlane() {
   const beatDetector = useMemo(() => new FreqBeatDetector(48000), []);
   useBeatDetectorRegistration(beatDetector);
 
-  // v13: phase source. Background uses kickPhase as the default
-  // (low-freq energy drives noise/scanline/grid pulses), with
-  // a fallback to the per-component detector in 'live' mode.
+  // v13.1: phase source. Background now reads the user's beatFxFreqStart/
+  // End Hz range and uses computeWeightedPhase() to weight-blend the
+  // 4 pre-analysis bands. v13 had this hard-coded to kickPhase, which
+  // meant a "Snare" or "Hi-Hat" selection on the background beat
+  // slider would not trigger the noise/scanline/grid pulses even
+  // when the audio had snare/hi-hat hits.
   const bgPhaseSrc = usePhaseSource({
     detector: beatDetector,
-    precomputedPhase: () => audioAnalysis.kickPhase,
+    getPrecomputedRange: () => {
+      const bgL = getSettings().background;
+      return { startHz: bgL.beatFxFreqStart, endHz: bgL.beatFxFreqEnd };
+    },
     liveFn: () => {
       const bgL = getSettings().background;
       beatDetector.setSensitivity(bgL.beatFxSensitivity ?? 1.0);

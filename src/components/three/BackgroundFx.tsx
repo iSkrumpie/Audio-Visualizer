@@ -286,15 +286,23 @@ export function BackgroundFx() {
   useBeatDetectorRegistration(rainBeatDetector);
   useBeatDetectorRegistration(snowBeatDetector);
 
-  // v13: phase sources for the 3 weather effects. Each uses a different
-  // pre-analysis band matched to the effect's character:
-  //   - bgParticles (low-freq ambient puffs) -> kickPhase
-  //   - rain         (mid-high transient)      -> snarePhase
-  //   - snow         (high-freq sparkle)       -> hihatPhase
-  // Falls back to per-component detector in 'live' mode.
+  // v13.1: phase sources for the 3 weather effects. Each now reads
+  // the user's configured Hz range (bgParticlesBeatFreq* / rainBeatFreq*
+  // / snowBeatFreq*) and uses computeWeightedPhase() to weight-blend
+  // the 4 pre-analysis bands. v13 had these hard-coded (bgParticles->
+  // kick, rain->snare, snow->hihat), which meant selecting a different
+  // band on any of the 3 weather effects' Hz sliders would not
+  // trigger the corresponding weather pulse even when the audio had
+  // energy in that band.
   const bgParticlesPhaseSrc = usePhaseSource({
     detector: bgParticlesBeatDetector,
-    precomputedPhase: () => audioAnalysis.kickPhase,
+    getPrecomputedRange: () => {
+      const bgL = getSettings().background;
+      return {
+        startHz: bgL.bgParticlesBeatFreqStart ?? DEFAULT_SETTINGS.background.bgParticlesBeatFreqStart,
+        endHz:   bgL.bgParticlesBeatFreqEnd   ?? DEFAULT_SETTINGS.background.bgParticlesBeatFreqEnd,
+      };
+    },
     liveFn: () => {
       const bgL = getSettings().background;
       bgParticlesBeatDetector.setSensitivity(
@@ -309,7 +317,13 @@ export function BackgroundFx() {
   });
   const rainPhaseSrc = usePhaseSource({
     detector: rainBeatDetector,
-    precomputedPhase: () => audioAnalysis.snarePhase,
+    getPrecomputedRange: () => {
+      const bgL = getSettings().background;
+      return {
+        startHz: bgL.rainBeatFreqStart ?? DEFAULT_SETTINGS.background.rainBeatFreqStart,
+        endHz:   bgL.rainBeatFreqEnd   ?? DEFAULT_SETTINGS.background.rainBeatFreqEnd,
+      };
+    },
     liveFn: () => {
       const bgL = getSettings().background;
       rainBeatDetector.setSensitivity(
@@ -324,7 +338,13 @@ export function BackgroundFx() {
   });
   const snowPhaseSrc = usePhaseSource({
     detector: snowBeatDetector,
-    precomputedPhase: () => audioAnalysis.hihatPhase,
+    getPrecomputedRange: () => {
+      const bgL = getSettings().background;
+      return {
+        startHz: bgL.snowBeatFreqStart ?? DEFAULT_SETTINGS.background.snowBeatFreqStart,
+        endHz:   bgL.snowBeatFreqEnd   ?? DEFAULT_SETTINGS.background.snowBeatFreqEnd,
+      };
+    },
     liveFn: () => {
       const bgL = getSettings().background;
       snowBeatDetector.setSensitivity(

@@ -23,12 +23,21 @@ export function NebulaPlane() {
   const nebulaBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
   useBeatDetectorRegistration(nebulaBeatDetector);
 
-  // v13: nebula pulse source. In precomputed mode, uses hihatPhase
-  // (high-frequency transients pulse the nebula so it 'breathes'
-  // with the high-end sparkle). Falls back to the live detector.
+  // v13.1: nebula pulse source. Reads the user's nebulaBeatFreqStart/
+  // End Hz range and uses computeWeightedPhase() to weight-blend the
+  // 4 pre-analysis bands. v13 had this hard-coded to hihatPhase, which
+  // meant a "Kick" or "Sub-Bass" selection on the nebula beat slider
+  // would not trigger the nebula pulse even when the audio had bass
+  // hits.
   const nebulaPhaseSrc = usePhaseSource({
     detector: nebulaBeatDetector,
-    precomputedPhase: () => audioAnalysis.hihatPhase,
+    getPrecomputedRange: () => {
+      const bgN = getSettings().background;
+      return {
+        startHz: bgN.nebulaBeatFreqStart ?? 40,
+        endHz:   bgN.nebulaBeatFreqEnd   ?? 120,
+      };
+    },
     liveFn: () => {
       const bgN = getSettings().background;
       nebulaBeatDetector.setSensitivity(bgN.nebulaBeatSensitivity ?? 1.0);

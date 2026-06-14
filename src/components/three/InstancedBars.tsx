@@ -45,17 +45,23 @@ export function InstancedBars() {
     });
   }, []);
 
-  // v13: phase source — switches between pre-analysis kickPhase and
-  // the legacy per-component FreqBeatDetector based on settings.
-  // Note: usePhaseSource returns a function that reads settings
-  // fresh each call (no re-render needed). The detector is still
-  // created + registered for export-reset compatibility. The liveFn
-  // closure reads the current bars settings (beatFreqStart/End,
-  // beatSensitivity) at call time so the Hz range stays in sync
-  // with the user's settings.
+  // v13.1: phase source — weighted blend of the 4 pre-analysis bands
+  // by the user's Hz range. v13 had this hard-coded to kickPhase, which
+  // broke when the user set a different band (e.g. "Bass" or "Sub-Bass"
+  // would not trigger the bar boost even when the audio had bass). Now
+  // the user's beatFreqStart/End drive the band weighting via
+  // computeWeightedPhase() — so "Sub-Bass (20-80Hz)" still triggers
+  // the bar boost (100% kick band) and "20-16000Hz Full" gets a
+  // proportional blend of all 4 bands.
   const barsPhaseSource = usePhaseSource({
     detector: barsBeatDetector,
-    precomputedPhase: () => audioAnalysis.kickPhase,
+    getPrecomputedRange: () => {
+      const bR = getSettings().bars;
+      return {
+        startHz: bR.beatFreqStart ?? 60,
+        endHz:   bR.beatFreqEnd   ?? 250,
+      };
+    },
     liveFn: () => {
       const bLive = getSettings().bars;
       barsBeatDetector.setSensitivity(bLive.beatSensitivity ?? 1.0);
