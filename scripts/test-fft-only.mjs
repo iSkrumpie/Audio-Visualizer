@@ -119,6 +119,11 @@ async function main() {
             rawMax:   Math.max(...f.rawFreqData),
             freq0to9: Array.from(f.freqData.slice(0, 10)),
             raw0to9:  Array.from(f.rawFreqData.slice(0, 10)),
+            // v13: per-band onset phases
+            kickPhase:  f.kickPhase.toFixed(3),
+            snarePhase: f.snarePhase.toFixed(3),
+            vocalPhase: f.vocalPhase.toFixed(3),
+            hihatPhase: f.hihatPhase.toFixed(3),
           };
         }),
       };
@@ -137,6 +142,8 @@ async function main() {
       console.log(`  t=${s.t}s  bass=${s.bass} loud=${s.loudness} highs=${s.highs} energy=${s.energy} freqMax=${s.freqMax} rawMax=${s.rawMax}`);
       console.log(`    freq[0..9]=${s.freq0to9.join(',')}`);
       console.log(`    raw [0..9]=${s.raw0to9.join(',')}`);
+      // v13: per-band onset phases
+      console.log(`    v13 phases: kick=${s.kickPhase} snare=${s.snarePhase} vocal=${s.vocalPhase} hihat=${s.hihatPhase}`);
     }
 
     // Sanity check

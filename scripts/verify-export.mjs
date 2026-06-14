@@ -259,12 +259,29 @@ async function main() {
       let fdMax = 0, rdMax = 0;
       for (const v of fd) if (v > fdMax) fdMax = v;
       for (const v of rd) if (v > rdMax) rdMax = v;
+      // v13: also read the new pre-analysis per-band phases + metadata
+      const bundle = window.__analysisBundle;
       return {
         bass:               audioAnalysis.bass,
         loudness:           audioAnalysis.loudness,
         highs:              audioAnalysis.highs,
         energy:             audioAnalysis.energy,
         beatPhase:          audioAnalysis.beatPhase,
+        // v13 pre-analysis fields
+        kickPhase:          audioAnalysis.kickPhase,
+        snarePhase:         audioAnalysis.snarePhase,
+        vocalPhase:         audioAnalysis.vocalPhase,
+        hihatPhase:         audioAnalysis.hihatPhase,
+        bpm:                audioAnalysis.bpm,
+        key:                audioAnalysis.key,
+        scale:              audioAnalysis.scale,
+        preAnalysisProgress: audioAnalysis.preAnalysisProgress,
+        bundleAvailable:    !!bundle,
+        bundleBpm:          bundle?.essentia?.bpm ?? null,
+        bundleKey:          bundle?.essentia?.key ?? null,
+        bundleScale:        bundle?.essentia?.scale ?? null,
+        bundleTicksCount:   bundle?.essentia?.ticks?.length ?? 0,
+        // legacy
         freqDataFirst10:    fd.slice(0, 10),
         rawFreqDataFirst10: rd.slice(0, 10),
         freqDataMax:        fdMax,
@@ -277,6 +294,18 @@ async function main() {
         ' highs='                    + previewDiag.highs.toFixed(4) +
         ' energy='                   + previewDiag.energy.toFixed(4) +
         ' beatPhase='                + previewDiag.beatPhase.toFixed(4));
+    log('[DIAG preview] v13 pre-analysis: kick='  + previewDiag.kickPhase.toFixed(4) +
+        ' snare='                                  + previewDiag.snarePhase.toFixed(4) +
+        ' vocal='                                  + previewDiag.vocalPhase.toFixed(4) +
+        ' hihat='                                  + previewDiag.hihatPhase.toFixed(4));
+    log('[DIAG preview] v13 metadata: bpm='       + (previewDiag.bpm || '?') +
+        ' key='                                    + (previewDiag.key || '?') +
+        ' scale='                                  + (previewDiag.scale || '?') +
+        ' progress='                               + (previewDiag.preAnalysisProgress * 100).toFixed(0) + '%');
+    log('[DIAG preview] bundle: available='      + previewDiag.bundleAvailable +
+        ' bundleBpm='                              + (previewDiag.bundleBpm || '?') +
+        ' bundleKey='                              + (previewDiag.bundleKey || '?') +
+        ' ticks='                                  + previewDiag.bundleTicksCount);
     log('[DIAG preview] freqData[0..9]='    + JSON.stringify(previewDiag.freqDataFirst10));
     log('[DIAG preview] rawFreqData[0..9]=' + JSON.stringify(previewDiag.rawFreqDataFirst10));
     log('[DIAG preview] freqData.max='      + previewDiag.freqDataMax +
@@ -358,6 +387,11 @@ async function main() {
                 highs:              audioAnalysis.highs,
                 energy:             audioAnalysis.energy,
                 beatPhase:          audioAnalysis.beatPhase,
+                // v13 pre-analysis fields
+                kickPhase:          audioAnalysis.kickPhase,
+                snarePhase:         audioAnalysis.snarePhase,
+                vocalPhase:         audioAnalysis.vocalPhase,
+                hihatPhase:         audioAnalysis.hihatPhase,
                 freqDataFirst10:    fd.slice(0, 10),
                 rawFreqDataFirst10: rd.slice(0, 10),
                 freqDataMax:        fdMax,
@@ -523,8 +557,24 @@ async function main() {
       row('highs',          previewDiag.highs,     exportDiag.highs);
       row('energy',         previewDiag.energy,    exportDiag.energy);
       row('beatPhase',      previewDiag.beatPhase, exportDiag.beatPhase);
+      // v13: per-band onset phases
+      row('kickPhase',      previewDiag.kickPhase,  exportDiag.kickPhase);
+      row('snarePhase',     previewDiag.snarePhase, exportDiag.snarePhase);
+      row('vocalPhase',     previewDiag.vocalPhase, exportDiag.vocalPhase);
+      row('hihatPhase',     previewDiag.hihatPhase, exportDiag.hihatPhase);
       row('freqData.max',   previewDiag.freqDataMax,    exportDiag.freqDataMax);
       row('rawFreqData.max',previewDiag.rawFreqDataMax, exportDiag.rawFreqDataMax);
+      // v13: detected metadata
+      log('');
+      log('  Detected metadata (preview):');
+      log('    bpm='      + (previewDiag.bpm || '?') +
+          ' key='        + (previewDiag.key || '?') +
+          ' scale='      + (previewDiag.scale || '?') +
+          ' progress='   + (previewDiag.preAnalysisProgress * 100).toFixed(0) + '%');
+      log('    bundleBpm='+ (previewDiag.bundleBpm || '?') +
+          ' bundleKey='  + (previewDiag.bundleKey || '?') +
+          ' bundleScale='+ (previewDiag.bundleScale || '?') +
+          ' ticks='      + previewDiag.bundleTicksCount);
       log('freqData[0..9]     | ' + col(fmtArr(previewDiag.freqDataFirst10), 15) +
           '| ' + fmtArr(exportDiag.freqDataFirst10));
       log('rawFreqData[0..9]  | ' + col(fmtArr(previewDiag.rawFreqDataFirst10), 15) +
