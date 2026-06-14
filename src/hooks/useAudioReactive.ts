@@ -66,6 +66,30 @@ export const audioAnalysis = {
   energy: 0,
   /** 0..1, decays from 1 after kick, drives logo pulse + glow */
   beatPhase: 0,
+  // ── v13: Pre-analysis phases (per-band onset + tick-based beat) ──────────
+  // Populated by either:
+  //   (a) the rAF loop in useAudioReactive (live) — reads precomputed arrays
+  //       from the pre-analysis worker and applies bandSensitivity gains
+  //   (b) exportEngine per-frame — same arrays, looked up by frame index
+  // Components read these in useFrame. The legacy FreqBeatDetector path
+  // (when audio.detectionMode === 'live') co-exists; components check the
+  // mode in getSettings() and pick the right source.
+  /** 0..1 — Kick-band onset phase (40-120 Hz equivalent). Snare-separable. */
+  kickPhase: 0,
+  /** 0..1 — Snare-band onset phase (150-800 Hz). Independent of kick. */
+  snarePhase: 0,
+  /** 0..1 — Vocal-band onset phase (800-4000 Hz). Detects vocal entries. */
+  vocalPhase: 0,
+  /** 0..1 — HiHat-band onset phase (4000-16000 Hz). Detects percussive hats. */
+  hihatPhase: 0,
+  /** Detected tempo in BPM (0 = unknown). Updated once at analysis completion. */
+  bpm: 0,
+  /** Detected musical key (e.g. 'C#') — '' = unknown. */
+  key: '',
+  /** Detected scale ('major' | 'minor' | ''). */
+  scale: '' as 'major' | 'minor' | '',
+  /** 0..1 — Pre-analysis progress, mirrored from useAudioReactive state. */
+  preAnalysisProgress: 0,
 };
 
 export function useAudioReactive() {
