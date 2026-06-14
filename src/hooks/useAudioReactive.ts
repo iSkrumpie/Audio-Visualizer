@@ -30,7 +30,8 @@ import { useRef, useCallback, useEffect } from 'react';
 import { useAudioStore } from '@/lib/audioStore';
 import { sceneRegistry } from '@/components/three/AudioScene';
 import { FreqBeatDetector } from '@/lib/audioUtils';
-import { getSettings } from '@/lib/settingsStore';
+import { getSettings, useSettingsStore } from '@/lib/settingsStore';
+import { analyzeAudioFile, type AnalysisBundle, frameAt } from '@/lib/analysisBundle';
 
 // ── Tunables (skrumpie.de-derived) ─────────────────────────────────────────
 const VISUAL_FFT      = 256;   // → 128 bins
@@ -50,6 +51,20 @@ const globalBeatDetector = new FreqBeatDetector(48000);
 if (typeof window !== 'undefined') {
   (window as any).__detectors = { global: globalBeatDetector };
 }
+
+// ── v13: Pre-analysis bundle state ────────────────────────────────────────────
+// Module-level — the precomputed AnalysisBundle (frames + essentia data) is
+// shared by the live-preview rAF loop AND the export pipeline. The same
+// instance, so the same PrecomputedFrame data drives both. See AGENTS.md §6.1.
+let currentBundle: AnalysisBundle | null = null;
+let currentBundleFps: number = 60;
+// Live currentTime mirrored from the rAF loop so the per-band frame
+// lookup (which lives in the rAF tick) doesn't need to thread the ref
+// through helper functions. Updated every rAF tick.
+let liveCurrentTime: number = 0;
+
+// Reusable scratch object for frameAt() so the rAF loop doesn't allocate.
+const frameScratch: any = {};
 
 // ── Shared mutable analysis (read by canvas/Three.js render loops) ─────────
 export const audioAnalysis = {
@@ -210,6 +225,9 @@ export function useAudioReactive() {
         const vt = getVirtualCurrentTime();
         currentOffsetRef.current = vt;
         setCurrentTimeRef.current(vt);
+        liveCurrentTime = vt; // v13: mirror for module-scope pre-analysis lookup
+      } else {
+        liveCurrentTime = currentOffsetRef.current;
       }
 
       // ── Visual analysis (drives everything visual) ──────────────────────
@@ -256,6 +274,14 @@ export function useAudioReactive() {
       }
 
       // ── Global beat detection (configurable Hz range via settings.audio) ──
+      // v13: two code paths.
+      //   (a) 'precomputed' mode + bundle available → frame-accurate beat
+      //       phase derived from essentia beat ticks (zero detector
+      //       drift, zero false positives). The legacy globalBeatDetector
+      //       is still run on rawFreqData so per-component FreqBeatDetectors
+      //       (registered via useBeatDetectorRegistration) keep working.
+      //   (b) 'live' mode (or bundle not yet ready) → legacy spectral-flux
+      //       detection on rawFreqData.
       const kick = kickRef.current;
       if (kick) {
         const kd = kickDataRef.current;
@@ -272,12 +298,46 @@ export function useAudioReactive() {
           audioSettings.globalBeatFreqEnd,
         );
 
+        // v13: precomputed-mode beat phase from essentia beat ticks
+        let beatPhase = globalBeat;
+        if (
+          audioSettings.detectionMode === 'precomputed' &&
+          currentBundle &&
+          currentBundle.essentia.ticks.length > 1
+        ) {
+          beatPhase = computeBeatPhaseFromTicks(
+            currentBundle.essentia.ticks,
+            liveCurrentTime,
+          );
+        }
+
         document.documentElement.style.setProperty(
           '--beat-glow',
-          `${Math.round(globalBeat * BEAT_GLOW_MAX)}px`,
+          `${Math.round(beatPhase * BEAT_GLOW_MAX)}px`,
         );
-        audioAnalysis.beatPhase            = globalBeat;
-        useAudioStore.getState().beatPhase = globalBeat;
+        audioAnalysis.beatPhase            = beatPhase;
+        useAudioStore.getState().beatPhase = beatPhase;
+
+        // v13: per-band onset phases (kick/snare/vocal/hihat) — sourced
+        // from the pre-analysis frame in 'precomputed' mode, or 0 in
+        // 'live' mode (components fall back to their per-component
+        // FreqBeatDetector for their specific band).
+        if (
+          audioSettings.detectionMode === 'precomputed' &&
+          currentBundle
+        ) {
+          const f = frameAt(currentBundle.frames, currentBundleFps, liveCurrentTime, frameScratch);
+          const bs = audioSettings.bandSensitivity;
+          audioAnalysis.kickPhase  = f.kickPhase  * (bs.kick  ?? 1);
+          audioAnalysis.snarePhase = f.snarePhase * (bs.snare ?? 1);
+          audioAnalysis.vocalPhase = f.vocalPhase * (bs.vocal ?? 1);
+          audioAnalysis.hihatPhase = f.hihatPhase * (bs.hihat ?? 1);
+        } else {
+          audioAnalysis.kickPhase  = 0;
+          audioAnalysis.snarePhase = 0;
+          audioAnalysis.vocalPhase = 0;
+          audioAnalysis.hihatPhase = 0;
+        }
       }
 
       // Drive R3F frame (frameloop="never" — runs all useFrame callbacks)
@@ -453,6 +513,34 @@ export function useAudioReactive() {
 
         // Start the rAF analysis loop (reads silence until user hits play)
         start();
+
+        // v13: kick off the pre-analysis pipeline in the background.
+        // The user can press Play immediately and the visualizer runs
+        // in 'live' mode; once analysis finishes (~8-15s for a 3-min
+        // track), the rAF loop switches to 'precomputed' mode seamlessly
+        // (kick/snare/vocal/hihat phases from the per-frame arrays,
+        // beat phase from essentia ticks, key/bpm written to settings).
+        const setSettings = useSettingsStore.getState().setSettings;
+        analyzeAudioFile(buffer, 60, (p) => {
+          setSettings((prev) => ({
+            ...prev,
+            audio: { ...prev.audio, preAnalysisProgress: p },
+          }));
+        }).then((bundle) => {
+          currentBundle    = bundle;
+          currentBundleFps = 60;
+          // Write bpm/key/scale to audioAnalysis mutable so UI can
+          // read it without going through the settings store.
+          audioAnalysis.bpm   = bundle.essentia.bpm;
+          audioAnalysis.key   = bundle.essentia.key;
+          audioAnalysis.scale = bundle.essentia.scale;
+          // Expose the bundle for the export pipeline (so it can skip
+          // a second precomputeFFT call).
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).__analysisBundle = bundle;
+        }).catch((err: unknown) => {
+          console.warn('[useAudioReactive] pre-analysis failed:', err);
+        });
       })
       .catch((err: unknown) => {
         console.error('[useAudioReactive] decodeAudioData failed:', err);
@@ -517,4 +605,27 @@ export function useAudioReactive() {
     startAndPlay,
     seek: (t: number) => seekImpl(t),
   };
+}
+
+// ── v13: Helper — beat phase from essentia beat ticks ────────────────────────
+// Given the array of beat tick positions (seconds) and the current playback
+// time, return a 0..1 phase that's 1.0 at a tick and falls off in a
+// decaying envelope (like the spectral-flux detector's phase) until the
+// next tick. The falloff uses the actual inter-tick interval so the
+// envelope is correct regardless of BPM.
+function computeBeatPhaseFromTicks(ticks: number[], t: number): number {
+  if (ticks.length < 1 || t < 0) return 0;
+  // Find the two ticks bracketing t
+  let lo = 0, hi = ticks.length - 1;
+  if (t < ticks[0]) return 0;
+  if (t >= ticks[hi]) return 0; // past the last beat
+  for (let i = 0; i < ticks.length - 1; i++) {
+    if (t >= ticks[i] && t < ticks[i + 1]) {
+      lo = i; hi = i + 1; break;
+    }
+  }
+  // Phase 1.0 at lo, linear decay to 0 at hi.
+  const dt = ticks[hi] - ticks[lo];
+  if (dt <= 0) return 1.0;
+  return Math.max(0, 1 - (t - ticks[lo]) / dt);
 }

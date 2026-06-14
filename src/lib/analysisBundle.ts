@@ -41,26 +41,36 @@ export type AnalysisBundle = {
  * Run the full pre-analysis pipeline: decode the file, run essentia.js
  * (BPM, key, ticks) + precomputeFFT (frames + multi-band onsets).
  *
- * @param file           The audio File to analyze
+ * @param source         The audio source — either a File (will be
+ *                       decoded) or an already-decoded AudioBuffer
+ *                       (skips the decode stage)
  * @param fps            Target frame rate for the per-frame data (60 or 30)
  * @param onProgress     Optional progress callback. Progress is 0..1
  *                       covering both stages proportionally:
- *                       0.00..0.20 = decode
+ *                       0.00..0.20 = decode (skipped if source is AudioBuffer)
  *                       0.20..0.80 = essentia (BPM + key)
  *                       0.80..1.00 = precomputeFFT
  * @returns              The combined analysis bundle
  */
 export async function analyzeAudioFile(
-  file: File,
+  source: File | AudioBuffer,
   fps: number = 60,
   onProgress?: (progress: number, label: string) => void,
 ): Promise<AnalysisBundle> {
   // ── Stage 1: Decode (always 48 kHz to match the rest of the pipeline) ──
-  onProgress?.(0.02, 'Decoding audio…');
-  const audioCtx = new AudioContext({ sampleRate: 48000 });
-  const arrayBuffer = await file.arrayBuffer();
-  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-  onProgress?.(0.10, 'Decoded.');
+  // Skipped if the caller already has a decoded AudioBuffer.
+  let audioBuffer: AudioBuffer;
+  let audioCtx: AudioContext | null = null;
+  if (source instanceof AudioBuffer) {
+    audioBuffer = source;
+    onProgress?.(0.10, 'Already decoded.');
+  } else {
+    onProgress?.(0.02, 'Decoding audio…');
+    audioCtx = new AudioContext({ sampleRate: 48000 });
+    const arrayBuffer = await source.arrayBuffer();
+    audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    onProgress?.(0.10, 'Decoded.');
+  }
 
   // Channel data for the essentia worker (mono: take channel 0).
   // We have to copy because AudioBuffer's channel data is a view onto
@@ -96,7 +106,7 @@ export async function analyzeAudioFile(
   });
   onProgress?.(1.0, 'Done.');
 
-  audioCtx.close();
+  audioCtx?.close();
 
   // ── Stage 4: write detected metadata into the settings store so the
   //    SettingsPanel and components can read it without re-decoding. ──
