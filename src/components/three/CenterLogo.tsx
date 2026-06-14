@@ -1,9 +1,12 @@
 /**
  * CenterLogo — center logo with:
- *  - Real soft glow (ShaderMaterial radial falloff plane)
+ *  - Outer glow (ShaderMaterial radial falloff plane, outward from logo edge)
+ *  - Inner glow (soft falloff from logo edge inward toward center, additive)
  *  - Fire ring effect (fBm procedural fire via RingGeometry + ShaderMaterial)
- *  - Frequency-based audio reactivity via getFreqRangeEnergy
- *  - Beat scale/rotation burst driven by logo freq range
+ *  - Frequency-based audio reactivity via FreqBeatDetector
+ *  - Beat scale driven by logo freq range
+ *
+ * v12: renamed glow → outerGlow, added innerGlow (soft falloff)
  */
 
 import { useRef, useMemo, useState, useEffect } from 'react';
@@ -11,14 +14,14 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAudioStore } from '@/lib/audioStore';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
-import { getSettings } from '@/lib/settingsStore';
+import { getSettings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
 import { useSettingsStore } from '@/lib/settingsStore';
 import { useBeatDetectorRegistration } from './AudioScene';
 import { FreqBeatDetector } from '@/lib/audioUtils';
 
 const REF_VMIN = 900;
 
-// ─── Glow ShaderMaterial sources ─────────────────────────────────────────────
+// ─── Shared vertex shader ─────────────────────────────────────────────────────
 
 const GLOW_VERT = /* glsl */ `
 varying vec2 vUv;
@@ -28,7 +31,10 @@ void main() {
 }
 `;
 
-const GLOW_FRAG = /* glsl */ `
+// ─── Outer Glow fragment shader ───────────────────────────────────────────────
+// Alpha peaks just outside the logo edge, falls off outward.
+
+const OUTER_GLOW_FRAG = /* glsl */ `
 varying vec2 vUv;
 uniform vec3  uGwColor;
 uniform float uGwIntensity;
@@ -53,6 +59,43 @@ void main() {
 
   if (gw_alpha < 0.005) discard;
   gl_FragColor = vec4(uGwColor, gw_alpha);
+}
+`;
+
+// ─── Inner Glow fragment shader ───────────────────────────────────────────────
+// Alpha peaks at the logo edge, decays INWARD toward center.
+// soft falloff: exp(-falloff^2/blur^2), fade to 0 at center via smoothstep.
+
+const INNER_GLOW_FRAG = /* glsl */ `
+varying vec2 vUv;
+uniform vec3  uIgColor;
+uniform float uIgIntensity;
+uniform float uIgSize;
+uniform float uIgBlur;
+uniform float uIgBeat;
+
+void main() {
+  vec2  ig_center  = vUv - 0.5;
+  float ig_dist    = length(ig_center) * 2.0;
+
+  float ig_logoEdge = 1.0 / uIgSize;
+  // falloff is positive when we're inside the logo edge (moving toward center)
+  float ig_falloff  = max(0.0, ig_logoEdge - ig_dist);
+  float ig_blur     = max(0.01, uIgBlur * 0.02);
+  float ig_alpha    = exp(-ig_falloff * ig_falloff / (ig_blur * ig_blur));
+
+  // Mirror of outer's edge fade: bring alpha to 0 at the very center
+  float ig_edgeFade = smoothstep(0.0, 0.3, ig_dist);
+  ig_alpha *= ig_edgeFade;
+
+  // Clip to just inside the logo boundary (no spill outside)
+  float ig_outerClip = 1.0 - smoothstep(ig_logoEdge - 0.05, ig_logoEdge + 0.1, ig_dist);
+  ig_alpha *= ig_outerClip;
+
+  ig_alpha *= uIgIntensity * (1.0 + uIgBeat * 0.5);
+
+  if (ig_alpha < 0.005) discard;
+  gl_FragColor = vec4(uIgColor, ig_alpha);
 }
 `;
 
@@ -148,6 +191,47 @@ void main() {
 }
 `;
 
+// ─── Shared glow color computation ───────────────────────────────────────────
+// Module-level helper — computes glow color into `target` based on colorMode.
+// Called for both outer and inner glows with their own hueRef instances.
+
+function computeGlowColor(
+  mode: 'solid' | 'rainbow' | 'custom' | 'random',
+  hueRef: { current: number },
+  scratch: THREE.Color[],
+  randomColors: THREE.Color[],
+  time: number,
+  delta: number,
+  solidColor: string,
+  customColors: string[],
+  cycleSpeed: number,
+  themeAccent: string,
+  target: THREE.Color,
+): void {
+  if (mode === 'solid') {
+    target.set(solidColor || themeAccent);
+  } else if (mode === 'rainbow') {
+    hueRef.current = (hueRef.current + delta * cycleSpeed * 0.05) % 1;
+    target.setHSL(hueRef.current, 0.9, 0.55);
+  } else if (mode === 'custom') {
+    const cols: string[] = (customColors?.length ?? 0) > 0
+      ? customColors
+      : ['#6366F1', '#22D3EE', '#F472B6', '#F59E0B'];
+    const fi   = ((time * cycleSpeed * 0.05) % 1) * cols.length;
+    const i0   = Math.floor(fi) % cols.length;
+    const i1   = (i0 + 1) % cols.length;
+    scratch[0].set(cols[i0]);
+    scratch[1].set(cols[i1]);
+    target.lerpColors(scratch[0], scratch[1], fi - Math.floor(fi));
+  } else {
+    // random
+    const fi = ((time * cycleSpeed * 0.05) % 1) * randomColors.length;
+    const i0 = Math.floor(fi) % randomColors.length;
+    const i1 = (i0 + 1) % randomColors.length;
+    target.lerpColors(randomColors[i0], randomColors[i1], fi - Math.floor(fi));
+  }
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function CenterLogo() {
@@ -160,21 +244,25 @@ export function CenterLogo() {
 }
 
 function LogoInner({ logoUrl }: { logoUrl: string }) {
-  const meshRef    = useRef<THREE.Mesh>(null);
-  const glowRef    = useRef<THREE.Mesh>(null);
-  const fireRef    = useRef<THREE.Mesh>(null);
-  const logoMatRef = useRef<THREE.MeshBasicMaterial>(null);
-  const rotRef          = useRef(0);
-  const timeRef         = useRef(0);
-  const rainbowHueRef   = useRef(0);
+  const meshRef         = useRef<THREE.Mesh>(null);
+  const outerGlowRef    = useRef<THREE.Mesh>(null);
+  const innerGlowRef    = useRef<THREE.Mesh>(null);
+  const fireRef         = useRef<THREE.Mesh>(null);
+  const logoMatRef      = useRef<THREE.MeshBasicMaterial>(null);
+  const rotRef              = useRef(0);
+  const timeRef             = useRef(0);
+  const outerRainbowHueRef  = useRef(0);
+  const innerRainbowHueRef  = useRef(0);
 
   // 4 random hues generated once at session start, for 'random' glow color mode
+  // Shared between outer and inner glow.
   const glowRandomColors = useMemo(() =>
     [0, 0.25, 0.5, 0.75].map((base) =>
       new THREE.Color().setHSL((base + Math.random() * 0.2) % 1, 0.9, 0.55)
     )
   , []);
   // Scratch colors for smooth lerping in custom/random mode (avoids per-frame allocation)
+  // Shared between outer and inner glow.
   const glowScratch = useMemo(() => [new THREE.Color(), new THREE.Color()], []);
 
   const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null);
@@ -221,8 +309,8 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
   // ── Logo geometry ────────────────────────────────────────────────────────────
   const logoGeo = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
 
-  // ── Glow uniforms (created once, mutated in useFrame) ───────────────────────
-  const glowUniforms = useMemo(() => ({
+  // ── Outer Glow uniforms (created once, mutated in useFrame) ─────────────────
+  const outerGlowUniforms = useMemo(() => ({
     uGwColor:     { value: new THREE.Color('#6366F1') },
     uGwIntensity: { value: 0.5 },
     uGwSize:      { value: 1.15 },
@@ -230,17 +318,38 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     uGwBeat:      { value: 0.0 },
   }), []);
 
-  const glowMat = useMemo(() => new THREE.ShaderMaterial({
+  const outerGlowMat = useMemo(() => new THREE.ShaderMaterial({
     vertexShader:   GLOW_VERT,
-    fragmentShader: GLOW_FRAG,
-    uniforms:       glowUniforms,
+    fragmentShader: OUTER_GLOW_FRAG,
+    uniforms:       outerGlowUniforms,
     transparent:    true,
     depthWrite:     false,
     blending:       THREE.AdditiveBlending,
     toneMapped:     false,
-  }), [glowUniforms]);
+  }), [outerGlowUniforms]);
 
-  const glowGeo = useMemo(() => new THREE.CircleGeometry(0.5, 64), []);
+  const outerGlowGeo = useMemo(() => new THREE.CircleGeometry(0.5, 64), []);
+
+  // ── Inner Glow uniforms (created once, mutated in useFrame) ─────────────────
+  const innerGlowUniforms = useMemo(() => ({
+    uIgColor:     { value: new THREE.Color('#6366F1') },
+    uIgIntensity: { value: 0.0 },
+    uIgSize:      { value: 1.0 },
+    uIgBlur:      { value: 15.0 },
+    uIgBeat:      { value: 0.0 },
+  }), []);
+
+  const innerGlowMat = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader:   GLOW_VERT,
+    fragmentShader: INNER_GLOW_FRAG,
+    uniforms:       innerGlowUniforms,
+    transparent:    true,
+    depthWrite:     false,
+    blending:       THREE.AdditiveBlending,
+    toneMapped:     false,
+  }), [innerGlowUniforms]);
+
+  const innerGlowGeo = useMemo(() => new THREE.CircleGeometry(0.5, 64), []);
 
   // ── Fire uniforms (created once, mutated in useFrame) ───────────────────────
   const fireUniforms = useMemo(() => ({
@@ -265,7 +374,6 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
   }), [fireUniforms]);
 
   // ── Fire geometry — rebuilds when fireHeight changes ─────────────────────────
-  // We track fireHeight via a ref to detect changes without store subscription.
   const fireHeightRef  = useRef<number>(-1);
   const fireGeoRef     = useRef<THREE.RingGeometry | null>(null);
   const logoBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
@@ -279,6 +387,7 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     const { width, height } = state.size;
     const vmin  = Math.min(width, height);
     const scale = Math.min(vmin / REF_VMIN, 1);
+    const theme = getSettings().theme;
 
     // Advance time for fire animation
     timeRef.current += delta * (s.fireSpeed > 0 ? s.fireSpeed : 1.0);
@@ -293,7 +402,7 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
 
     // ── Logo mesh ─────────────────────────────────────────────────────────────
     const logoSize  = s.size * scale;
-    const beatScale = 1 + logoBeat * s.beatScaleStrength * 0.15;
+    const beatScale = 1 + logoBeat * (s.beatScaleStrength ?? 0.5) * 0.15;
 
     if (meshRef.current) {
       meshRef.current.position.set(0, 0, 0);
@@ -304,51 +413,67 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
       logoMatRef.current.opacity = s.opacity;
     }
 
-    // ── Glow plane ────────────────────────────────────────────────────────────
-    if (glowRef.current) {
-      glowRef.current.visible = s.glowEnabled;
-      if (s.glowEnabled) {
-        const glowPlaneSize = logoSize * s.glowSize;
-        glowRef.current.position.set(0, 0, -0.1);
-        glowRef.current.scale.set(glowPlaneSize, glowPlaneSize, 1);
-        glowRef.current.rotation.z = rotRef.current;
+    // ── Outer Glow plane ─────────────────────────────────────────────────────
+    const outerGlowEnabled = s.outerGlowEnabled ?? DEFAULT_SETTINGS.logo.outerGlowEnabled;
+    if (outerGlowRef.current) {
+      outerGlowRef.current.visible = outerGlowEnabled;
+      if (outerGlowEnabled) {
+        const outerPlaneSize = logoSize * (s.outerGlowSize ?? DEFAULT_SETTINGS.logo.outerGlowSize);
+        outerGlowRef.current.position.set(0, 0, -0.1);
+        outerGlowRef.current.scale.set(outerPlaneSize, outerPlaneSize, 1);
+        outerGlowRef.current.rotation.z = rotRef.current;
       }
     }
 
-    // ── Glow color mode ───────────────────────────────────────────────────────
-    // Defensive fallbacks: settings from old presets may lack the v11 fields.
-    // Without fallbacks, undefined values would either skip the entire if-chain
-    // (leaving uGwColor stale) or throw on .length / .set() calls → black canvas.
-    const glowColorMode: 'solid' | 'rainbow' | 'custom' | 'random' =
-      s.glowColorMode ?? 'solid';
-    const glowCycleSpeed = s.glowCycleSpeed ?? 0.3;
-    const gwCol          = glowUniforms.uGwColor.value;
-    if (glowColorMode === 'solid') {
-      gwCol.set(s.glowColor || getSettings().theme.accent);
-    } else if (glowColorMode === 'rainbow') {
-      rainbowHueRef.current = (rainbowHueRef.current + delta * glowCycleSpeed * 0.05) % 1;
-      gwCol.setHSL(rainbowHueRef.current, 0.9, 0.55);
-    } else if (glowColorMode === 'custom') {
-      const cols: string[] = (s.glowCustomColors?.length ?? 0) > 0
-        ? s.glowCustomColors!
-        : ['#6366F1', '#22D3EE', '#F472B6', '#F59E0B'];
-      const fi   = ((timeRef.current * glowCycleSpeed * 0.05) % 1) * cols.length;
-      const i0   = Math.floor(fi) % cols.length;
-      const i1   = (i0 + 1) % cols.length;
-      glowScratch[0].set(cols[i0]);
-      glowScratch[1].set(cols[i1]);
-      gwCol.lerpColors(glowScratch[0], glowScratch[1], fi - Math.floor(fi));
-    } else {
-      // random
-      const fi = ((timeRef.current * glowCycleSpeed * 0.05) % 1) * glowRandomColors.length;
-      const i0 = Math.floor(fi) % glowRandomColors.length;
-      const i1 = (i0 + 1) % glowRandomColors.length;
-      gwCol.lerpColors(glowRandomColors[i0], glowRandomColors[i1], fi - Math.floor(fi));
+    // ── Outer Glow color ─────────────────────────────────────────────────────
+    computeGlowColor(
+      (s.outerGlowColorMode ?? DEFAULT_SETTINGS.logo.outerGlowColorMode) as 'solid' | 'rainbow' | 'custom' | 'random',
+      outerRainbowHueRef,
+      glowScratch,
+      glowRandomColors,
+      timeRef.current,
+      delta,
+      s.outerGlowColor ?? DEFAULT_SETTINGS.logo.outerGlowColor,
+      s.outerGlowCustomColors ?? DEFAULT_SETTINGS.logo.outerGlowCustomColors,
+      s.outerGlowCycleSpeed ?? DEFAULT_SETTINGS.logo.outerGlowCycleSpeed,
+      theme.accent,
+      outerGlowUniforms.uGwColor.value,
+    );
+    outerGlowUniforms.uGwIntensity.value = ((s.outerGlowIntensity ?? DEFAULT_SETTINGS.logo.outerGlowIntensity) / 100) * (1 + logoBeat * 0.4);
+    outerGlowUniforms.uGwSize.value      = s.outerGlowSize ?? DEFAULT_SETTINGS.logo.outerGlowSize;
+    outerGlowUniforms.uGwBlur.value      = s.outerGlowBlur ?? DEFAULT_SETTINGS.logo.outerGlowBlur;
+    outerGlowUniforms.uGwBeat.value      = logoBeat;
+
+    // ── Inner Glow plane ─────────────────────────────────────────────────────
+    const innerGlowEnabled = s.innerGlowEnabled ?? DEFAULT_SETTINGS.logo.innerGlowEnabled;
+    if (innerGlowRef.current) {
+      innerGlowRef.current.visible = innerGlowEnabled;
+      if (innerGlowEnabled) {
+        const innerPlaneSize = logoSize * (s.innerGlowSize ?? DEFAULT_SETTINGS.logo.innerGlowSize);
+        innerGlowRef.current.position.set(0, 0, 0.05);
+        innerGlowRef.current.scale.set(innerPlaneSize, innerPlaneSize, 1);
+        innerGlowRef.current.rotation.z = rotRef.current;
+      }
     }
-    glowUniforms.uGwIntensity.value = (s.glowIntensity / 100) * (1 + logoBeat * 0.4);
-    glowUniforms.uGwSize.value      = s.glowSize;
-    glowUniforms.uGwBlur.value      = s.glowBlur;
-    glowUniforms.uGwBeat.value      = logoBeat;
+
+    // ── Inner Glow color ─────────────────────────────────────────────────────
+    computeGlowColor(
+      (s.innerGlowColorMode ?? DEFAULT_SETTINGS.logo.innerGlowColorMode) as 'solid' | 'rainbow' | 'custom' | 'random',
+      innerRainbowHueRef,
+      glowScratch,
+      glowRandomColors,
+      timeRef.current,
+      delta,
+      s.innerGlowColor ?? DEFAULT_SETTINGS.logo.innerGlowColor,
+      s.innerGlowCustomColors ?? DEFAULT_SETTINGS.logo.innerGlowCustomColors,
+      s.innerGlowCycleSpeed ?? DEFAULT_SETTINGS.logo.innerGlowCycleSpeed,
+      theme.accent,
+      innerGlowUniforms.uIgColor.value,
+    );
+    innerGlowUniforms.uIgIntensity.value = ((s.innerGlowIntensity ?? DEFAULT_SETTINGS.logo.innerGlowIntensity) / 100) * (1 + logoBeat * 0.4);
+    innerGlowUniforms.uIgSize.value      = s.innerGlowSize ?? DEFAULT_SETTINGS.logo.innerGlowSize;
+    innerGlowUniforms.uIgBlur.value      = s.innerGlowBlur ?? DEFAULT_SETTINGS.logo.innerGlowBlur;
+    innerGlowUniforms.uIgBeat.value      = logoBeat;
 
     // ── Fire ring ─────────────────────────────────────────────────────────────
     if (fireRef.current) {
@@ -366,8 +491,6 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
         }
 
         // Scale fire ring to match logo size (same beat scale for cohesion)
-        // Ring innerR=0.5 in local space; scaled by logoSize → inner world radius = 0.5*logoSize
-        // which matches the logo circle edge (PlaneGeometry 1×1 scaled by logoSize → radius 0.5*logoSize)
         const fireScale = logoSize * beatScale;
         fireRef.current.position.set(0, 0, 0.1);
         fireRef.current.scale.set(fireScale, fireScale, 1);
@@ -387,10 +510,10 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
 
   return (
     <>
-      {/* Glow plane — smooth radial falloff, sits behind logo */}
-      <mesh ref={glowRef} renderOrder={5}>
-        <primitive object={glowGeo} attach="geometry" />
-        <primitive object={glowMat} attach="material" />
+      {/* Outer glow plane — smooth radial falloff, sits behind logo */}
+      <mesh ref={outerGlowRef} renderOrder={5}>
+        <primitive object={outerGlowGeo} attach="geometry" />
+        <primitive object={outerGlowMat} attach="material" />
       </mesh>
 
       {/* Fire ring — procedural fBm flames around logo edge */}
@@ -398,6 +521,12 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
         {/* Initial geometry — rebuilt in useFrame when fireHeight changes */}
         <ringGeometry args={[0.5, 0.5 + 0.3, 128, 32]} />
         <primitive object={fireMat} attach="material" />
+      </mesh>
+
+      {/* Inner glow plane — additive, sits in front of logo, behind fire */}
+      <mesh ref={innerGlowRef} renderOrder={8}>
+        <primitive object={innerGlowGeo} attach="geometry" />
+        <primitive object={innerGlowMat} attach="material" />
       </mesh>
 
       {/* Logo mesh — on top */}
