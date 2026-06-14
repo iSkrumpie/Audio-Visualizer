@@ -21,7 +21,6 @@
     "react-dom": "^19.2.0",
     "simplex-noise": "^4.0.3",
     "three": "^0.170.0",
-    "web-audio-beat-detector": "^8.2.20",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
