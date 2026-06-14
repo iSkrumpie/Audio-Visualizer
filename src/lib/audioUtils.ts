@@ -1,7 +1,7 @@
 /**
  * Audio analysis utilities.
  *
- * - FREQ_PRESETS: named frequency-band presets (Kick, Bass, Snare, …)
+ * - FREQ_PRESETS: named frequency-band presets (Kick, Bass, Snare, ...)
  * - sliderToHz / hzToSlider: logarithmic slider ↔ Hz conversion helpers
  * - getBinCountForRange: quality indicator for beat detection
  * - getFreqRangeEnergy: raw average energy in a Hz range (continuous 0..1)
@@ -109,14 +109,18 @@ export class FreqBeatDetector {
   private phase = 0;
   private lastEnergy = 0;
   private _sensitivity = 1.0;
-  private readonly historyLen: number;
+  private readonly historyLen: number;    // nominal value (calibrated for 60 fps)
   private readonly baseThresholdMul: number;
   private readonly minFlux: number;
-  private readonly decay: number;
-  /** Bin width in Hz — required for accurate Hz → bin mapping.
+  private readonly decay: number;          // nominal decay per frame (calibrated for 60 fps)
+  /** Effective decay per frame — scaled by setFrameDuration for non-60fps contexts. */
+  private _effectiveDecay: number;
+  /** Effective history length — scaled by setFrameDuration to cover the same wall-clock window. */
+  private _effectiveHistoryLen: number;
+  /** Bin width in Hz - required for accurate Hz → bin mapping.
    *  Defaults to 48000/2048 (export's AudioContext). The live-preview
    *  AnalyserNode runs in a 48 kHz context too, but some browsers pick
-   *  44.1 kHz — callers MUST pass the actual sampleRate for accuracy. */
+   *  44.1 kHz - callers MUST pass the actual sampleRate for accuracy. */
   private readonly binHz: number;
 
   /**
@@ -138,13 +142,41 @@ export class FreqBeatDetector {
     this.baseThresholdMul = baseThresholdMul;
     this.minFlux = minFlux;
     this.decay = decay;
+    this._effectiveDecay     = decay;
+    this._effectiveHistoryLen = historyLen;
     // 1024 bins for kick analyser (fftSize=2048)
     this.prevBins = new Float32Array(1024);
     this.fluxHistory = new Array(historyLen).fill(0);
   }
 
   /**
-   * Set detection sensitivity (0.1–5.0). Multiplies the effective threshold.
+   * Scale decay and history-window to match real-time behaviour at the
+   * given frame duration, keeping the per-SECOND decay rate and history
+   * window duration constant regardless of actual frame rate.
+   *
+   * The nominal values (decay=0.04, historyLen=40) are calibrated for 60 fps
+   * (dt = 1/60 ≈ 0.01667 s). Calling this with dt = 1/30 doubles the per-frame
+   * decay and halves the frame-count window so the detector behaves identically
+   * in real time at 30 fps as it does at 60 fps in the live preview.
+   *
+   * Also resets the history buffer (new length), so call this BEFORE the export
+   * render loop and AFTER reset() / resetForExport().
+   *
+   * @param dt  Actual frame duration in seconds (e.g. 1/30 for 30 fps).
+   *            Default 1/60 restores nominal 60 fps behaviour.
+   */
+  setFrameDuration(dt: number): void {
+    const scale = dt * 60; // 2.0 at 30 fps, 1.0 at 60 fps, 0.5 at 120 fps
+    this._effectiveDecay      = this.decay * scale;
+    this._effectiveHistoryLen = Math.max(1, Math.round(this.historyLen / scale));
+    // Rebuild the history buffer at the new length (it's already been reset).
+    this.fluxHistory = new Array(this._effectiveHistoryLen).fill(0);
+    this.historyIdx  = 0;
+    this.historyFull = false;
+  }
+
+  /**
+   * Set detection sensitivity (0.1-5.0). Multiplies the effective threshold.
    * Lower value = more sensitive (fires more easily).
    * Higher value = stricter (fires less).
    */
@@ -163,18 +195,19 @@ export class FreqBeatDetector {
    *
    * Required when switching from a live audio stream (e.g. the live preview
    * that trained this detector) to a fresh precomputed stream (the export
-   * pipeline) — without the reset, the first ~40 frames (~0.67s) of the
+   * pipeline) - without the reset, the first ~40 frames (~0.67s) of the
    * export would compare precomputed spectral flux against flux averages
    * trained on live data, producing wrong beat cadences and inconsistent
    * beat-driven animations (grid pulse, scanline beat, logo fire, etc.).
    */
   reset(): void {
     this.prevBins = new Float32Array(1024);
-    this.fluxHistory = new Array(this.historyLen).fill(0);
+    this.fluxHistory = new Array(this._effectiveHistoryLen).fill(0);
     this.historyIdx = 0;
     this.historyFull = false;
     this.phase = 0;
     this.lastEnergy = 0;
+    // Keep _effectiveDecay / _effectiveHistoryLen — caller must set them AFTER reset.
   }
 
   /**
@@ -189,12 +222,12 @@ export class FreqBeatDetector {
    *
    * Pre-filling with minFlux keeps avgFlux at a stable low baseline.
    * Any early spike (flux <= ~0.7) only raises avgFlux to ~0.02, so that
-   * real beats (flux >= 0.05–0.15) still comfortably exceed the threshold.
+   * real beats (flux >= 0.05-0.15) still comfortably exceed the threshold.
    */
   resetForExport(): void {
     this.prevBins = new Float32Array(1024);
-    // Pre-fill with minFlux so a single early spike can’t dominate the history.
-    this.fluxHistory = new Array(this.historyLen).fill(this.minFlux);
+    // Pre-fill with minFlux so a single early spike can't dominate the history.
+    this.fluxHistory = new Array(this._effectiveHistoryLen).fill(this.minFlux);
     this.historyIdx = 0;
     this.historyFull = true; // treat as if the history window is already filled
     this.phase = 0;
@@ -206,7 +239,7 @@ export class FreqBeatDetector {
    * fluxHistory.
    *
    * Used after the export pre-warm pass: the pre-warm runs representative
-   * frames through the detector to calibrate avgFlux to the song’s typical
+   * frames through the detector to calibrate avgFlux to the song's typical
    * beat-flux level. After pre-warm, only phase (to avoid a false-beat
    * spike at the start of the render) and prevBins (to match the actual
    * first frame of the export) need to be cleared. Resetting fluxHistory
@@ -216,7 +249,7 @@ export class FreqBeatDetector {
     this.prevBins = new Float32Array(1024);
     this.phase = 0;
     this.lastEnergy = 0;
-    // fluxHistory intentionally kept — holds the pre-warm calibration
+    // fluxHistory intentionally kept - holds the pre-warm calibration
   }
 
   /**
@@ -229,7 +262,7 @@ export class FreqBeatDetector {
    */
   update(rawFreqData: Uint8Array, freqStartHz: number, freqEndHz: number): number {
     // Kick analyser: fftSize=2048 → 1024 bins. Use the actual sample rate
-    // (constructor-injected) for Hz→bin mapping — hardcoding 44100 here
+    // (constructor-injected) for Hz→bin mapping - hardcoding 44100 here
     // would mis-target bins when the AudioContext runs at 48 kHz, which
     // silently weakens beat detection in the background-shader
     // animations (grid pulse, scanline beat, noise boost, etc.).
@@ -261,10 +294,10 @@ export class FreqBeatDetector {
 
     // ── Rolling average of flux ───────────────────────────────────────
     this.fluxHistory[this.historyIdx] = flux;
-    this.historyIdx = (this.historyIdx + 1) % this.historyLen;
+    this.historyIdx = (this.historyIdx + 1) % this._effectiveHistoryLen;
     if (this.historyIdx === 0) this.historyFull = true;
 
-    const count = this.historyFull ? this.historyLen : Math.max(1, this.historyIdx);
+    const count = this.historyFull ? this._effectiveHistoryLen : Math.max(1, this.historyIdx);
     let sum = 0;
     for (let i = 0; i < count; i++) sum += this.fluxHistory[i];
     const avgFlux = sum / count;
@@ -274,8 +307,10 @@ export class FreqBeatDetector {
       this.phase = 1.0;
     }
 
-    // ── Smooth decay ──────────────────────────────────────────────────
-    this.phase = Math.max(0, this.phase - this.decay);
+    // ── Smooth decay ─────────────────────────────────────────────────────────
+    // Uses _effectiveDecay rather than the nominal decay so the real-time
+    // decay rate stays constant regardless of fps (setFrameDuration scales it).
+    this.phase = Math.max(0, this.phase - this._effectiveDecay);
 
     return this.phase;
   }

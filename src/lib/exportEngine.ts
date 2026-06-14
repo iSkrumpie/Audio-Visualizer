@@ -209,11 +209,13 @@ export async function exportMP4(
     // Start the output - required before any frames can be added
     await output.start();
 
-    // Global beat detector - mirrors useAudioReactive's live detector so the
-    // exported video matches the live preview's audio reactivity exactly.
-    // Sample rate is hard-pinned to 48 kHz (the AudioContext above) for
-    // correct Hz→bin mapping.
-    const globalBeatDetector = new FreqBeatDetector(audioBuffer.sampleRate);
+    // Global beat detector — reuse the shared singleton from the live preview
+    // (exposed on window.__detectors by useAudioReactive.ts). Using the same
+    // instance means both paths accumulate identical flux history when replayed
+    // from frame 0, producing matching beatPhase at every timestamp.
+    // Fall back to a fresh instance only in SSR / test environments.
+    const globalBeatDetector: FreqBeatDetector =
+      (window as any).__detectors?.global ?? new FreqBeatDetector(48000);
 
     onProgress({ phase: 'rendering', progress: 0, message: `Rendering 0/${fftFrames.length} frames...` });
 
@@ -237,51 +239,27 @@ export async function exportMP4(
     let exportFrameNow = exportPerfBase; // will be advanced per frame
     (performance as unknown as { now: () => number }).now = () => exportFrameNow;
 
-    // ── Beat-detector pre-warm pass ─────────────────────────────────────────────────────
-    // Run ~80 frames from the MID-POINT of the song through the render
-    // pipeline without capturing any video frames. Each advance() call
-    // triggers all useFrame callbacks, which call detector.update() with
-    // real song data — filling fluxHistory with the song’s typical
-    // beat-flux level.
+    // ── Deterministic detector reset + fps calibration ────────────────────────────────────────
+    // Full reset so both the global and all component detectors start from the
+    // same clean state as the live preview did at t=0. The export render loop
+    // then feeds frames from index 0 so each detector re-accumulates exactly
+    // the flux history the live preview saw, producing matching beatPhase at
+    // every frame index.
     //
-    // WHY: After detector.reset() or resetForExport(), the first real
-    // audio event (even a tiny one) fires the beat and raises avgFlux.
-    // That inflated threshold then suppresses all subsequent real beats
-    // for the entire export. Pre-warming with 80 representative frames
-    // calibrates the adaptive threshold BEFORE the render loop starts,
-    // so the detector behaves identically to the live preview.
-    //
-    // After pre-warm: resetPhaseAndPrevBins() clears the phase (no false
-    // beat spike at frame 0) and prevBins (so frame 0’s flux is computed
-    // correctly from silence) while keeping the calibrated fluxHistory.
-    {
-      const PREWARM_FRAMES = 80; // two full fluxHistory windows—enough to calibrate
-      const pwStart = Math.max(0, Math.floor(totalFrames / 2) - Math.floor(PREWARM_FRAMES / 2));
-      for (let pw = 0; pw < PREWARM_FRAMES && pwStart + pw < totalFrames; pw++) {
-        const pwFrame = fftFrames[pwStart + pw];
-        audioAnalysis.freqData.set(pwFrame.freqData.subarray(0, 128));
-        audioAnalysis.rawFreqData.set(pwFrame.rawFreqData.subarray(0, 1024));
-        audioAnalysis.bass      = pwFrame.bass;
-        audioAnalysis.loudness  = pwFrame.loudness;
-        audioAnalysis.highs     = pwFrame.highs;
-        audioAnalysis.energy    = pwFrame.energy;
-        // Advance the fake clock so each pre-warm frame also has correct delta.
-        exportFrameNow = exportPerfBase + (pw + 1) * frameDuration * 1000;
-        (performance as unknown as { now: () => number }).now = () => exportFrameNow;
-        if (sceneRegistry.advance) sceneRegistry.advance(pw * frameDuration);
-        (performance as unknown as { now: () => number }).now = origPerfNow;
-        if (pw % 30 === 0) await new Promise((r) => setTimeout(r, 0));
-      }
-      // Reset the fake clock base so the real render loop starts cleanly.
-      exportFrameNow = exportPerfBase;
-    }
-
-    // After pre-warm: zero phase + prevBins but keep the calibrated fluxHistory.
+    // setFrameDuration scales the per-frame decay and history-window length so
+    // the REAL-TIME decay rate stays constant regardless of export fps. Without
+    // this, a 30 fps export decays phase at 1.2/s while the 60 fps live preview
+    // decays at 2.4/s — causing the exported video to show permanently higher
+    // beatPhase values (glows too bright, bars too tall, fire too large).
+    const frameDt = 1 / fps;
+    globalBeatDetector.reset();
+    globalBeatDetector.setFrameDuration(frameDt);
     for (const detector of sceneRegistry.beatDetectors) {
-      (detector.resetPhaseAndPrevBins ?? detector.resetForExport ?? detector.reset).call(detector);
+      detector.reset();
+      detector.setFrameDuration?.(frameDt);
     }
 
-    for (let i = 0; i < totalFrames; i++) {
+        for (let i = 0; i < totalFrames; i++) {
       const frame = fftFrames[i];
 
       // Set audioAnalysis to pre-computed values
@@ -404,6 +382,13 @@ export async function exportMP4(
       cam.updateProjectionMatrix();
     }
 
+    // Restore detectors to nominal 60 fps behaviour so the live preview
+    // resumes with the correct decay rate after export.
+    globalBeatDetector.setFrameDuration(1 / 60);
+    for (const detector of sceneRegistry.beatDetectors) {
+      detector.setFrameDuration?.(1 / 60);
+    }
+
     const buffer = target.buffer;
     if (!buffer) throw new Error('Export failed: no output buffer');
 
@@ -412,6 +397,13 @@ export async function exportMP4(
   } catch (error) {
     // Always restore performance.now if it was patched during the render loop.
     (performance as unknown as { now: () => number }).now = origPerfNow;
+    // Restore detectors to nominal 60 fps in the error path too.
+    try {
+      ((window as any).__detectors?.global as FreqBeatDetector | undefined)?.setFrameDuration(1 / 60);
+      for (const detector of sceneRegistry.beatDetectors) {
+        detector.setFrameDuration?.(1 / 60);
+      }
+    } catch { /* ignore restoration errors */ }
     onProgress({
       phase: 'error',
       progress: 0,

@@ -44,6 +44,13 @@ const BEAT_GLOW_MAX   = 55;    // px, mirrors skrumpie.de CSS var
 // The Hz range and sensitivity are read live from settings each rAF tick.
 const globalBeatDetector = new FreqBeatDetector(48000);
 
+// Expose for the export pipeline so both paths share the same detector
+// instance. The export resets it to clean state and replays from frame 0,
+// producing byte-identical beatPhase at every frame index.
+if (typeof window !== 'undefined') {
+  (window as any).__detectors = { global: globalBeatDetector };
+}
+
 // ── Shared mutable analysis (read by canvas/Three.js render loops) ─────────
 export const audioAnalysis = {
   bass: 0,
@@ -145,7 +152,17 @@ export function useAudioReactive() {
     const kick = ctx.createAnalyser();
     kick.fftSize = KICK_FFT;
     kick.smoothingTimeConstant = KICK_SMOOTHING;
-    // Not connected to destination — analysis-only tap
+    // CRITICAL: AnalyserNodes only process audio when connected downstream.
+    // Route the kick tap through a silent gain to ctx.destination so it
+    // receives every sample. Without this, the kick analyser reports
+    // slightly different magnitudes than the live visual path (and very
+    // different from the export path, where the offline kick analyser IS
+    // connected to destination). The silent gain prevents the user from
+    // hearing the kick audio twice.
+    const kickSilentGain = ctx.createGain();
+    kickSilentGain.gain.value = 0;
+    kick.connect(kickSilentGain);
+    kickSilentGain.connect(ctx.destination);
     kickRef.current = kick;
 
     // Expose for E2E / diagnostic scripts
