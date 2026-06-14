@@ -634,6 +634,37 @@ function BackgroundSection() {
   const [gridWS,   sGridWS]   = useF('background', 'gridWaveSpeed');
   const [gridMv,   sGridMv]   = useF('background', 'gridMovement');
   const [gridCl,   sGridCl]   = useF('background', 'gridColor');
+  // Weather FX
+  const [bgPE,    sBgPE]    = useF('background', 'bgParticlesEnabled');
+  const [bgPCnt,  sBgPCnt]  = useF('background', 'bgParticlesCount');
+  const [bgPSp,   sBgPSp]   = useF('background', 'bgParticlesSpeed');
+  const [bgPSz,   sBgPSz]   = useF('background', 'bgParticlesSize');
+  const [bgPOp,   sBgPOp]   = useF('background', 'bgParticlesOpacity');
+  const [bgPCl,   sBgPCl]   = useF('background', 'bgParticlesColor');
+  const [bgPFS,   sBgPFS]   = useF('background', 'bgParticlesBeatFreqStart');
+  const [bgPFE,   sBgPFE]   = useF('background', 'bgParticlesBeatFreqEnd');
+  const [bgPSen,  sBgPSen]  = useF('background', 'bgParticlesBeatSensitivity');
+  const [rnE,     sRnE]     = useF('background', 'rainEnabled');
+  const [rnCnt,   sRnCnt]   = useF('background', 'rainCount');
+  const [rnSp,    sRnSp]    = useF('background', 'rainSpeed');
+  const [rnAng,   sRnAng]   = useF('background', 'rainAngle');
+  const [rnLen,   sRnLen]   = useF('background', 'rainLength');
+  const [rnWid,   sRnWid]   = useF('background', 'rainWidth');
+  const [rnCl,    sRnCl]    = useF('background', 'rainColor');
+  const [rnOp,    sRnOp]    = useF('background', 'rainOpacity');
+  const [rnFS,    sRnFS]    = useF('background', 'rainBeatFreqStart');
+  const [rnFE,    sRnFE]    = useF('background', 'rainBeatFreqEnd');
+  const [rnSen,   sRnSen]   = useF('background', 'rainBeatSensitivity');
+  const [snE,     sSnE]     = useF('background', 'snowEnabled');
+  const [snCnt,   sSnCnt]   = useF('background', 'snowCount');
+  const [snSp,    sSnSp]    = useF('background', 'snowSpeed');
+  const [snSz,    sSnSz]    = useF('background', 'snowSize');
+  const [snCl,    sSnCl]    = useF('background', 'snowColor');
+  const [snOp,    sSnOp]    = useF('background', 'snowOpacity');
+  const [snSw,    sSnSw]    = useF('background', 'snowSway');
+  const [snFS,    sSnFS]    = useF('background', 'snowBeatFreqStart');
+  const [snFE,    sSnFE]    = useF('background', 'snowBeatFreqEnd');
+  const [snSen,   sSnSen]   = useF('background', 'snowBeatSensitivity');
 
   return (
     <div>
@@ -885,6 +916,106 @@ function BackgroundSection() {
           </FR>
         </EffectCard>
       </Acc>
+
+      <Acc label="Weather FX">
+        <p className="mb-2 font-mono text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>Backdrop particles, rain and snow behind all other elements</p>
+
+        <EffectCard label="Background particles" enabled={bgPE as boolean} onToggle={sBgPE}>
+          <FR label="Count" hint={`${bgPCnt}`}>
+            <Sl value={bgPCnt as number} min={0} max={500} step={10} onChange={sBgPCnt} />
+          </FR>
+          <FR label="Speed">
+            <Sl value={bgPSp as number} min={0} max={3} step={0.05} onChange={sBgPSp} />
+          </FR>
+          <FR label="Size" hint={`${(bgPSz as number).toFixed(1)}px`}>
+            <Sl value={bgPSz as number} min={0.5} max={10} step={0.1} onChange={sBgPSz} />
+          </FR>
+          <FR label="Opacity" hint={`${Math.round((bgPOp as number) * 100)}%`}>
+            <Sl value={bgPOp as number} min={0} max={1} step={0.01} onChange={sBgPOp} />
+          </FR>
+          <FR label="Color"><CP value={bgPCl as string} onChange={sBgPCl} /></FR>
+          <div className="mt-2">
+            <HzRangePicker
+              startHz={bgPFS as number}
+              endHz={bgPFE as number}
+              onChangeStart={sBgPFS}
+              onChangeEnd={sBgPFE}
+            />
+            <div className="mt-2">
+              <FR label="Sensitivity" hint={`${(bgPSen as number).toFixed(2)}×`} sub="Lower = more sensitive">
+                <Sl value={bgPSen as number} min={0.1} max={5.0} step={0.05} onChange={sBgPSen} />
+              </FR>
+            </div>
+          </div>
+        </EffectCard>
+
+        <EffectCard label="Rain" enabled={rnE as boolean} onToggle={sRnE}>
+          <FR label="Count" hint={`${rnCnt}`}>
+            <Sl value={rnCnt as number} min={0} max={1000} step={20} onChange={sRnCnt} />
+          </FR>
+          <FR label="Speed">
+            <Sl value={rnSp as number} min={0} max={5} step={0.1} onChange={sRnSp} />
+          </FR>
+          <FR label="Angle" hint={`${Math.round(rnAng as number)}°`}>
+            <Sl value={rnAng as number} min={-45} max={45} step={1} onChange={sRnAng} />
+          </FR>
+          <FR label="Streak length" hint={`${(rnLen as number).toFixed(1)}`}>
+            <Sl value={rnLen as number} min={0.5} max={8} step={0.1} onChange={sRnLen} />
+          </FR>
+          <FR label="Width" hint={`${(rnWid as number).toFixed(1)}`}>
+            <Sl value={rnWid as number} min={0.1} max={3} step={0.1} onChange={sRnWid} />
+          </FR>
+          <FR label="Opacity" hint={`${Math.round((rnOp as number) * 100)}%`}>
+            <Sl value={rnOp as number} min={0} max={1} step={0.01} onChange={sRnOp} />
+          </FR>
+          <FR label="Color"><CP value={rnCl as string} onChange={sRnCl} /></FR>
+          <div className="mt-2">
+            <HzRangePicker
+              startHz={rnFS as number}
+              endHz={rnFE as number}
+              onChangeStart={sRnFS}
+              onChangeEnd={sRnFE}
+            />
+            <div className="mt-2">
+              <FR label="Sensitivity" hint={`${(rnSen as number).toFixed(2)}×`} sub="Lower = more sensitive">
+                <Sl value={rnSen as number} min={0.1} max={5.0} step={0.05} onChange={sRnSen} />
+              </FR>
+            </div>
+          </div>
+        </EffectCard>
+
+        <EffectCard label="Snow" enabled={snE as boolean} onToggle={sSnE}>
+          <FR label="Count" hint={`${snCnt}`}>
+            <Sl value={snCnt as number} min={0} max={600} step={10} onChange={sSnCnt} />
+          </FR>
+          <FR label="Speed">
+            <Sl value={snSp as number} min={0} max={3} step={0.05} onChange={sSnSp} />
+          </FR>
+          <FR label="Size" hint={`${(snSz as number).toFixed(1)}px`}>
+            <Sl value={snSz as number} min={0.5} max={8} step={0.1} onChange={sSnSz} />
+          </FR>
+          <FR label="Sway" hint={`${(snSw as number).toFixed(1)}`}>
+            <Sl value={snSw as number} min={0} max={3} step={0.1} onChange={sSnSw} />
+          </FR>
+          <FR label="Opacity" hint={`${Math.round((snOp as number) * 100)}%`}>
+            <Sl value={snOp as number} min={0} max={1} step={0.01} onChange={sSnOp} />
+          </FR>
+          <FR label="Color"><CP value={snCl as string} onChange={sSnCl} /></FR>
+          <div className="mt-2">
+            <HzRangePicker
+              startHz={snFS as number}
+              endHz={snFE as number}
+              onChangeStart={sSnFS}
+              onChangeEnd={sSnFE}
+            />
+            <div className="mt-2">
+              <FR label="Sensitivity" hint={`${(snSen as number).toFixed(2)}×`} sub="Lower = more sensitive">
+                <Sl value={snSen as number} min={0.1} max={5.0} step={0.05} onChange={sSnSen} />
+              </FR>
+            </div>
+          </div>
+        </EffectCard>
+      </Acc>
     </div>
   );
 }
@@ -899,14 +1030,22 @@ function LogoSection_() {
   const [bFS,   sBFS]   = useF('logo', 'beatFxFreqStart');
   const [bFE,   sBFE]   = useF('logo', 'beatFxFreqEnd');
   const [bSens, sBSens] = useF('logo', 'beatFxSensitivity');
-  const [gE,    sGE]    = useF('logo', 'glowEnabled');
-  const [gI,    sGI]    = useF('logo', 'glowIntensity');
-  const [gC,    sGC]    = useF('logo', 'glowColor');
-  const [gS,    sGS]    = useF('logo', 'glowSize');
-  const [gB,    sGB]    = useF('logo', 'glowBlur');
-  const [gCM,   sGCM]  = useF('logo', 'glowColorMode');
-  const [gCS,   sGCS]  = useF('logo', 'glowCycleSpeed');
-  const [gCC,   sGCC]  = useF('logo', 'glowCustomColors');
+  const [gE,    sGE]    = useF('logo', 'outerGlowEnabled');
+  const [gI,    sGI]    = useF('logo', 'outerGlowIntensity');
+  const [gC,    sGC]    = useF('logo', 'outerGlowColor');
+  const [gS,    sGS]    = useF('logo', 'outerGlowSize');
+  const [gB,    sGB]    = useF('logo', 'outerGlowBlur');
+  const [gCM,   sGCM]  = useF('logo', 'outerGlowColorMode');
+  const [gCS,   sGCS]  = useF('logo', 'outerGlowCycleSpeed');
+  const [gCC,   sGCC]  = useF('logo', 'outerGlowCustomColors');
+  const [igE,   sIgE]   = useF('logo', 'innerGlowEnabled');
+  const [igI,   sIgI]   = useF('logo', 'innerGlowIntensity');
+  const [igC,   sIgC]   = useF('logo', 'innerGlowColor');
+  const [igS,   sIgS]   = useF('logo', 'innerGlowSize');
+  const [igB,   sIgB]   = useF('logo', 'innerGlowBlur');
+  const [igCM,  sIgCM]  = useF('logo', 'innerGlowColorMode');
+  const [igCS,  sIgCS]  = useF('logo', 'innerGlowCycleSpeed');
+  const [igCC,  sIgCC]  = useF('logo', 'innerGlowCustomColors');
   const [fireE,  sFireE]  = useF('logo', 'fireEnabled');
   const [fireI,  sFireI]  = useF('logo', 'fireIntensity');
   const [fireH,  sFireH]  = useF('logo', 'fireHeight');
@@ -932,7 +1071,7 @@ function LogoSection_() {
         </FR>
       </Acc>
 
-      <Acc label="Glow">
+      <Acc label="Outer Glow">
         <Tg value={gE as boolean} onChange={sGE} label="Enabled" />
         {!!gE && (
           <div className="mt-3 space-y-2">
@@ -1001,6 +1140,80 @@ function LogoSection_() {
             </FR>
             <FR label="Blur" hint={`${gB}px`}>
               <Sl value={gB as number} min={0} max={50} step={1} onChange={sGB} />
+            </FR>
+          </div>
+        )}
+      </Acc>
+
+      <Acc label="Inner Glow">
+        <Tg value={igE as boolean} onChange={sIgE} label="Enabled" />
+        {!!igE && (
+          <div className="mt-3 space-y-2">
+            <FR label="Color mode">
+              <CB
+                value={igCM as string}
+                options={[
+                  { value: 'solid',   label: 'Solid' },
+                  { value: 'rainbow', label: 'Rainbow' },
+                  { value: 'custom',  label: 'Custom' },
+                  { value: 'random',  label: 'Random' },
+                ]}
+                onChange={sIgCM as (v: string) => void}
+              />
+            </FR>
+            {(igCM as string) === 'solid' && (
+              <FR label="Color"><CP value={igC as string} onChange={sIgC} /></FR>
+            )}
+            {((igCM as string) === 'rainbow') && (
+              <FR label="Cycle speed" hint={`${(igCS as number).toFixed(2)}×`}>
+                <Sl value={igCS as number} min={0} max={2} step={0.05} onChange={sIgCS} />
+              </FR>
+            )}
+            {((igCM as string) === 'custom') && (
+              <div className="mt-2 space-y-1">
+                <p className="font-ui text-xs" style={{ color: 'var(--text-muted)' }}>Colors (cycled)</p>
+                {((igCC as string[] | undefined) ?? []).map((col, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <CP
+                      value={col}
+                      onChange={(v) => {
+                        const next = [...((igCC as string[] | undefined) ?? [])];
+                        next[idx] = v;
+                        sIgCC(next);
+                      }}
+                    />
+                    {((igCC as string[] | undefined) ?? []).length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = ((igCC as string[] | undefined) ?? []).filter((_, i) => i !== idx);
+                          sIgCC(next);
+                        }}
+                        className="rounded px-1.5 py-0.5 font-ui text-xs"
+                        style={{ color: 'var(--danger)', border: '1px solid var(--border)' }}
+                      >−</button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => sIgCC([...((igCC as string[] | undefined) ?? []), '#ffffff'])}
+                  className="mt-1 rounded px-2 py-1 font-ui text-xs"
+                  style={{ color: 'var(--accent)', border: '1px solid var(--border)' }}
+                >+ Add color</button>
+                <FR label="Cycle speed" hint={`${(igCS as number).toFixed(2)}×`}>
+                  <Sl value={igCS as number} min={0} max={2} step={0.05} onChange={sIgCS} />
+                </FR>
+              </div>
+            )}
+            <FR label="Intensity" hint={`${igI}%`}>
+              <Sl value={igI as number} min={0} max={100} step={1} onChange={sIgI} />
+            </FR>
+            <FR label="Size" hint={`${(igS as number).toFixed(2)}×`}>
+              <Sl value={igS as number} min={0.5} max={3.0} step={0.05} onChange={sIgS} />
+            </FR>
+            <FR label="Blur" hint={`${igB}px`}>
+              <Sl value={igB as number} min={0} max={50} step={1} onChange={sIgB} />
             </FR>
           </div>
         )}
