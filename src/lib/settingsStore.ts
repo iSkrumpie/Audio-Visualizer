@@ -188,7 +188,7 @@ export type Settings = {
     innerGlowEnabled: boolean;
     innerGlowIntensity: number;      // 0..100
     innerGlowColor: string;
-    innerGlowSize: number;           // 0.5..5.0 (relative to logo)
+    innerGlowSize: number;           // 0.0..1.0 (reach: fraction of logo radius)
     innerGlowBlur: number;           // 0..50, softness of glow spread
     innerGlowColorMode: 'solid' | 'rainbow' | 'custom' | 'random';
     innerGlowCycleSpeed: number;     // 0..2 (rainbow/custom/random cycle speed)
@@ -420,7 +420,9 @@ const DEFAULT_SETTINGS: Settings = {
     innerGlowEnabled: false,
     innerGlowIntensity: 0,
     innerGlowColor: '#6366F1',
-    innerGlowSize: 1.0,
+    // Inner glow reach: 0..1 (fraction of logo radius the glow covers
+    // inward from the rim). 0.5 = glow fills the outer half of the logo.
+    innerGlowSize: 0.5,
     innerGlowBlur: 15,
     innerGlowColorMode: 'solid',
     innerGlowCycleSpeed: 0.3,

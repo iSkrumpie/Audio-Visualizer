@@ -1209,8 +1209,8 @@ function LogoSection_() {
             <FR label="Intensity" hint={`${igI}%`}>
               <Sl value={igI as number} min={0} max={100} step={1} onChange={sIgI} />
             </FR>
-            <FR label="Size" hint={`${(igS as number).toFixed(2)}×`}>
-              <Sl value={igS as number} min={0.5} max={3.0} step={0.05} onChange={sIgS} />
+            <FR label="Reach" hint={`${Math.round((igS as number) * 100)}%`} sub="How far the glow extends inward from the logo edge">
+              <Sl value={igS as number} min={0.0} max={1.0} step={0.01} onChange={sIgS} />
             </FR>
             <FR label="Blur" hint={`${igB}px`}>
               <Sl value={igB as number} min={0} max={50} step={1} onChange={sIgB} />
