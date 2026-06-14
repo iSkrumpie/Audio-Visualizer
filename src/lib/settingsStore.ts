@@ -512,16 +512,16 @@ const DEFAULT_SETTINGS: Settings = {
   },
 
   audio: {
-    globalBeatFreqStart: 40,
-    globalBeatFreqEnd: 120,
-    globalBeatSensitivity: 1.0,
+    globalBeatFreqStart: 30,
+    globalBeatFreqEnd: 160,
+    globalBeatSensitivity: 1.2,
     // v13: pre-analysis pipeline
     detectionMode: 'precomputed',
     bandSensitivity: {
       kick: 1.0,
-      snare: 1.0,
-      vocal: 1.0,
-      hihat: 1.0,
+      snare: 1.2,
+      vocal: 0.8,
+      hihat: 1.4,
     },
     preAnalysisProgress: 0,
     bpm: 0,
