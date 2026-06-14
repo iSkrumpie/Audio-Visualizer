@@ -5,7 +5,7 @@
  * All hardcoded green colors removed — uses var(--accent), var(--text), etc.
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettingsStore, getSettings, type Settings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
 import { usePresetsStore } from '@/lib/presetsStore';
@@ -32,6 +32,20 @@ export function SettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [selectedId, setSelectedId] = useState<string>('');
+
+  // ── Advanced audio toggle (persisted via theme group) ──────────────────────
+  // useF has a defensive fallback for old localStorage entries → default false
+  const [showAdv, setShowAdv] = useF('theme', 'showAdvancedAudio');
+  const visibleSections = useMemo(
+    () => (showAdv ? SECTIONS : SECTIONS.filter((sec) => sec.id !== 'audio')),
+    [showAdv],
+  );
+  const toggleAdvanced = () => {
+    const next = !showAdv;
+    setShowAdv(next);
+    // If the audio tab was active and we're hiding it, fall back to Background
+    if (!next && section === 'audio') setSection('background');
+  };
 
   const handlePresetChange = (id: string) => {
     setSelectedId(id);
@@ -156,6 +170,21 @@ export function SettingsPanel() {
                   <SaveIcon />
                   {saving ? 'Confirm' : 'Save'}
                 </button>
+
+                {/* Advanced audio toggle — reveals the Audio tab */}
+                <button
+                  type="button"
+                  onClick={toggleAdvanced}
+                  title={showAdv ? 'Hide Audio tab' : 'Show Audio tab (advanced)'}
+                  className="flex h-[30px] flex-shrink-0 items-center justify-center rounded-md border px-2 font-ui text-[10px] font-medium transition-colors"
+                  style={{
+                    background: showAdv ? 'var(--bg-elev-2)' : 'transparent',
+                    borderColor: showAdv ? 'var(--accent)' : 'var(--border)',
+                    color: showAdv ? 'var(--accent)' : 'var(--text-dim)',
+                  }}
+                >
+                  ADV
+                </button>
               </div>
 
               {/* Inline name input — shown when saving */}
@@ -200,7 +229,7 @@ export function SettingsPanel() {
               className="flex flex-wrap gap-1 border-b px-3 py-2"
               style={{ borderColor: 'var(--border)' }}
             >
-              {SECTIONS.map((s) => (
+              {visibleSections.map((s) => (
                 <button
                   key={s.id}
                   type="button"

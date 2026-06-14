@@ -55,6 +55,9 @@ export type Settings = {
     accent: string;
     /** Secondary palette color — particles secondary hue */
     secondary: string;
+    /** Show the Audio tab in SettingsPanel (power-user / advanced toggle).
+     *  Default false — hidden from casual users. Detection pipeline still runs. */
+    showAdvancedAudio: boolean;
   };
 
   background: {
@@ -336,6 +339,7 @@ const DEFAULT_SETTINGS: Settings = {
     mode: 'dark',
     accent: '#6366F1',
     secondary: '#22D3EE',
+    showAdvancedAudio: false,
   },
 
   background: {
