@@ -340,6 +340,32 @@ export const SETTING_HINTS: Record<string, string> = {
   'logo.fireSensitivity':
     'How easily the fire reacts to quieter beats.',
 
+  // ── Logo: Sparks ──────────────────────────────────────────────────────────
+  'logo.sparksEnabled':
+    'Adds a ring of glowing embers that fly out from the logo. Toggle on and try different styles — Weld for sharp metal-spark bursts, Volcanic for slow rising embers, Ambient for a constant floating glow.',
+  'logo.sparksStyle':
+    'Weld = short sharp bursts, white-hot. Volcanic = slow rising, orange-to-red. Ambient = constant soft flow.',
+  'logo.sparksCount':
+    'How many sparks are in the constant ambient pool. More = denser look but slightly more GPU cost.',
+  'logo.sparksSize':
+    'How big each spark is. Try 0.5 for subtle, 1.5 for bold.',
+  'logo.sparksSpeed':
+    'How fast the sparks fly outward from the logo. Higher = more energetic.',
+  'logo.sparksBurstCount':
+    'How many extra sparks fire on every kick / beat. 0 = no bursts (ambient only), 50+ = dramatic bursts.',
+  'logo.sparksLifetime':
+    'How long each spark lives before fading. Short (0.4s) = sharp metallic feel. Long (2.5s) = lingering embers.',
+  'logo.sparksGravity':
+    'How strongly sparks fall after spawning. 0 = no gravity (float in space), 5+ = heavy drop like real metal sparks.',
+  'logo.sparksDrag':
+    'Air resistance on the sparks. Higher = sparks slow down faster.',
+  'logo.sparksSpread':
+    'How wide the spawn angle is around the logo. 0° = all from one side, 90° = sparks from a quarter of the ring.',
+  'logo.sparksSpawnMix':
+    '0 = sparks spawn only at the logo rim. 1 = sparks also spawn at the flame tips (denser).',
+  'logo.sparksOpacity':
+    'Overall brightness of the sparks. Lower = ghostly, higher = punchy.',
+
   // ── Bars ──────────────────────────────────────────────────────────────────
   'bars.enabled':
     'Show or hide the circular frequency bars around the logo.',
@@ -490,6 +516,8 @@ export const ACCORDION_DESCRIPTIONS: Record<string, string> = {
     'Atmospheric particle effects: floating dust, falling rain, and drifting snow.',
 
   // Logo tab
+  'logo.sparks':
+    'Glowing embers and sparks that fly outward from the logo. Three styles: Weld (sharp bursts), Volcanic (slow rise), Ambient (constant glow).',
   'logo.size':
     'Control the size and visibility of the logo, and how it bounces on the beat.',
   'logo.outerGlow':
@@ -631,6 +659,15 @@ export const ENUM_HINTS: Record<string, Record<string, string>> = {
       'You choose the palette — great for branded multi-color looks.',
     'random':
       'Color changes randomly each cycle. Wild and unpredictable.',
+  },
+
+  'logo.sparksStyle': {
+    'weld':
+      'Short sharp bursts of white-hot sparks, like welding or grinding metal.',
+    'volcanic':
+      'Slow rising embers, orange-to-red. Like lava or a bonfire.',
+    'ambient':
+      'Constant soft floating glow around the logo. Calm and atmospheric.',
   },
 
   'logo.innerGlowColorMode': {

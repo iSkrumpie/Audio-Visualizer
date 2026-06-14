@@ -16,6 +16,7 @@ import { NebulaPlane } from './NebulaPlane';
 import { InstancedBars } from './InstancedBars';
 import { GPUParticles } from './GPUParticles';
 import { CenterLogo } from './CenterLogo';
+import { LogoSparks } from './LogoSparks';
 import { PostFX } from './PostFX';
 
 // Exported registry for the export pipeline and live-preview rAF driver
@@ -126,6 +127,7 @@ export function AudioScene({ className, style }: AudioSceneProps) {
       <InstancedBars />
       <GPUParticles />
       <CenterLogo />
+      <LogoSparks />
       <PostFX />
     </Canvas>
   );
