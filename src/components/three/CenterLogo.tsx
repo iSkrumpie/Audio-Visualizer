@@ -102,18 +102,20 @@ void main() {
 // ─── Fire ShaderMaterial sources ──────────────────────────────────────────────
 
 const FIRE_VERT = /* glsl */ `
-varying vec2 vUv;
+varying vec3 vWorldPos;
 uniform float uTime;
 uniform float uFrBass;
 
 void main() {
-  vUv = uv;
-  vec3 pos = position;
+  // Pass world position for polar UV computation in fragment shader
+  vec4 worldPos = modelMatrix * vec4(position, 1.0);
+  vWorldPos = worldPos.xyz;
 
-  // Ruffle the outer edge with multi-wave displacement
-  float outerWeight = smoothstep(0.3, 1.0, uv.y);
-  float wave = sin(uv.x * 12.0 + uTime * 3.5) * 0.04
-             + sin(uv.x * 7.0  - uTime * 2.1) * 0.025;
+  // Keep the radial ripple for nice edge variation
+  vec3 pos = position;
+  float outerWeight = smoothstep(0.3, 1.0, length(position.xy) * 2.0);
+  float wave = sin(atan(position.y, position.x) * 12.0 + uTime * 3.5) * 0.04
+             + sin(atan(position.y, position.x) * 7.0  - uTime * 2.1) * 0.025;
   wave *= outerWeight * (1.0 + uFrBass * 1.5);
   vec2 radialDir = normalize(pos.xy);
   pos.xy += radialDir * wave;
@@ -123,7 +125,8 @@ void main() {
 `;
 
 const FIRE_FRAG = /* glsl */ `
-varying vec2 vUv;
+varying vec3 vWorldPos;
+
 uniform float uTime;
 uniform float uFrBass;
 uniform float uFrBeat;
@@ -131,63 +134,160 @@ uniform float uFrIntensity;
 uniform vec3  uFrColorInner;
 uniform vec3  uFrColorMid;
 uniform vec3  uFrColorOuter;
+uniform float uFrHeight;
+uniform float uFrKick;
+uniform float uFrHihat;
+uniform float uFrVocal;
 
-// Value noise helpers (fr_ prefix for ANGLE safety)
-float fr_hash(vec2 p) {
-  p = fract(p * vec2(127.1, 311.7));
-  p += dot(p, p + 18.5453);
-  return fract(p.x * p.y);
+// ─── Value noise + FBM (fr_ prefix for ANGLE safety) ─────────────────────────
+
+float fr_hash(vec2 fr_p) {
+  fr_p = fract(fr_p * vec2(127.1, 311.7));
+  fr_p += dot(fr_p, fr_p + 18.5453);
+  return fract(fr_p.x * fr_p.y);
 }
 
-float fr_vnoise(vec2 p) {
-  vec2 fr_i = floor(p);
-  vec2 fr_f = fract(p);
+float fr_vnoise(vec2 fr_p) {
+  vec2 fr_i = floor(fr_p);
+  vec2 fr_f = fract(fr_p);
   vec2 fr_u = fr_f * fr_f * (3.0 - 2.0 * fr_f);
   return mix(
-    mix(fr_hash(fr_i),              fr_hash(fr_i + vec2(1.0, 0.0)), fr_u.x),
+    mix(fr_hash(fr_i),                  fr_hash(fr_i + vec2(1.0, 0.0)), fr_u.x),
     mix(fr_hash(fr_i + vec2(0.0, 1.0)), fr_hash(fr_i + vec2(1.0, 1.0)), fr_u.x),
     fr_u.y
   );
 }
 
-float fr_fbm(vec2 p) {
+float fr_fbm(vec2 fr_p) {
   float fr_v = 0.0;
   float fr_a = 0.5;
-  mat2  fr_m = mat2(1.6, 1.2, -1.2, 1.6);
-  for (int fr_o = 0; fr_o < 5; fr_o++) {
-    fr_v += fr_a * fr_vnoise(p);
-    p     = fr_m * p;
+  mat2  fr_m = mat2(0.8, -0.6, 0.6, 0.8);
+  for (int fr_o = 0; fr_o < 4; fr_o++) {
+    fr_v += fr_a * fr_vnoise(fr_p);
+    fr_p  = fr_m * fr_p * 2.05 + vec2(17.2, 9.4);
     fr_a *= 0.5;
   }
   return fr_v;
 }
 
+// IQ-style domain warping (single level for performance budget)
+float fr_warpedFbm(vec2 fr_p, float fr_t) {
+  vec2 fr_q = vec2(
+    fr_fbm(fr_p + vec2(0.0, 0.0) + fr_t * 0.30),
+    fr_fbm(fr_p + vec2(5.2, 1.3) - fr_t * 0.20)
+  );
+  return fr_fbm(fr_p + 3.0 * fr_q + vec2(fr_t * 0.10, 0.0));
+}
+
+// ─── Blackbody color gradient (5 stops, user-tintable) ──────────────────────
+// fr_heat: 0 = outer/cool/tip, 1 = inner/hot/base
+
+vec3 fr_fireColor(float fr_heat, vec3 fr_cInner, vec3 fr_cMid, vec3 fr_cOuter) {
+  vec3 fr_dark   = fr_cOuter * 0.10;
+  vec3 fr_red    = fr_cOuter;
+  vec3 fr_orange = fr_cMid;
+  vec3 fr_yellow = mix(fr_cMid, fr_cInner, 0.5);
+  vec3 fr_white  = fr_cInner;
+
+  vec3 fr_col = mix(fr_dark,   fr_red,    smoothstep(0.00, 0.25, fr_heat));
+  fr_col = mix(fr_col, fr_orange, smoothstep(0.18, 0.50, fr_heat));
+  fr_col = mix(fr_col, fr_yellow, smoothstep(0.42, 0.72, fr_heat));
+  fr_col = mix(fr_col, fr_white,  smoothstep(0.68, 1.00, fr_heat));
+  return fr_col;
+}
+
+// ─── Flame tongue: individual wisp/lick along the ring ───────────────────────
+
+float fr_flameTongue(float fr_localX, float fr_center, float fr_start,
+                     float fr_length, float fr_width, float fr_wobble, float fr_t) {
+  float fr_x = clamp((fr_localX - fr_start) / max(fr_length, 0.001), 0.0, 1.0);
+  float fr_active = smoothstep(0.0, 0.08, fr_x) * (1.0 - smoothstep(0.9, 1.0, fr_x));
+  float fr_curve = fr_center + sin(fr_x * 8.0 + fr_t) * fr_wobble
+                             + sin(fr_x * 17.0 - fr_t * 1.3) * fr_wobble * 0.46;
+  float fr_taper = fr_width * pow(1.0 - fr_x, 1.42);
+  return fr_active * (1.0 - smoothstep(fr_taper, fr_taper + 0.045,
+                                       abs(0.5 - fr_curve + 0.5)));
+}
+
+// ─── Main ────────────────────────────────────────────────────────────────────
+
 void main() {
-  float fr_radial = vUv.y;  // 0 = inner (base), 1 = outer (tip)
-  float fr_circ   = vUv.x;  // 0..1 around circumference
+  // ── Polar coordinates from world position ─────────────────────────────
+  float fr_angle  = atan(vWorldPos.y, vWorldPos.x);         // -PI..PI
+  float fr_localX = fract(fr_angle / 6.28318 + 0.5);        // 0..1 around arc
 
-  vec2  fr_noiseUv = vec2(fr_circ * 4.0, fr_radial * 2.5 - uTime * 0.9);
-  float fr_n1      = fr_fbm(fr_noiseUv);
-  float fr_n2      = fr_fbm(fr_noiseUv * 1.8 + vec2(3.7, uTime * 0.4));
-  float fr_noise   = fr_n1 * 0.65 + fr_n2 * 0.35;
+  float fr_radius = length(vWorldPos.xy);
+  float fr_innerR = 0.5;
+  float fr_outerR = uFrHeight + 0.5;
 
-  float fr_baseMask  = smoothstep(0.0, 0.08, fr_radial);
-  float fr_bassLift  = 1.0 + uFrBass * 0.6 + uFrBeat * 0.3;
-  float fr_scaledR   = fr_radial / fr_bassLift;
-  float fr_threshold = fr_scaledR + fr_noise * 0.45;
-  float fr_flame     = smoothstep(1.0, 0.5, fr_threshold);
-  fr_flame *= fr_baseMask;
-  fr_flame *= uFrIntensity;
+  float fr_localY = clamp((fr_radius - fr_innerR) / max(fr_outerR - fr_innerR, 0.001), 0.0, 1.0);
+  // 0 = inner rim (logo edge), 1 = outer tip
 
-  if (fr_flame < 0.01) discard;
+  // ── Audio-driven base lift (height surges on kick) ───────────────────
+  float fr_baseLift = 1.0 + uFrKick * 0.35 + uFrBeat * 0.15;
 
-  float fr_heat = 1.0 - fr_scaledR;
-  vec3 fr_col = mix(uFrColorOuter, uFrColorMid, smoothstep(0.0, 0.4, fr_heat));
-  fr_col      = mix(fr_col, uFrColorInner,      smoothstep(0.4, 0.9, fr_heat));
-  fr_col     += vec3(1.0) * uFrBeat * smoothstep(0.8, 1.0, fr_heat) * 0.4;
-  fr_col     *= fr_flame;
+  // ── Flame flow noise: scrolls OUTWARD (away from logo) ───────────────
+  vec2  fr_noiseUv = vec2(fr_localX * 3.5, fr_localY * 4.2 - uTime * (0.9 + uFrHihat * 0.4));
+  float fr_flow = fr_warpedFbm(fr_noiseUv, uTime);
 
-  gl_FragColor = vec4(fr_col, fr_flame * 0.95);
+  // Fine noise on top
+  vec2  fr_fineUv = vec2(fr_localX * 7.6 + sin(fr_localY * 5.0 + uTime) * 0.25,
+                          fr_localY * 6.3 - uTime * 0.55) * 2.15;
+  float fr_fine = fr_vnoise(fr_fineUv + vec2(uTime * 0.35, 0.0));
+  float fr_noise = fr_flow * 0.70 + fr_fine * 0.30;
+
+  // ── Animated flame center line ───────────────────────────────────────
+  float fr_flameCenter = 0.5 + sin(fr_localX * 11.0 - uTime * 2.2) * 0.035
+                               + (fr_noise - 0.5) * 0.10;
+
+  // ── Flame band (the "tongue" of fire at this angle) ──────────────────
+  float fr_tipTaper = smoothstep(0.65, 1.0, fr_localY);
+  float fr_flameWidth = mix(0.40, 0.14, fr_tipTaper);
+  fr_flameWidth += (fr_noise - 0.5) * 0.10 * (1.0 - fr_tipTaper * 0.35);
+
+  float fr_dy = abs(fr_localY - fr_flameCenter);
+  float fr_flame = 1.0 - smoothstep(fr_flameWidth, fr_flameWidth + 0.10, fr_dy);
+
+  // ── Add 3 flame tongues for individual wisps ────────────────────────
+  float fr_t1 = fr_flameTongue(fr_localX, 0.36, 0.06, 0.88, 0.12, 0.035, uTime * 2.1);
+  float fr_t2 = fr_flameTongue(fr_localX, 0.54, 0.00, 0.98, 0.22, 0.045, uTime * 1.7 + 1.8);
+  float fr_t3 = fr_flameTongue(fr_localX, 0.66, 0.11, 0.73, 0.10, 0.035, uTime * 2.5 + 3.4);
+  float fr_tongues = max(max(fr_t1, fr_t2), fr_t3);
+  fr_flame = max(fr_flame, fr_tongues * 0.85);
+
+  // ── Hard inner cut (logo is the fuel source) ────────────────────────
+  float fr_innerCut = smoothstep(0.0, 0.025, fr_localY);
+  fr_flame *= fr_innerCut;
+
+  // ── Tip dissipation (ragged torn edge) ───────────────────────────────
+  float fr_tipNoise = fr_noise * 0.18 - 0.09;
+  float fr_dissipation = 1.0 - smoothstep(0.7 + fr_tipNoise, 0.95 + fr_tipNoise, fr_localY);
+  fr_flame *= fr_dissipation;
+
+  // ── Base lift effect (height surges on kick) ────────────────────────
+  fr_flame *= fr_baseLift;
+
+  // ── Hard cutoff for fully transparent pixels ─────────────────────────
+  if (fr_flame < 0.012) discard;
+
+  // ── Color: blackbody gradient (heat = 1 - localY, plus noise variation)
+  float fr_heat = 1.0 - fr_localY;
+  fr_heat += (fr_noise - 0.5) * 0.20;
+  fr_heat = clamp(fr_heat, 0.0, 1.0);
+
+  vec3 fr_col = fr_fireColor(fr_heat, uFrColorInner, uFrColorMid, uFrColorOuter);
+
+  // Vocal boost shifts color hotter (toward white)
+  fr_col = mix(fr_col, vec3(1.0, 0.97, 0.88), uFrVocal * 0.25);
+
+  // Beat flash: brief white-hot spike
+  fr_col += vec3(1.0) * uFrBeat * 0.35 * smoothstep(0.6, 1.0, fr_heat);
+
+  // ── Final alpha: flame mask x intensity ─────────────────────────────
+  float fr_alpha = fr_flame * uFrIntensity * (0.85 + uFrHihat * 0.20);
+
+  // Pre-multiplied for additive blending
+  gl_FragColor = vec4(fr_col * fr_alpha, fr_alpha);
 }
 `;
 
@@ -360,6 +460,11 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     uFrColorInner: { value: new THREE.Color('#ff2200') },
     uFrColorMid:   { value: new THREE.Color('#ff7700') },
     uFrColorOuter: { value: new THREE.Color('#ffee88') },
+    // v16: new uniforms
+    uFrHeight:     { value: 0.5 },
+    uFrKick:       { value: 0.0 },
+    uFrHihat:      { value: 0.0 },
+    uFrVocal:      { value: 0.0 },
   }), []);
 
   const fireMat = useMemo(() => new THREE.ShaderMaterial({
@@ -553,6 +658,11 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     fireUniforms.uFrColorInner.value.set(s.fireColorInner);
     fireUniforms.uFrColorMid.value.set(s.fireColorMid);
     fireUniforms.uFrColorOuter.value.set(s.fireColorOuter);
+    // v16: new per-band uniforms
+    fireUniforms.uFrHeight.value = s.fireHeight;
+    fireUniforms.uFrKick.value   = audioAnalysis.kickPhase  ?? 0;
+    fireUniforms.uFrHihat.value  = audioAnalysis.hihatPhase ?? 0;
+    fireUniforms.uFrVocal.value  = audioAnalysis.vocalPhase ?? 0;
   });
 
   return (
