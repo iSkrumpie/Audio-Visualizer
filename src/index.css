@@ -409,3 +409,163 @@ input[type='color']::-moz-color-swatch {
   background: transparent;
   height: 16px;
 }
+
+/* ===========================================================================
+ * Hint Popover — companion to <Hint/> in src/components/Hint.tsx
+ *
+ * The trigger button (.hint-trigger) is styled by Task C.
+ * This block styles the popover body, arrow, and animations.
+ * The popover is rendered via createPortal() at the document body level,
+ * positioned with inline left/top styles computed from getBoundingClientRect().
+ * =========================================================================== */
+
+.hint-popover {
+  position: fixed;             /* paired with createPortal + inline left/top */
+  z-index: 9999;               /* above all panels, modals, overlays */
+  max-width: 260px;
+  min-width: 120px;
+  padding: 8px 10px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.2);
+  color: var(--text);
+  font-family: inherit;        /* match surrounding UI font */
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  pointer-events: auto;        /* allow hover to keep it open */
+  user-select: none;
+  /* Subtle backdrop blur if supported — looks great over the visualizer */
+  backdrop-filter: blur(8px) saturate(1.2);
+  -webkit-backdrop-filter: blur(8px) saturate(1.2);
+}
+
+/* Arrow/triangle pointing toward the trigger. Positioned absolutely within
+ * the popover, on the side OPPOSITE the trigger (i.e. the side closest to
+ * the popover's outer edge).
+ *
+ * The Hint component already renders a small CSS triangle via
+ * ::before/::after on the popover. The Hint passes an inline class or
+ * data-attribute to indicate the side: data-side="right" means the trigger
+ * is to the right of the popover, so the arrow should be on the popover's
+ * RIGHT edge pointing right. */
+
+.hint-popover::before {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
+  /* Default: hidden. The Hint component toggles a data-side attribute. */
+  display: none;
+}
+
+/* Trigger on the right → arrow on the popover's right edge, pointing right */
+.hint-popover[data-side="right"]::before {
+  display: block;
+  right: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-left-color: var(--border-strong);
+  border-right: 0;
+}
+.hint-popover[data-side="right"]::after {
+  content: '';
+  position: absolute;
+  right: -11px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
+  border-left-color: var(--bg-elev-2);
+  border-right: 0;
+  z-index: 1;
+}
+
+/* Trigger below the popover → arrow on the bottom edge, pointing down */
+.hint-popover[data-side="bottom"]::before {
+  display: block;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-top-color: var(--border-strong);
+  border-bottom: 0;
+}
+.hint-popover[data-side="bottom"]::after {
+  content: '';
+  position: absolute;
+  bottom: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
+  border-top-color: var(--bg-elev-2);
+  border-bottom: 0;
+  z-index: 1;
+}
+
+/* Trigger on the left → arrow on the popover's left edge, pointing left */
+.hint-popover[data-side="left"]::before {
+  display: block;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-right-color: var(--border-strong);
+  border-left: 0;
+}
+.hint-popover[data-side="left"]::after {
+  content: '';
+  position: absolute;
+  left: -11px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
+  border-right-color: var(--bg-elev-2);
+  border-left: 0;
+  z-index: 1;
+}
+
+/* Trigger above the popover → arrow on the top edge, pointing up */
+.hint-popover[data-side="top"]::before {
+  display: block;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-bottom-color: var(--border-strong);
+  border-top: 0;
+}
+.hint-popover[data-side="top"]::after {
+  content: '';
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
+  border-bottom-color: var(--bg-elev-2);
+  border-top: 0;
+  z-index: 1;
+}
+
+/* Disable backdrop-filter on browsers without support (graceful degrade).
+ * The visual is still readable, just no glassmorphism. */
+@supports not (backdrop-filter: blur(8px)) {
+  .hint-popover {
+    background: var(--bg-elev-2);
+  }
+}
+
+/* Reduced motion: kill the framer-motion scale-in animation via CSS */
+@media (prefers-reduced-motion: reduce) {
+  .hint-popover {
+    animation: none !important;
+    transition: none !important;
+  }
+}
