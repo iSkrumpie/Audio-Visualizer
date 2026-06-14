@@ -63,8 +63,10 @@ void main() {
 `;
 
 // ─── Inner Glow fragment shader ───────────────────────────────────────────────
-// Alpha peaks at the logo edge, decays INWARD toward center.
-// soft falloff: exp(-falloff^2/blur^2), fade to 0 at center via smoothstep.
+// Geometry is sized to the LOGO (so vUv 0..1 == full logo disc). uIgSize
+// is the inner-glow REACH: 0.0 = glow only at the very edge, 1.0 = glow
+// covers the entire logo. Decays from logo edge INWARD toward center.
+// Soft falloff: exp(-d^2/b^2), faded to 0 at the disc center.
 
 const INNER_GLOW_FRAG = /* glsl */ `
 varying vec2 vUv;
@@ -78,19 +80,16 @@ void main() {
   vec2  ig_center  = vUv - 0.5;
   float ig_dist    = length(ig_center) * 2.0;
 
-  float ig_logoEdge = 1.0 / uIgSize;
-  // falloff is positive when we're inside the logo edge (moving toward center)
-  float ig_falloff  = max(0.0, ig_logoEdge - ig_dist);
-  float ig_blur     = max(0.01, uIgBlur * 0.02);
-  float ig_alpha    = exp(-ig_falloff * ig_falloff / (ig_blur * ig_blur));
+  // ig_reach: 0..1 — how far from the rim the glow reaches inward
+  float ig_reach   = clamp(uIgSize, 0.0, 1.0);
+  // distance INTO the glow band, starting at the rim (0 at rim, grows toward center)
+  float ig_into     = max(0.0, ig_reach - ig_dist);
+  float ig_blur     = max(0.01, uIgBlur * 0.05);
+  float ig_alpha    = exp(-ig_into * ig_into / (ig_blur * ig_blur));
 
-  // Mirror of outer's edge fade: bring alpha to 0 at the very center
-  float ig_edgeFade = smoothstep(0.0, 0.3, ig_dist);
-  ig_alpha *= ig_edgeFade;
-
-  // Clip to just inside the logo boundary (no spill outside)
-  float ig_outerClip = 1.0 - smoothstep(ig_logoEdge - 0.05, ig_logoEdge + 0.1, ig_dist);
-  ig_alpha *= ig_outerClip;
+  // Hard-clip anything outside the logo disc (uIgSize > 1 would otherwise leak)
+  float ig_discMask = 1.0 - smoothstep(0.98, 1.0, ig_dist);
+  ig_alpha *= ig_discMask;
 
   ig_alpha *= uIgIntensity * (1.0 + uIgBeat * 0.5);
 
@@ -445,11 +444,14 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     outerGlowUniforms.uGwBeat.value      = logoBeat;
 
     // ── Inner Glow plane ─────────────────────────────────────────────────────
+    // The plane is sized to the LOGO (uIgSize is a shader-side reach, not a
+    // plane multiplier — see INNER_GLOW_FRAG). The shader fades from the rim
+    // inward based on uIgSize, so a smaller plane would crop the glow ring.
     const innerGlowEnabled = s.innerGlowEnabled ?? DEFAULT_SETTINGS.logo.innerGlowEnabled;
     if (innerGlowRef.current) {
       innerGlowRef.current.visible = innerGlowEnabled;
       if (innerGlowEnabled) {
-        const innerPlaneSize = logoSize * (s.innerGlowSize ?? DEFAULT_SETTINGS.logo.innerGlowSize);
+        const innerPlaneSize = logoSize;
         innerGlowRef.current.position.set(0, 0, 0.05);
         innerGlowRef.current.scale.set(innerPlaneSize, innerPlaneSize, 1);
         innerGlowRef.current.rotation.z = rotRef.current;
