@@ -135,6 +135,7 @@ src/
 │   ├── HzRangePicker.tsx    # Shared: 10 Preset-Buttons + log-Dual-Slider + Bin-Quality-Indicator
 │   └── three/
 │       ├── AudioScene.tsx       # <Canvas> frameloop="never", advance() via sceneRegistry
+│       ├── BackgroundFx.tsx     # 3 backdrop effects: free particles, rain streaks, snow flakes — all behind logo (z=-9.5, renderOrder=1)
 │       ├── BackgroundPlane.tsx  # ALLE Hintergrund-Effekte im GLSL-Shader (nur BG-Layer!):
 │       │                        # blur, sharpen, CA, bloom, noise, scanlines, glitch,
 │       │                        # pixelation, dot, grid, sepia, colorAvg,
@@ -163,7 +164,7 @@ src/
     ├── audioUtils.ts        # getFreqRangeEnergy() - Hz→Bin-Mapping
     │                        # FreqBeatDetector - Spectral-Flux Onset-Detection (pro Komponente eine Instanz)
     │                        # FREQ_PRESETS, sliderToHz/hzToSlider (log), getBinCountForRange
-    ├── settingsStore.ts     # zustand + persist(key='audiovisualizer:settings:v11', v=11)
+    ├── settingsStore.ts     # zustand + persist(key='audiovisualizer:settings:v12', v=12)
     │                        # DEFAULT_SETTINGS ist exportiert (für useF-Defensive-Defaults)
     ├── presetsStore.ts      # zustand + persist(key='audiovisualizer:presets:v1')
     ├── exportEngine.ts      # Mediabunny-MP4-Pipeline + AAC-Bitrate-Probe
@@ -261,8 +262,8 @@ exportMP4(file, options)
 
 ### 4.6 Settings-Store (localStorage)
 
-- Key: `audiovisualizer:settings:v11`
-- `version: 11`, `migrate: () => DEFAULT_SETTINGS` → bei Schema-Bump alles wipen
+- Key: `audiovisualizer:settings:v12`
+- `version: 12`, `migrate: () => DEFAULT_SETTINGS` → bei Schema-Bump alles wipen
 - `DEFAULT_SETTINGS` ist **exportiert** (für `useF`-Defensive-Defaults bei alten Presets - siehe §6)
 - **Gruppen:**
 
@@ -270,8 +271,8 @@ exportMP4(file, options)
 |--------|--------|
 | `theme` | `mode`, `accent`, `secondary` (Palette-Farben, kein eigener Tab) |
 | `audio` (NEU v11) | `globalBeatFreqStart`, `globalBeatFreqEnd` (Hz, default 40-120 = Kick), `globalBeatSensitivity` (0.1-5.0, default 1.0). Treibt den globalen `FreqBeatDetector` in `useAudioReactive` + `exportEngine` → schreibt `audioAnalysis.beatPhase`. |
-| `background` | blur, brightness, saturation, contrast, hueShift, sharpen, tint (color/opacity/mode), **beatFxFreqStart/beatFxFreqEnd** (HzRangePicker), **beatFxSensitivity** (0.1-5.0), scaleOnBeat (0..0.5), vignette (enabled/strength), nebula (enabled/intensity/color1/color2/driftSpeed/reactivity/scale/offsetX/offsetY + **nebulaBeatMode/FreqStart/End/Sensitivity** für optionalen Pulse-Mode), PostFX: bloom (enabled/intensity/threshold), CA (enabled/offset), noise (enabled/intensity/speed/beatReactivity/scale/colorMode), scanlines (enabled/density/speed/beatReactivity/thickness), glitch (enabled/delay/strength/RGBSplit/BlockSize/BlockProb/Vertical/BeatSync/Decay), sepia (enabled/intensity), pixelation (enabled/granularity/beatReactivity/wave/waveSpeed), dotscreen (enabled/scale/rotation/rotSpeed/beatScale/colorSep), grid (enabled/scale/pulseStrength/wave/waveSpeed/movement/color), colorAverage (enabled) |
-| `logo` | enabled, size (80-1600), opacity, **beatScaleStrength**, **beatFxFreqStart/beatFxFreqEnd** (HzRangePicker), **beatFxSensitivity**, glow (enabled/intensity/**color (Solid-Mode)/size/glowBlur** + **colorMode ('solid'\|'rainbow'\|'custom'\|'random')**, **cycleSpeed (rainbow/custom)**, **customColors (string[]) (custom-Mode)**), fire (enabled/intensity/height/speed/inner/mid/outerColor/**reactivity/freqStart/freqEnd/sensitivity**). - shape/cornerRadius/**beatRotationBurst**/ring entfernt (v11), Logo ist immer circle, kein Rotation-Burst mehr. |
+| `background` | blur, brightness, saturation, contrast, hueShift, sharpen, tint (color/opacity/mode), **beatFxFreqStart/beatFxFreqEnd** (HzRangePicker), **beatFxSensitivity** (0.1-5.0), scaleOnBeat (0..0.5), vignette (enabled/strength), nebula (enabled/intensity/color1/color2/driftSpeed/reactivity/scale/offsetX/offsetY + **nebulaBeatMode/FreqStart/End/Sensitivity** für optionalen Pulse-Mode), PostFX: bloom (enabled/intensity/threshold), CA (enabled/offset), noise (enabled/intensity/speed/beatReactivity/scale/colorMode), scanlines (enabled/density/speed/beatReactivity/thickness), glitch (enabled/delay/strength/RGBSplit/BlockSize/BlockProb/Vertical/BeatSync/Decay), sepia (enabled/intensity), pixelation (enabled/granularity/beatReactivity/wave/waveSpeed), dotscreen (enabled/scale/rotation/rotSpeed/beatScale/colorSep), grid (enabled/scale/pulseStrength/wave/waveSpeed/movement/color), colorAverage (enabled), **bgParticles** (bgParticlesEnabled/Count/Speed/Size/Opacity/Color/BeatFreqStart/BeatFreqEnd/BeatSensitivity), **rain** (rainEnabled/Count/Speed/Angle/Length/Width/Color/Opacity/BeatFreqStart/BeatFreqEnd/BeatSensitivity), **snow** (snowEnabled/Count/Speed/Size/Color/Opacity/Sway/BeatFreqStart/BeatFreqEnd/BeatSensitivity) |
+| `logo` | enabled, size (80-1600), opacity, **beatScaleStrength**, **beatFxFreqStart/beatFxFreqEnd** (HzRangePicker), **beatFxSensitivity**, **outerGlow** (outerGlowEnabled/Intensity/Color/Size/Blur/ColorMode/CycleSpeed/CustomColors), **innerGlow** (innerGlowEnabled/Intensity/Color/Size/Blur/ColorMode/CycleSpeed/CustomColors — soft falloff from logo edge toward center), fire (enabled/intensity/height/speed/inner/mid/outerColor/**reactivity/freqStart/freqEnd/sensitivity**). - shape/cornerRadius/**beatRotationBurst**/ring entfernt (v11), Logo ist immer circle, kein Rotation-Burst mehr. v12: Glow → Outer Glow + new Inner Glow (soft falloff). |
 | `bars` | enabled, count, thickness, lengthScale, innerRadius, rotationSpeed, rotationOnBeat, colorMode (solid/rainbow/custom/random), solidColor, customColors (string[]), customFreqBoundaries (number[]), reactivity, freqStart/freqEnd (Bin-Index, für Height-Mapping - **separat** von beatFreq*), opacity, minHeight, gapSize, smoothing, peakEnabled, peakDecay - **NEU v11: beatFreqStart/beatFreqEnd (HzRangePicker) + beatSensitivity** für eigenen Bars-Beat-Boost. mirror entfernt |
 | `particles` | enabled, count, size, orbitRadius, speed, spread, kickBurstStrength, opacity, sizeOnBeat, colorMode (solid/rainbow/custom/random), solidColor, customColors (string[]), customFreqBoundaries (number[]), reactiveFreqStart/reactiveFreqEnd (HzRangePicker), **reactiveSensitivity**, orbitMode (circular/elliptical/scatter), ellipseRatio, particleShape (circle/star/diamond), blendMode, connectionLines, connectionDistance, connectionOpacity, twinkle, twinkleSpeed - monoColor/reactiveAxis entfernt |
 
@@ -291,7 +292,7 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 | Tab | Accordions |
 |-----|-----------|
 | Background | Image · Tint · **Beat FX (HzRangePicker + Sensitivity)** · Vignette · **Nebula/Fog (Scale+Offset + optional Beat-Pulse Mode)** · Glow FX · Color FX (CA, Sepia, ColorAvg) · Effects (Noise+anim, Scanlines+anim, Glitch+Controls+beatReactivity, Pixelation+beatReactivity, DotScreen+anim, Grid+anim) |
-| Logo | Size · **Glow (ColorMode solid/rainbow/custom/random + CycleSpeed)** · **Fire Ring (HzRangePicker + Sensitivity)** · **Animation (HzRangePicker + Sensitivity, kein Rotation-Burst mehr)** |
+| Logo | Size · **Outer Glow (ColorMode solid/rainbow/custom/random + CycleSpeed)** · **Inner Glow (soft falloff, same ColorMode controls)** · **Fire Ring (HzRangePicker + Sensitivity)** · **Animation (HzRangePicker + Sensitivity, kein Rotation-Burst mehr)** |
 | Bars | General · Shape · Frequency · Animation · Size & Radius · Peaks · **Beat Boost (HzRangePicker + Sensitivity, NEU v11)** · **Custom Colors** (bei colorMode=custom) |
 | Particles | General · Shape & Size · Orbit · **Physics (HzRangePicker + Sensitivity)** · Connections · Flicker · **Custom Colors** (bei colorMode=custom) |
 
@@ -318,17 +319,19 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 
 | Komponente | Liest Settings aus | Besonderheiten |
 |-----------|-------------------|----------------|
+| `BackgroundFx` | `settings.background.{bgParticles,rain,snow}.*` | 3× FreqBeatDetector für per-Effect Beat-Reaktivität. Screen-fill THREE.Points mit custom Shaders, AdditiveBlending, depthWrite=false, z=-9.5/renderOrder=1. Shader-Prefixes: bpv_/bpf_ (BG-Particles), rpv_/rp_ (Rain), snv_/sn_ (Snow). |
 | `BackgroundPlane` | `settings.background.*`, `settings.theme.mode` | Alle Hintergrund-Effekte im GLSL-Shader. NUR Hintergrund betroffen. useFrame hat `delta` für `uTime` (Noise/Glitch). ANGLE-Variablen-Prefix-Regel! **1× FreqBeatDetector** (useMemo) → `setSensitivity(beatFxSensitivity) + update(rawFreqData, beatFxFreqStart, beatFxFreqEnd)`. Bloom: 9×9 2D Gaussian Kernel, 1-Texel-Stride. |
 | `NebulaPlane` | `settings.background.nebula*` | fBM-Simplex-Fog, 2 Farben, audio-reaktiv, nebulaScale + nebulaOffsetX/Y. **Optional Pulse-Mode** (`nebulaBeatMode`): eigener `FreqBeatDetector` + neuer `uAudioPulse` uniform im `nebula.frag` (np_ prefix). Default OFF → alte bass+loudness Waber-Logik bleibt. |
 | `PostFX` | - | **Permanenter Stub**, immer `null`. Kein EffectComposer. |
 | `InstancedBars` | `settings.bars.*` | MAX_BARS=256, 2. InstancedMesh für Peak-Dots, freqStart/freqEnd remappt FFT-Bins (Height); colorMode custom/random per-Bar-Color via Instanced Attribute. **Eigener FreqBeatDetector** (barsBeatDetector) → `setSensitivity(beatSensitivity) + update(rawFreqData, beatFreqStart, beatFreqEnd)` für `barH += beat * 25 * scale` Boost. |
-| `CenterLogo` | `settings.logo.*` | Immer circle; canvas-Circular-Mask; **ShaderMaterial Glow-Plane** (CircleGeometry 64seg, radial falloff + edge-fade smoothstep, glowBlur uniform). **Glow Color-Modi** (JS-side, nicht im Shader): solid / rainbow (HSL-cycle) / custom (lerp durch glowCustomColors) / random (4 session-fixed Farben). **Fire-Ring** = RingGeometry (innerR=0.5, outerR=0.5+fireHeight) + fBm-Noise-ShaderMaterial. Scale = `logoSize * beatScale` (nicht `* 2` - bug-Fix v11). z=0.1, renderOrder=7 → zeichnet ÜBER dem Logo. **2× FreqBeatDetector** (logoBeatDetector + fireBeatDetector) → setSensitivity + update. **kein** beatRotationBurst mehr. |
+| `CenterLogo` | `settings.logo.*` | Immer circle; canvas-Circular-Mask; **Outer Glow ShaderMaterial** (OUTER_GLOW_FRAG, z=-0.1, renderOrder=5, alpha peaks just outside logo edge, falls off outward). **Inner Glow ShaderMaterial** (INNER_GLOW_FRAG, z=+0.05, renderOrder=8, AdditiveBlending, soft falloff from logo edge inward to center). Shared `computeGlowColor()` helper für beide Glow-Arten. **Glow Color-Modi**: solid / rainbow / custom / random (modul-level helper `computeGlowColor`). **Fire-Ring** = RingGeometry (innerR=0.5, outerR=0.5+fireHeight) + fBm-Noise-ShaderMaterial. Scale = `logoSize * beatScale`. z=0.1, renderOrder=7. **2× FreqBeatDetector** (logoBeatDetector + fireBeatDetector). v12: glow → outerGlow + new innerGlow fields. |
 | `GPUParticles` | `settings.particles.*` | Custom Shader mit uShape (circle/star/diamond), LineSegments für connectionLines (O(n2), cap 200), orbitMode elliptical/scatter. **1× FreqBeatDetector** (particleBeatDetector) → setSensitivity(reactiveSensitivity) + update(rawFreqData, reactiveFreqStart, reactiveFreqEnd). |
 
 ### 4.10 Z-Layering (von hinten nach vorne)
 
 ```
 -10  BackgroundPlane   (alle BG-Effekte im Shader)
+-9.5 BackgroundFx (Particles+Rain+Snow) renderOrder=1
  -8  NebulaPlane
  -5  InstancedBars (renderOrder=3)
 -3.1 GPUParticles LineSegments (renderOrder=3)
@@ -345,13 +348,16 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 |---|---|---|---|
 | global | `useAudioReactive.ts` (module-level) + `exportEngine.ts` (eigene Instanz) | `settings.audio.globalBeatFreq*` + `globalBeatSensitivity` | `rawFreqData`, `globalBeatFreqStart`, `globalBeatFreqEnd` |
 | background | `BackgroundPlane.tsx` (`beatDetector`) | `settings.background.beatFxFreq*` + `beatFxSensitivity` | `rawFreqData`, `beatFxFreqStart`, `beatFxFreqEnd` |
+| bg-particles | `BackgroundFx.tsx` (`bgParticlesBeatDetector`) | `settings.background.bgParticlesBeatFreq*` + `bgParticlesBeatSensitivity` | `rawFreqData`, `bgParticlesBeatFreqStart`, `bgParticlesBeatFreqEnd` |
+| rain | `BackgroundFx.tsx` (`rainBeatDetector`) | `settings.background.rainBeatFreq*` + `rainBeatSensitivity` | `rawFreqData`, `rainBeatFreqStart`, `rainBeatFreqEnd` |
+| snow | `BackgroundFx.tsx` (`snowBeatDetector`) | `settings.background.snowBeatFreq*` + `snowBeatSensitivity` | `rawFreqData`, `snowBeatFreqStart`, `snowBeatFreqEnd` |
 | logo | `CenterLogo.tsx` (`logoBeatDetector`) | `settings.logo.beatFxFreq*` + `beatFxSensitivity` | `rawFreqData`, `beatFxFreqStart`, `beatFxFreqEnd` |
 | fire | `CenterLogo.tsx` (`fireBeatDetector`) | `settings.logo.fireFreq*` + `fireSensitivity` | `rawFreqData`, `fireFreqStart`, `fireFreqEnd` |
 | particles | `GPUParticles.tsx` (`particleBeatDetector`) | `settings.particles.reactiveFreq*` + `reactiveSensitivity` | `rawFreqData`, `reactiveFreqStart`, `reactiveFreqEnd` |
 | bars | `InstancedBars.tsx` (`barsBeatDetector`) | `settings.bars.beatFreq*` + `beatSensitivity` | `rawFreqData`, `beatFreqStart`, `beatFreqEnd` |
 | nebula-pulse | `NebulaPlane.tsx` (`nebulaBeatDetector`) | `settings.background.nebulaBeatFreq*` + `nebulaBeatSensitivity` | `rawFreqData`, `nebulaBeatFreqStart`, `nebulaBeatFreqEnd` |
 
-**7 Instanzen gesamt** (1 global, 6 komponenten-spezifisch). Alle nutzen `setSensitivity()` VOR `update()` im useFrame.
+**10 Instanzen gesamt** (1 global, 9 komponenten-spezifisch). Alle nutzen `setSensitivity()` VOR `update()` im useFrame.
 
 **Detektor-Konstruktion:** Alle Component-Instanzen: `new FreqBeatDetector(48000)` mit hartcodiertem 48 kHz sampleRate. Constructor-Param `sampleRate` ist Pflicht (default 48000), weil die Hz→bin-Map sonst bei 44.1 kHz vs. 48 kHz Contexts driften würde. Tatsächliche Sample-Rate im Live-Stream hängt vom `AudioContext` ab (Browser-Default, meist 48 kHz); im Export ist es hartcodiert 48 kHz (`new AudioContext({ sampleRate: 48000 })` in `exportEngine.ts:88`).
 
@@ -385,7 +391,7 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 - **sceneRegistry.advance() MUSS aufgerufen werden** - `frameloop="never"` heißt: ohne `advance()` kein Render, kein `useFrame`. Live-Preview: rAF-Tick. Export: in der Frame-Loop.
 - **sceneRegistry muss befüllt sein vor exportMP4** - User muss einmal Play gedrückt haben.
 - **Settings-Schema-Bump**: `version` in `settingsStore.ts` erhöhen + Storage-Key ändern. Sonst crasht alter localStorage.
-- **Aktueller Storage-Key**: `audiovisualizer:settings:v11`. Bei Schema-Änderung auf `v12` bumpen UND `migrate: () => DEFAULT_SETTINGS` (kompletter Reset). `DEFAULT_SETTINGS` ist exportiert für defensive useF-Fallbacks.
+- **Aktueller Storage-Key**: `audiovisualizer:settings:v12`. Bei Schema-Änderung auf `v13` bumpen UND `migrate: () => DEFAULT_SETTINGS` (kompletter Reset). `DEFAULT_SETTINGS` ist exportiert für defensive useF-Fallbacks.
 - **Alte Presets & Schema-Bumps**: `useF`-Hook gibt `DEFAULT_SETTINGS[group][key]` zurück wenn ein Feld im aktuellen State `undefined` ist. Das fängt Presets ab, die vor dem letzten Schema-Bump gespeichert wurden - das UI sieht nie `undefined` und crashed nicht. Im `useFrame` der Three.js-Komponenten gibt es zusätzliche `??`-Fallbacks als Defense-in-Depth.
 - **🔴 ANGLE/Windows GLSL-Regel (KRITISCH)**: ANGLE (Chromes WebGL auf Windows) akzeptiert KEINE gleichen Variablennamen in parallelen `if/else`-Blöcken oder Schleifen in derselben Funktion → stiller Shader-Compile-Fehler → schwarzes Bild. **Regel für BackgroundPlane.tsx**: `vec2 ts` einmalig am Anfang von `void main()`, jeder Block/Loop hat eindeutigen Prefix: bl=blur, sh=sharpen, ca=CA, bm=bloom, ns=noise, sc=scanlines, dt=dot, gd=grid, pix=pixelation, gl_=glitch, cg=color grading, tnt=tint, vg=vignette, gr=gradient.
 - **BackgroundPlane = alle BG-Effekte**: PostFX.tsx ist permanenter Stub. Alle Background-Tab-Effekte laufen im `BackgroundPlane`-Shader → betreffen nur Hintergrund-Layer.
@@ -442,6 +448,7 @@ Bei 30-fps-Export und 60-fps-Live-Preview: ohne Normalisierung decayed `phase` b
 
 | Was passieren soll | Datei |
 |---|---|
+| BG weather effects (particles/rain/snow) | `BackgroundFx.tsx` + `settingsStore.background.{bgParticles*,rain*,snow*}` |
 | Hintergrund-Effekt ändern (Blur, Tint, Bloom, CA, etc.) | `BackgroundPlane.tsx` Shader + Uniforms in useFrame + `settingsStore.background` |
 | Neuen Hintergrund-Effekt hinzufügen | `BackgroundPlane.tsx` erweitern - ANGLE-Prefix-Regel beachten! |
 | Bars-Settings | `InstancedBars.tsx` + `settingsStore.bars` |
