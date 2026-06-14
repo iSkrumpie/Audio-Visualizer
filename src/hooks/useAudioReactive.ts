@@ -107,8 +107,10 @@ export function useAudioReactive() {
 
     // Expose for E2E debugging
     if (typeof window !== 'undefined') {
-      (window as unknown as { __audioCtx?: AudioContext; __visualAnalyser?: AnalyserNode }).__audioCtx = ctx;
-      (window as unknown as { __audioCtx?: AudioContext; __visualAnalyser?: AnalyserNode }).__visualAnalyser = visual;
+      (window as unknown as { __audioCtx?: AudioContext; __visualAnalyser?: AnalyserNode; __kickAnalyser?: AnalyserNode }).__audioCtx = ctx;
+      (window as unknown as { __audioCtx?: AudioContext; __visualAnalyser?: AnalyserNode; __kickAnalyser?: AnalyserNode }).__visualAnalyser = visual;
+      (window as unknown as { __kickAnalyser?: AnalyserNode }).__kickAnalyser = kick;
+      (window as unknown as { __audioEl?: HTMLAudioElement }).__audioEl = audioEl;
     }
   }, []);
 
