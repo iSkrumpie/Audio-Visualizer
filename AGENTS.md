@@ -605,3 +605,74 @@ git reset --hard <hash>             # nur nach User-Freigabe
 ```
 
 **Erinnerung:** Nach jeder Änderung committen - Details in **§ 0.4** (Commit-Pflicht).
+
+---
+
+## 10. Session 13 — Audio Detection Overhaul
+
+*Major rewrite of the audio detection pipeline. settingsStore bumped to v13. New `precomputed` mode runs essentia.js (BPM + Beat Ticks + Key) in a Web Worker + multi-band onset detection (Kick/Snare/Vocal/HiHat) in the OfflineAudioContext pipeline. All 7 per-component FreqBeatDetectors can now read pre-analysis phases for frame-accurate beat sync.*
+
+### 10.1 New `audio.*` settings (v13)
+
+| Field | Type | Default | Purpose |
+|---|---|---|---|
+| `detectionMode` | `'live' \| 'precomputed'` | `'precomputed'` | Live = legacy spectral-flux; precomputed = essentia.js + multi-band onsets. |
+| `bandSensitivity.kick/snare/vocal/hihat` | 0..2 each | 1.0 | Per-band gain multipliers applied to the corresponding pre-analysis phase. |
+| `preAnalysisProgress` | 0..1 | 0 | Mirrored from the worker pipeline to drive the SettingsPanel progress bar. |
+| `bpm` | 0..300 | 0 | Detected BPM (filled by essentia). |
+| `key` | string | `''` | Detected key (e.g. `'C#'`, `'Bb'`). |
+| `scale` | `'major' \| 'minor' \| ''` | `''` | Detected scale. |
+| `keyInfluence` | 0..1 | 0.5 | How strongly `key` / `band-driven` colorModes mix with theme accent. |
+
+### 10.2 New `audioAnalysis` fields
+
+`kickPhase`, `snarePhase`, `vocalPhase`, `hihatPhase` (all 0..1) populated by the pre-analysis pipeline in both live preview (via useAudioReactive rAF tick) and export (via exportEngine per-frame loop). `bpm`, `key`, `scale` are filled once at analysis completion. `preAnalysisProgress` is updated live by the worker.
+
+### 10.3 New files
+
+- `src/lib/preAnalysis.ts` — Promise-based wrapper around the essentia worker.
+- `src/lib/analysisBundle.ts` — unified pre-analysis pipeline (decode + essentia + fft) returning a typed `AnalysisBundle { frames, essentia, sampleRate, duration }`.
+- `src/lib/keyColors.ts` — `keyToHue()`, `keyToPalette()`, `bandPhasesToColor()` for key-derived and band-driven color modes.
+- `src/hooks/usePhaseSource.ts` — runtime helper that returns a per-frame phase function switching between precomputed/live based on `audio.detectionMode`.
+- `src/workers/essentiaAnalyzer.worker.ts` — Web Worker running essentia.js RhythmExtractor2013 + KeyExtractor.
+- `src/workers/essentia.d.ts` — local type declarations for essentia.js (no upstream .d.ts).
+
+### 10.4 essentia.js license note
+
+`essentia.js@0.1.3` is **AGPLv3**. This is the only AGPL dependency in the project. Acceptable for the personal / open-source scope of this app; commercial distribution should swap to `meyda` (MIT) + custom DSP. Binary WASM is loaded, source code is not linked or modified — should be within the AGPL's "aggregation" tolerance for non-commercial use.
+
+### 10.5 Phase source mapping (v13)
+
+| Component       | Detector          | precomputed field |
+|-----------------|-------------------|-------------------|
+| BackgroundPlane | `beatDetector`    | `kickPhase` |
+| CenterLogo (logo) | `logoBeatDetector` | `kickPhase` |
+| CenterLogo (fire) | `fireBeatDetector` | `vocalPhase` |
+| GPUParticles    | `particleBeatDetector` | `snarePhase` |
+| InstancedBars   | `barsBeatDetector` | `kickPhase` |
+| NebulaPlane     | `nebulaBeatDetector` | `hihatPhase` |
+| BackgroundFx (bgParticles) | `bgParticlesBeatDetector` | `kickPhase` |
+| BackgroundFx (rain) | `rainBeatDetector` | `snarePhase` |
+| BackgroundFx (snow) | `snowBeatDetector` | `hihatPhase` |
+
+**Total: 9 phase sources** (1 global beat via ticks + 8 component-specific pre-analysis fields). All registered via `useBeatDetectorRegistration` for export-reset compatibility.
+
+### 10.6 `now.md` rollback anchor
+
+For the duration of the v13 migration, `now.md` is the rollback anchor. It captures the pre-v13 state (af2e2b8 + 795b025) with exact reset commands. After v13 stabilises, `now.md` can be deleted or kept as a historical record.
+
+### 10.7 Verifikation
+
+`scripts/verify-export.mjs` was extended to read and report the v13 fields:
+
+  - `kickPhase`, `snarePhase`, `vocalPhase`, `hihatPhase` deltas preview vs export
+  - `bpm`, `key`, `scale`, `preAnalysisProgress` from both preview and bundle
+  - `ticks` count in the bundle
+
+Pass thresholds unchanged (SSIM ≥ 0.80, bass Δ ≤ 0.02, energy Δ = 0.0, beatPhase Δ ≤ 0.10). The new per-band deltas are informational — no pass/fail gate yet.
+
+### 10.8 Known v13 limitations
+
+- **Pre-analysis time**: ~8-15s for a 3-min track. Visualizer runs in 'live' mode during this period and switches to 'precomputed' once done. Visible as a delayed "lock-in" — the user can change detectionMode in SettingsPanel to bypass.
+- **essentia.js WASM bundle**: ~5 MB unminified, 2 MB gzipped. Loaded in a Worker (separate chunk via Vite's `?worker` import).
+- **AGPLv3**: see §10.4. If you need to remove essentia.js, swap `runEssentiaAnalysis` in `analysisBundle.ts` for a meyda-based equivalent.
