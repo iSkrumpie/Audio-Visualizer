@@ -11,13 +11,14 @@ import { useSettingsStore, getSettings, type Settings, DEFAULT_SETTINGS } from '
 import { usePresetsStore } from '@/lib/presetsStore';
 import { HzRangePicker } from '@/components/HzRangePicker';
 
-type Section = 'background' | 'logo' | 'bars' | 'particles';
+type Section = 'background' | 'logo' | 'bars' | 'particles' | 'audio';
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: 'background', label: 'Background' },
   { id: 'logo',       label: 'Logo' },
   { id: 'bars',       label: 'Bars' },
   { id: 'particles',  label: 'Particles' },
+  { id: 'audio',      label: 'Audio' },
 ];
 
 export function SettingsPanel() {
@@ -222,6 +223,7 @@ export function SettingsPanel() {
               {section === 'logo'       && <LogoSection_ />}
               {section === 'bars'       && <BarsSection />}
               {section === 'particles'  && <ParticlesSection />}
+              {section === 'audio'      && <AudioSection />}
             </div>
           </motion.div>
         )}
@@ -1367,6 +1369,149 @@ function CustomColorEditor({ group }: { group: 'bars' | 'particles' }) {
   );
 }
 
+// ── Audio Section (v13: pre-analysis pipeline) ──────────────────────────────────
+function AudioSection() {
+  // Detection mode toggle (Live / Precomputed)
+  const [detMode, sDetMode]   = useF('audio', 'detectionMode');
+  // Per-band gain (kick / snare / vocal / hihat)
+  const [kickG,   sKickG]     = useF('audio', 'bandSensitivity');
+  const [snareG,  sSnareG]    = useF('audio', 'bandSensitivity');
+  const [vocalG,  sVocalG]    = useF('audio', 'bandSensitivity');
+  const [hihatG,  sHihatG]    = useF('audio', 'bandSensitivity');
+  // Key influence for 'key-derived' / 'band-driven' colorModes
+  const [keyInf,  sKeyInf]    = useF('audio', 'keyInfluence');
+  // Detected song metadata (filled by pre-analysis pipeline)
+  const [bpm]                 = useF('audio', 'bpm');
+  const [key]                 = useF('audio', 'key');
+  const [scale]               = useF('audio', 'scale');
+  const [progress]            = useF('audio', 'preAnalysisProgress');
+
+  // Legacy global beat knobs (always available for both modes)
+  const [gbStart, sGbStart]   = useF('audio', 'globalBeatFreqStart');
+  const [gbEnd,   sGbEnd]     = useF('audio', 'globalBeatFreqEnd');
+  const [gbSens,  sGbSens]    = useF('audio', 'globalBeatSensitivity');
+
+  const isPrecomputed = (detMode as string) === 'precomputed';
+  const hasResults    = bpm as number > 0;
+
+  return (
+    <div>
+      <Acc label="Detection Mode" defaultOpen>
+        <FR label="Mode" hint={isPrecomputed ? 'Pre-analysed' : 'Live spectral flux'}>
+          <CB value={detMode as string}
+            options={[
+              { value: 'precomputed', label: 'Pre-analysed' },
+              { value: 'live',        label: 'Live' },
+            ]}
+            onChange={sDetMode as (v: string) => void}
+          />
+        </FR>
+        <FR label="" hint="Pre-analysed runs essentia.js (BPM, Beat-Ticks, Key) + 4-band onset detection in a Web Worker. Live uses the legacy FreqBeatDetector running on raw FFT.">
+          <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Pre-analysed mode is more accurate (frame-accurate beat sync, separate
+            kick/snare/vocal/hihat phases) but adds ~5-10s to first audio load.
+            Live is instant but less accurate on complex beats.
+          </div>
+        </FR>
+        {isPrecomputed && (
+          <FR label="Progress" hint={(progress as number) < 1 ? `${Math.round((progress as number) * 100)}%` : 'Done'}>
+            <div className="h-2 w-full overflow-hidden rounded" style={{ background: 'var(--bg-elev-2)' }}>
+              <div
+                style={{
+                  width: `${(progress as number) * 100}%`,
+                  height: '100%',
+                  background: 'var(--accent)',
+                  transition: 'width 200ms ease',
+                }}
+              />
+            </div>
+          </FR>
+        )}
+      </Acc>
+
+      {isPrecomputed && hasResults && (
+        <Acc label="Detected Song Metadata" defaultOpen>
+          <FR label="Tempo" hint={`${(bpm as number).toFixed(1)} BPM`}>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Detected via essentia.js RhythmExtractor2013 (multifeature).
+              Used for tick-based beat phase synchronisation.
+            </div>
+          </FR>
+          <FR label="Key" hint={(key as string) && (scale as string)
+              ? `${key} ${scale}`
+              : (key as string) || '—'}>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Detected via essentia.js KeyExtractor. Used by colorMode='Key'
+              on bars and particles to color-shift with the song's emotional centre.
+            </div>
+          </FR>
+        </Acc>
+      )}
+
+      {isPrecomputed && (
+        <Acc label="Band Sensitivity" defaultOpen>
+          <FR label="Kick" hint={`×${(kickG as any).kick?.toFixed(2) ?? '1.00'}`}>
+            <Sl value={(kickG as any).kick as number} min={0} max={2} step={0.05}
+              onChange={(v) => sKickG({ ...(kickG as any), kick: v })} />
+          </FR>
+          <FR label="Snare" hint={`×${(snareG as any).snare?.toFixed(2) ?? '1.00'}`}>
+            <Sl value={(snareG as any).snare as number} min={0} max={2} step={0.05}
+              onChange={(v) => sSnareG({ ...(snareG as any), snare: v })} />
+          </FR>
+          <FR label="Vocal" hint={`×${(vocalG as any).vocal?.toFixed(2) ?? '1.00'}`}>
+            <Sl value={(vocalG as any).vocal as number} min={0} max={2} step={0.05}
+              onChange={(v) => sVocalG({ ...(vocalG as any), vocal: v })} />
+          </FR>
+          <FR label="Hi-Hat" hint={`×${(hihatG as any).hihat?.toFixed(2) ?? '1.00'}`}>
+            <Sl value={(hihatG as any).hihat as number} min={0} max={2} step={0.05}
+              onChange={(v) => sHihatG({ ...(hihatG as any), hihat: v })} />
+          </FR>
+          <FR label="" hint="Per-band gain applied to the 4 onset-phase signals. 1.0 = neutral, >1 = amplify, <1 = dampen. Affects all components that read the per-band phases in pre-analysed mode.">
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              The bars/particles colorMode='Bands' uses these phases directly
+              (kick=red, snare=yellow, vocal=blue, hihat=cyan), and logo/background
+              beat reactivity uses them for layer-specific triggers.
+            </div>
+          </FR>
+        </Acc>
+      )}
+
+      <Acc label="Key Influence" defaultOpen={false}>
+        <FR label="Key → Color blend" hint={`${((keyInf as number) * 100).toFixed(0)}%`}>
+          <Sl value={keyInf as number} min={0} max={1} step={0.05} onChange={sKeyInf as (v: number) => void} />
+        </FR>
+        <FR label="" hint="How strongly the detected key shifts bars/particles when colorMode='Key' or 'Bands'. 0 = no effect (uses neutral hue), 1 = pure key colour.">
+          <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            At 50% the key colour is blended 50/50 with the theme accent.
+            At 100% the bars/particles are pure-key coloured regardless of theme.
+          </div>
+        </FR>
+      </Acc>
+
+      <Acc label="Legacy Global Beat" defaultOpen={false}>
+        <FR label="" hint="These settings apply in both modes (Live always uses them, Precomputed uses them for the global beatPhase driver — logo pulse, glow, etc.)">
+          <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            The 7 per-component FreqBeatDetectors (Background, Logo, Fire, Particles,
+            Bars, Nebula-Pulse) read their own per-component sensitivity in Precomputed
+            mode — but the GLOBAL beatPhase fed to <code>--beat-glow</code> and
+            <code>audioAnalysis.beatPhase</code> is driven by THIS range. Adjust
+            to e.g. emphasise snares (150-800 Hz) over kicks (40-120 Hz).
+          </div>
+        </FR>
+        <FR label="Freq start (Hz)" hint={`${gbStart} Hz`}>
+          <Sl value={gbStart as number} min={20} max={20000} step={10} onChange={sGbStart as (v: number) => void} />
+        </FR>
+        <FR label="Freq end (Hz)" hint={`${gbEnd} Hz`}>
+          <Sl value={gbEnd as number} min={20} max={20000} step={10} onChange={sGbEnd as (v: number) => void} />
+        </FR>
+        <FR label="Sensitivity" hint={`×${(gbSens as number).toFixed(2)}`}>
+          <Sl value={gbSens as number} min={0.1} max={5} step={0.05} onChange={sGbSens as (v: number) => void} />
+        </FR>
+      </Acc>
+    </div>
+  );
+}
+
 // ── Bars Section ──────────────────────────────────────────────────────────────
 
 function BarsSection() {
@@ -1409,6 +1554,8 @@ function BarsSection() {
               { value: 'custom',  label: 'Custom' },
               { value: 'random',  label: 'Random' },
               { value: 'solid',   label: 'Solid' },
+              { value: 'key-derived', label: 'Key' },
+              { value: 'band-driven',  label: 'Bands' },
             ]}
             onChange={sCm as (v: string) => void}
           />
@@ -1538,6 +1685,8 @@ function ParticlesSection() {
               { value: 'rainbow', label: 'Rainbow' },
               { value: 'custom',  label: 'Custom' },
               { value: 'random',  label: 'Random' },
+              { value: 'key-derived', label: 'Key' },
+              { value: 'band-driven',  label: 'Bands' },
             ]}
             onChange={sCm as (v: string) => void}
           />
