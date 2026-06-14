@@ -755,3 +755,156 @@ The new defaults are deliberately **more aggressive** than the essentia / mireya
 - [snaredevil/snaredevil — mireya-bpm-engine](https://github.com/snaredevil/snaredevil) — most directly comparable open-source beat detection (TypeScript, May 2026)
 - [DobbiKov/mixxx-analyzer](https://github.com/DobbiKov/mixxx-analyzer) — Mixxx C++ Rust port, half-wave rectified spectral flux
 - [elekktronaut.com — Beat Detection tutorial](https://www.elekktronaut.com/tutorials/beat-detection) — VJ/visualizer practitioner perspective
+
+---
+
+## 12. Session 15 — Hint-System: Plain-Language UX
+
+*6-commit refactor that adds per-control (i)-tooltips to every setting in the app. SettingsPanel is now self-documenting — users without audio/animation knowledge can hover any control and get a 1-2 sentence plain-language explanation.*
+
+### 12.1 The 5 + 1 commits
+
+| # | Commit | File(s) | What |
+|---|---|---|---|
+| 1 | `095a056` | `src/components/Hint.tsx` (NEW, 410 lines) | Reusable `<Hint/>` popover component. Hover (300ms) + click-to-pin. framer-motion animated. Portal-rendered. Auto-flips near viewport edges. Escape closes, click-outside closes. SSR-safe. |
+| 2 | `8f804c1` | `src/lib/hints.ts` (NEW, 653 lines) | Central plain-language text repository. ~110 per-setting hints, 27 accordion descriptions, 36 enum-value explanations. Pure data, no React. |
+| 3 | `f8ff0cf` | `src/index.css` (+160 lines) | `.hint-popover` body styling + `.hint-trigger` button. Glassmorphism via `backdrop-filter`, `prefers-reduced-motion` respected. |
+| 4 | `204643b` | `src/components/SettingsPanel.tsx` (huge diff) | `FR` extended with `info` prop. `Acc` extended with `description` prop. `EffectCard` extended with `info` prop. **169** `info` props + **32** `description` props + **10** dynamic `ENUM_HINTS` lookups added across all 5 tabs. |
+| 5 | `89a8627` | `src/index.css` + `src/components/Hint.tsx` | Bugfix: the CSS arrow was targeting `.hint-popover::before/::after` but `<Hint/>` renders a real `<span className="hint-arrow">`. Wired correctly, removed -103 lines of dead CSS. |
+| 6 | (this commit) | `AGENTS.md` | This section. |
+
+### 12.2 Component API (Hint.tsx)
+
+```typescript
+interface HintProps {
+  text: string;              // explanation, 1-2 sentences, ~60-150 chars
+  side?: 'top' | 'right' | 'bottom' | 'left';  // default: 'right'
+  hoverDelay?: number;       // default: 300ms, set to 0 to disable
+  clickToToggle?: boolean;   // default: true
+  className?: string;
+  ariaLabel?: string;        // default: 'More info'
+}
+```
+
+- Trigger: 16×16px circular button, inline SVG ⓘ icon, styled via `var(--text-dim)` + `var(--bg-elev-2)` + `var(--border)`. Hover/focus brightens to `var(--text)` + `var(--accent)`.
+- Popover: `position: fixed` via `createPortal(..., document.body)`. 260px max-width, glassmorphism via `backdrop-filter: blur(8px) saturate(1.2)`.
+- Arrow: real `<span className="hint-arrow" data-side="X">` with inline-styled CSS border triangle.
+- Auto-positioning: measures trigger's `getBoundingClientRect()`, auto-flips right→left if within 252px of viewport right edge, bottom→top if within 120px of viewport bottom.
+- Keyboard: button is tab-focusable, Enter/Space toggles, Escape closes when pinned. `aria-describedby` links trigger to popover.
+- SSR-safe: `createPortal` is guarded by `typeof document !== 'undefined'`.
+
+### 12.3 Text repository structure (hints.ts)
+
+```typescript
+export const SETTING_HINTS: Record<string, string> = {
+  'background.blur': 'Softens the background image. 0 = crisp, 10 = soft focus, 25+ = strong dreamy blur.',
+  // ... ~110 entries
+};
+
+export const ACCORDION_DESCRIPTIONS: Record<string, string> = {
+  'background.image': 'Adjust the look of your background image: sharpness, colors, and overall tone.',
+  // ... ~27 entries
+};
+
+export const ENUM_HINTS: Record<string, Record<string, string>> = {
+  'background.tintMode': {
+    'multiply': 'Darkens the image and tints it with the color. Most natural for warm/cool mood washes.',
+    // ... 36 total enum-value explanations across 10 enum types
+  },
+};
+```
+
+**Style rules** (enforced by code review):
+- No jargon. Never: FFT, spectral, kernel, chromatic, HSL, additive blend, waveform, loudness, bin.
+- Use familiar analogies. "Like a neon sign", "Like film grain", "Like Instagram's blur slider".
+- Length: 60-150 chars per-setting, 50-100 chars accordion descriptions, 40-100 chars enum values.
+- Always explain the *effect on the visual*, not the mechanism.
+
+### 12.4 SettingsPanel integration
+
+**Component extensions:**
+
+```typescript
+// FR — Field Row
+function FR({ label, children, hint, sub, info }: {
+  label: string;
+  children: React.ReactNode;
+  hint?: string;     // right-aligned value (unchanged)
+  sub?: string;      // inline gray explanation (unchanged, optional)
+  info?: string;     // NEW: popover text — renders <Hint text={info} /> next to label
+})
+
+// Acc — Accordion
+function Acc({ label, children, defaultOpen, description }: {
+  // ... existing
+  description?: string;  // NEW: 1-sentence section overview rendered at top
+})
+
+// EffectCard — PostFX card
+function EffectCard({ label, enabled, onToggle, children, info }: {
+  // ... existing
+  info?: string;  // NEW: popover text next to the toggle
+})
+```
+
+**Coverage achieved (Commit `204643b`):**
+- 160 `info={hintFor('...')}` props on `FR` controls
+- 10 dynamic `info={ENUM_HINTS['...']?.[value]}` lookups on `CB` segmented buttons (updates as user clicks different options)
+- 32 `description={ACCORDION_DESCRIPTIONS['...']}` props on accordions
+- 5+ standalone toggles wrapped in `<FR>` to get a hint icon (peak enabled, connections, twinkle, logo enabled, etc.)
+- EffectCard extended so toggles like `vignetteEnabled`, `nebulaEnabled` also get a hint
+
+**Skipped (TODO if requested):**
+- `background.noiseColorMode` is a `Tg` boolean in code, not a `CB` enum — its enum hint in `ENUM_HINTS['background.noiseColorMode']` is unused.
+- 4 standalone `Tg` toggles (`nebulaBeatMode`, `glitchBeatSync`, etc.) sit directly in accordion bodies without an `FR` wrapper. Could be wrapped in a follow-up.
+
+### 12.5 CSS architecture
+
+```css
+/* src/index.css, appended at end of file */
+
+.hint-trigger { /* 16px circular button */ }
+
+.hint-popover {
+  position: fixed;       /* paired with createPortal + inline left/top */
+  z-index: 9999;
+  max-width: 260px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border-strong);
+  backdrop-filter: blur(8px) saturate(1.2);  /* glassmorphism */
+}
+
+.hint-arrow { /* pointer-events: none, geometry is inline */ }
+
+@supports not (backdrop-filter: blur(8px)) { /* graceful degrade */ }
+@media (prefers-reduced-motion: reduce) { /* kill animations */ }
+```
+
+**All colors use existing CSS vars** (`--bg-elev-2`, `--border-strong`, `--text`). No new tokens, no light-theme variants (app is dark-only per AGENTS.md §6).
+
+### 12.6 Adding hints to new settings (recipe for future Agents)
+
+When adding a new control to SettingsPanel.tsx:
+
+1. **Add the hint text** to `src/lib/hints.ts`:
+   ```typescript
+   'group.fieldName': 'Plain-language 1-2 sentence explanation. 60-150 chars.',
+   ```
+
+2. **Wire it into the FR/EffectCard/Acc**:
+   ```typescript
+   <FR label="Field name" hint={...} info={hintFor('group.fieldName')}>
+     <Sl value={...} ... />
+   </FR>
+   ```
+
+3. **For new enum values**, add to `ENUM_HINTS['group.fieldName'][enumValue]`.
+
+4. **For new accordion sections**, add to `ACCORDION_DESCRIPTIONS['group.sectionKey']`.
+
+5. **No typecheck/build surprises** — `hintFor()` returns `undefined` if no entry exists, so the `info` prop stays optional.
+
+### 12.7 House-keeping notes
+
+- `now.md` (Session 13 rollback anchor) was removed in this session's working tree. `STABLE.md` is the new anchor. See top of repo for the latest rollback hash (commit before this section: `2a807ce` for Session 14, `89a8627` for Session 15 fix).
+- `now.md` can be safely re-deleted at any time. `STABLE.md` documents the pre-Session-13 state and should be kept until the v13 migration is fully stable.
