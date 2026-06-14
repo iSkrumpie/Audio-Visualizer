@@ -126,169 +126,207 @@ void main() {
 `;
 
 const FIRE_FRAG = /* glsl */ `
+precision highp float;
+
+#define fr_PI   3.14159265358979
+#define fr_TAU  6.28318530717959
+
+// ─── Uniforms ────────────────────────────────────────
 varying vec3 vLocalPos;
 
 uniform float uTime;
 uniform float uFrBass;
 uniform float uFrBeat;
 uniform float uFrIntensity;
-uniform vec3  uFrColorInner;
-uniform vec3  uFrColorMid;
-uniform vec3  uFrColorOuter;
 uniform float uFrHeight;
 uniform float uFrKick;
 uniform float uFrHihat;
 uniform float uFrVocal;
+uniform float uFrSpeed;
+uniform vec3  uFrColorInner;
+uniform vec3  uFrColorMid;
+uniform vec3  uFrColorOuter;
 
-// ─── Value noise + FBM (fr_ prefix for ANGLE safety) ─────────────────────────
+// ═══════════════════════════════════════════════════════
+//  NOISE
+// ═══════════════════════════════════════════════════════
 
-float fr_hash(vec2 fr_p) {
-  fr_p = fract(fr_p * vec2(127.1, 311.7));
-  fr_p += dot(fr_p, fr_p + 18.5453);
-  return fract(fr_p.x * fr_p.y);
+float fr_h(vec2 fr_p) {
+  return fract(sin(dot(fr_p, vec2(127.1, 311.7))) * 43758.5453);
 }
 
-float fr_vnoise(vec2 fr_p) {
+float fr_vn(vec2 fr_p) {
   vec2 fr_i = floor(fr_p);
   vec2 fr_f = fract(fr_p);
-  vec2 fr_u = fr_f * fr_f * (3.0 - 2.0 * fr_f);
-  return mix(
-    mix(fr_hash(fr_i),                  fr_hash(fr_i + vec2(1.0, 0.0)), fr_u.x),
-    mix(fr_hash(fr_i + vec2(0.0, 1.0)), fr_hash(fr_i + vec2(1.0, 1.0)), fr_u.x),
-    fr_u.y
-  );
+  float fr_a = fr_h(fr_i);
+  float fr_b = fr_h(fr_i + vec2(1.0, 0.0));
+  float fr_c = fr_h(fr_i + vec2(0.0, 1.0));
+  float fr_d = fr_h(fr_i + vec2(1.0, 1.0));
+  vec2  fr_u = fr_f * fr_f * (3.0 - 2.0 * fr_f);
+  return mix(mix(fr_a, fr_b, fr_u.x), mix(fr_c, fr_d, fr_u.x), fr_u.y);
 }
 
 float fr_fbm(vec2 fr_p) {
-  float fr_v = 0.0;
-  float fr_a = 0.5;
-  mat2  fr_m = mat2(0.8, -0.6, 0.6, 0.8);
-  for (int fr_o = 0; fr_o < 4; fr_o++) {
-    fr_v += fr_a * fr_vnoise(fr_p);
-    fr_p  = fr_m * fr_p * 2.05 + vec2(17.2, 9.4);
-    fr_a *= 0.5;
+  float fr_v   = 0.0;
+  float fr_amp = 0.5;
+  mat2  fr_rot = mat2(0.8, -0.6, 0.6, 0.8);
+  for (int fr_i = 0; fr_i < 4; fr_i++) {
+    fr_v   += fr_amp * fr_vn(fr_p);
+    fr_p    = fr_rot * fr_p * 2.05 + vec2(17.2, 9.4);
+    fr_amp *= 0.5;
   }
   return fr_v;
 }
 
-// IQ-style domain warping (single level for performance budget)
-float fr_warpedFbm(vec2 fr_p, float fr_t) {
+float fr_wfbm(vec2 fr_p, float fr_t) {
   vec2 fr_q = vec2(
-    fr_fbm(fr_p + vec2(0.0, 0.0) + fr_t * 0.30),
-    fr_fbm(fr_p + vec2(5.2, 1.3) - fr_t * 0.20)
+    fr_fbm(fr_p + vec2(0.0, -fr_t * 0.85)),
+    fr_fbm(fr_p + vec2(5.2,  1.3))
   );
-  return fr_fbm(fr_p + 3.0 * fr_q + vec2(fr_t * 0.10, 0.0));
+  return fr_fbm(fr_p + 3.2 * fr_q);
 }
 
-// ─── Blackbody color gradient (5 stops, user-tintable) ──────────────────────
-// fr_heat: 0 = outer/cool/tip, 1 = inner/hot/base
+// ═══════════════════════════════════════════════════════
+//  FLAME MASK — N teardrop tongues pointing RADIALLY OUT
+// ═══════════════════════════════════════════════════════
 
-vec3 fr_fireColor(float fr_heat, vec3 fr_cInner, vec3 fr_cMid, vec3 fr_cOuter) {
-  vec3 fr_dark   = fr_cOuter * 0.10;
-  vec3 fr_red    = fr_cOuter;
-  vec3 fr_orange = fr_cMid;
-  vec3 fr_yellow = mix(fr_cMid, fr_cInner, 0.5);
-  vec3 fr_white  = fr_cInner;
+float fr_flameMask(float fr_lx, float fr_ly, float fr_t, float fr_ah) {
+  // Slot subdivision: 14 flames around the ring
+  float fr_NUM    = 14.0;
+  float fr_slot   = fr_lx * fr_NUM;
+  float fr_idx    = floor(fr_slot);
+  float fr_frac   = fract(fr_slot);
 
-  vec3 fr_col = mix(fr_dark,   fr_red,    smoothstep(0.00, 0.25, fr_heat));
-  fr_col = mix(fr_col, fr_orange, smoothstep(0.18, 0.50, fr_heat));
-  fr_col = mix(fr_col, fr_yellow, smoothstep(0.42, 0.72, fr_heat));
-  fr_col = mix(fr_col, fr_white,  smoothstep(0.68, 1.00, fr_heat));
-  return fr_col;
+  // Per-flame pseudo-random seeds
+  float fr_s1 = fract(sin(fr_idx * 127.1 + 311.7) * 43758.5453);
+  float fr_s2 = fract(sin(fr_idx *  73.1 + 157.3) * 52948.1234);
+
+  // Per-flame height variation (0.85-1.10×)
+  float fr_hmod = 0.85 + 0.20 * fr_s1;
+  fr_hmod *= 0.92 + 0.08 * sin(fr_t * (1.1 + fr_s1 * 0.9) + fr_s1 * fr_TAU);
+  float fr_H = fr_ah * fr_hmod;
+
+  // Normalized height within this flame
+  float fr_ny = fr_ly / max(fr_H, 0.001);
+  if (fr_ny > 1.0) return 0.0;
+
+  // Teardrop width: W = BASE × (1 - y^0.65) × belly(y)
+  // At y=0: width=BASE, at y=1: width=0 (pointed tip)
+  // belly peaks at y≈0.35 (the "belly" of a real flame)
+  float fr_BASE   = 0.27;  // base half-width as fraction of slot
+  float fr_taper  = 1.0 - pow(fr_ny, 0.65);
+  float fr_belly  = 1.0 + 0.30 * sin(fr_PI * fr_ny);
+  float fr_halfW  = fr_BASE * fr_taper * fr_belly;
+
+  // Flame sway (different per tongue)
+  float fr_sway = sin(fr_t * 1.7  + fr_s1 * fr_TAU) * 0.035
+                + sin(fr_t * 3.1  + fr_s2 * fr_TAU) * 0.018;
+  float fr_center = 0.5 + fr_sway;
+
+  // Angular distance from this flame's center
+  float fr_da = abs(fr_frac - fr_center);
+
+  // Ragged edge noise
+  float fr_en = fr_wfbm(
+    vec2(fr_frac * 7.0 + fr_t * 0.4 + fr_s1 * 3.1,
+         fr_ly   * 9.0 - fr_t * 1.3),
+    fr_t
+  );
+  float fr_edgeShift = (fr_en - 0.5) * 0.05;
+
+  // Soft angular edge
+  float fr_softness = 0.022 + fr_ny * 0.018;
+  float fr_angMask = 1.0 - smoothstep(
+    fr_halfW + fr_edgeShift - fr_softness,
+    fr_halfW + fr_edgeShift + fr_softness,
+    fr_da
+  );
+
+  // Base fade: small smooth transition at the logo edge
+  float fr_baseFade = smoothstep(0.0, 0.05, fr_ly);
+
+  // Tip dissolution
+  float fr_tipFade = 1.0 - smoothstep(0.72, 1.0, fr_ny);
+  float fr_tipNoise = fr_vn(vec2(fr_lx * 20.0 + fr_t, fr_ly * 15.0));
+  fr_tipFade *= 0.6 + 0.4 * fr_tipNoise;
+
+  return fr_angMask * fr_baseFade * fr_tipFade;
 }
 
-// ─── Flame tongue: individual wisp/lick along the ring ───────────────────────
+// ═══════════════════════════════════════════════════════
+//  FIRE COLOR — 5-stop blackbody gradient (user-tinted)
+// ═══════════════════════════════════════════════════════
 
-float fr_flameTongue(float fr_localX, float fr_center, float fr_start,
-                     float fr_length, float fr_width, float fr_wobble, float fr_t) {
-  float fr_x = clamp((fr_localX - fr_start) / max(fr_length, 0.001), 0.0, 1.0);
-  float fr_active = smoothstep(0.0, 0.08, fr_x) * (1.0 - smoothstep(0.9, 1.0, fr_x));
-  float fr_curve = fr_center + sin(fr_x * 8.0 + fr_t) * fr_wobble
-                             + sin(fr_x * 17.0 - fr_t * 1.3) * fr_wobble * 0.46;
-  float fr_taper = fr_width * pow(1.0 - fr_x, 1.42);
-  return fr_active * (1.0 - smoothstep(fr_taper, fr_taper + 0.045,
-                                       abs(0.5 - fr_curve + 0.5)));
+vec3 fr_fireColor(float fr_heat) {
+  vec3 fr_black  = vec3(0.00, 0.00, 0.00);
+  vec3 fr_dkred  = mix(vec3(0.70, 0.04, 0.00), uFrColorOuter, 0.55);
+  vec3 fr_orange = mix(vec3(1.00, 0.32, 0.00), uFrColorMid,   0.45);
+  vec3 fr_yellow = vec3(1.00, 0.86, 0.14);
+  vec3 fr_white  = mix(vec3(1.00, 0.96, 0.80), uFrColorInner, 0.30);
+
+  vec3 fr_c = mix(fr_black,  fr_dkred,  smoothstep(0.00, 0.22, fr_heat));
+  fr_c      = mix(fr_c,      fr_orange, smoothstep(0.18, 0.48, fr_heat));
+  fr_c      = mix(fr_c,      fr_yellow, smoothstep(0.42, 0.72, fr_heat));
+  fr_c      = mix(fr_c,      fr_white,  smoothstep(0.66, 0.92, fr_heat));
+  return fr_c;
 }
 
-// ─── Main ────────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+//  MAIN
+// ═══════════════════════════════════════════════════════
 
 void main() {
-  // ── Polar coordinates from local position ─────────────────────────────
-  float fr_angle  = atan(vLocalPos.y, vLocalPos.x);         // -PI..PI
-  float fr_localX = fract(fr_angle / 6.28318 + 0.5);        // 0..1 around arc
-
+  // Polar coordinates from LOCAL position (ring is in XY plane)
+  // RingGeometry: innerR=0.5, outerR=0.5+fireHeight (local units)
+  float fr_angle  = atan(vLocalPos.y, vLocalPos.x);
   float fr_radius = length(vLocalPos.xy);
-  float fr_innerR = 0.5;
-  float fr_outerR = uFrHeight + 0.5;
+  float fr_localX = fract((fr_angle + fr_PI) / fr_TAU);  // 0..1 around ring
+  float fr_localY = clamp((fr_radius - 0.5) / max(uFrHeight, 0.001), 0.0, 1.0);
 
-  float fr_localY = clamp((fr_radius - fr_innerR) / max(fr_outerR - fr_innerR, 0.001), 0.0, 1.0);
-  // 0 = inner rim (logo edge), 1 = outer tip
+  // Time
+  float fr_t = uTime * uFrSpeed;
 
-  // ── Audio-driven base lift (height surges on kick) ───────────────────
-  float fr_baseLift = 1.0 + uFrKick * 0.35 + uFrBeat * 0.15;
+  // Audio height modulation
+  float fr_audioH = 1.0
+                  + uFrKick  * 0.40
+                  + uFrBeat  * 0.12
+                  + uFrVocal * 0.08;
 
-  // ── Flame flow noise: scrolls OUTWARD (away from logo) ───────────────
-  vec2  fr_noiseUv = vec2(fr_localX * 3.5, fr_localY * 4.2 - uTime * (0.9 + uFrHihat * 0.4));
-  float fr_flow = fr_warpedFbm(fr_noiseUv, uTime);
+  // Flame mask
+  float fr_mask = fr_flameMask(fr_localX, fr_localY, fr_t, fr_audioH);
 
-  // Fine noise on top
-  vec2  fr_fineUv = vec2(fr_localX * 7.6 + sin(fr_localY * 5.0 + uTime) * 0.25,
-                          fr_localY * 6.3 - uTime * 0.55) * 2.15;
-  float fr_fine = fr_vnoise(fr_fineUv + vec2(uTime * 0.35, 0.0));
-  float fr_noise = fr_flow * 0.70 + fr_fine * 0.30;
+  if (fr_mask < 0.004) {
+    gl_FragColor = vec4(0.0);
+    return;
+  }
 
-  // ── Animated flame center line ───────────────────────────────────────
-  float fr_flameCenter = 0.5 + sin(fr_localX * 11.0 - uTime * 2.2) * 0.035
-                               + (fr_noise - 0.5) * 0.10;
+  // Internal heat texture (warped FBM streaks)
+  float fr_fval = fr_wfbm(
+    vec2(fr_localX * 6.0 + fr_t * 0.25,
+         fr_localY * 10.0 - fr_t * 1.5),
+    fr_t
+  );
 
-  // ── Flame band (the "tongue" of fire at this angle) ──────────────────
-  float fr_tipTaper = smoothstep(0.65, 1.0, fr_localY);
-  float fr_flameWidth = mix(0.40, 0.14, fr_tipTaper);
-  fr_flameWidth += (fr_noise - 0.5) * 0.10 * (1.0 - fr_tipTaper * 0.35);
+  // Heat: bright base, dark tip, with FBM variation
+  float fr_heat = pow(1.0 - fr_localY, 1.8);
+  fr_heat += (fr_fval - 0.5) * 0.28;
+  fr_heat += uFrVocal * 0.12;
+  // Hihat adds high-freq sparkle at tips
+  fr_heat += uFrHihat * 0.10
+           * fr_vn(vec2(fr_localX * 28.0 + fr_t * 2.1, fr_localY * 22.0));
+  fr_heat  = clamp(fr_heat, 0.0, 1.0);
 
-  float fr_dy = abs(fr_localY - fr_flameCenter);
-  float fr_flame = 1.0 - smoothstep(fr_flameWidth, fr_flameWidth + 0.10, fr_dy);
+  // Color
+  vec3 fr_color = fr_fireColor(fr_heat);
+  fr_color += uFrKick * 0.25 * vec3(1.0, 0.8, 0.5) * fr_mask;
 
-  // ── Add 3 flame tongues for individual wisps ────────────────────────
-  float fr_t1 = fr_flameTongue(fr_localX, 0.36, 0.06, 0.88, 0.12, 0.035, uTime * 2.1);
-  float fr_t2 = fr_flameTongue(fr_localX, 0.54, 0.00, 0.98, 0.22, 0.045, uTime * 1.7 + 1.8);
-  float fr_t3 = fr_flameTongue(fr_localX, 0.66, 0.11, 0.73, 0.10, 0.035, uTime * 2.5 + 3.4);
-  float fr_tongues = max(max(fr_t1, fr_t2), fr_t3);
-  fr_flame = max(fr_flame, fr_tongues * 0.85);
+  // Alpha: mask × intensity, with core glow boost
+  float fr_coreGlow = exp(-fr_localY * 3.5) * 0.4;
+  float fr_alpha    = fr_mask * (0.65 + fr_coreGlow + fr_fval * 0.25);
+  fr_alpha         *= uFrIntensity;
+  fr_alpha          = clamp(fr_alpha, 0.0, 1.0);
 
-  // ── Hard inner cut (logo is the fuel source) ────────────────────────
-  float fr_innerCut = smoothstep(0.0, 0.025, fr_localY);
-  fr_flame *= fr_innerCut;
-
-  // ── Tip dissipation (ragged torn edge) ───────────────────────────────
-  float fr_tipNoise = fr_noise * 0.18 - 0.09;
-  float fr_dissipation = 1.0 - smoothstep(0.7 + fr_tipNoise, 0.95 + fr_tipNoise, fr_localY);
-  fr_flame *= fr_dissipation;
-
-  // ── Base lift effect (height surges on kick) ────────────────────────
-  fr_flame *= fr_baseLift;
-
-  // ── Hard cutoff for fully transparent pixels ─────────────────────────
-  if (fr_flame < 0.012) discard;
-
-  // ── Color: blackbody gradient (heat = 1 - localY, plus noise variation)
-  float fr_heat = 1.0 - fr_localY;
-  fr_heat += (fr_noise - 0.5) * 0.20;
-  fr_heat = clamp(fr_heat, 0.0, 1.0);
-
-  vec3 fr_col = fr_fireColor(fr_heat, uFrColorInner, uFrColorMid, uFrColorOuter);
-
-  // Vocal boost shifts color hotter (toward white)
-  fr_col = mix(fr_col, vec3(1.0, 0.97, 0.88), uFrVocal * 0.25);
-
-  // Beat flash: brief white-hot spike
-  fr_col += vec3(1.0) * uFrBeat * 0.35 * smoothstep(0.6, 1.0, fr_heat);
-
-  // ── Final alpha: flame mask x intensity ─────────────────────────────
-  float fr_alpha = fr_flame * uFrIntensity * (0.85 + uFrHihat * 0.20);
-
-  // Pre-multiplied for additive blending
-  gl_FragColor = vec4(fr_col * fr_alpha, fr_alpha);
+  gl_FragColor = vec4(fr_color * fr_alpha, fr_alpha);
 }
 `;
 
@@ -466,6 +504,7 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     uFrKick:       { value: 0.0 },
     uFrHihat:      { value: 0.0 },
     uFrVocal:      { value: 0.0 },
+    uFrSpeed:      { value: 1.0 },  // NEW
   }), []);
 
   const fireMat = useMemo(() => new THREE.ShaderMaterial({
@@ -664,6 +703,7 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     fireUniforms.uFrKick.value   = audioAnalysis.kickPhase  ?? 0;
     fireUniforms.uFrHihat.value  = audioAnalysis.hihatPhase ?? 0;
     fireUniforms.uFrVocal.value  = audioAnalysis.vocalPhase ?? 0;
+    fireUniforms.uFrSpeed.value  = s.fireSpeed;
   });
 
   return (
