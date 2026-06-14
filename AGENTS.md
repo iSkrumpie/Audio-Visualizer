@@ -337,9 +337,10 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 -3.1 GPUParticles LineSegments (renderOrder=3)
  -3  GPUParticles Points (renderOrder=4)
   0  CenterLogo mesh (renderOrder=6)
-  0.1 Fire-Ring RingGeometry ShaderMaterial (renderOrder=7)   ← zeichnet über Logo
-     PostFX = stub, kein EffectComposer
-     Glow-Plane (renderOrder=5) sitzt hinter dem Logo, eigene z=-0.1 in useFrame
+ 0.05 Inner-Glow Plane ShaderMaterial (renderOrder=8)         ← additiv, vor dem Logo, hinter Fire
+ 0.1  Fire-Ring RingGeometry ShaderMaterial (renderOrder=7)   ← zeichnet über Logo
+      PostFX = stub, kein EffectComposer
+      Outer-Glow Plane (renderOrder=5) sitzt hinter dem Logo, eigene z=-0.1 in useFrame
 ```
 
 ### 4.11 FreqBeatDetector-Inventar (welche Komponente hat eigene Instanz)
@@ -455,7 +456,8 @@ Bei 30-fps-Export und 60-fps-Live-Preview: ohne Normalisierung decayed `phase` b
 | Partikel-Settings | `GPUParticles.tsx` + `settingsStore.particles` |
 | Logo-Settings | `CenterLogo.tsx` + `settingsStore.logo` |
 | Logo Fire-Ring | `CenterLogo.tsx` → fire ShaderMaterial + `settingsStore.logo.fire.*` |
-| Logo Glow (ShaderMaterial) | `CenterLogo.tsx` → glow ShaderMaterial + `settingsStore.logo.glow.glowBlur` |
+| Logo Outer Glow (ShaderMaterial) | `CenterLogo.tsx` → OUTER_GLOW_FRAG ShaderMaterial + `settingsStore.logo.outerGlow.*` (Intensity, Color, Size, Blur, ColorMode, CycleSpeed, CustomColors) |
+| Logo Inner Glow (ShaderMaterial) | `CenterLogo.tsx` → INNER_GLOW_FRAG ShaderMaterial + `settingsStore.logo.innerGlow.*` (soft falloff from logo rim inward, Reach = 0..1 fraction of logo radius). |
 | Freq-Energy (kontinuierlich) | `src/lib/audioUtils.ts` → `getFreqRangeEnergy(freqData, startHz, endHz)` |
 | Beat-Detection (pulsierend) | `src/lib/audioUtils.ts` → `new FreqBeatDetector()` + `detector.update(rawFreqData, startHz, endHz)` |
 | Nebula-Settings | `NebulaPlane.tsx` + `settingsStore.background.nebula*` |
@@ -534,7 +536,8 @@ node scripts/verify-export.mjs            # ~4-5min: SSIM Preview vs MP4-Frame
 - *"Partikel haben keine Verbindungslinien"* → `GPUParticles.tsx` → `connectionLines` setting + LineSegments
 - *"Export-Preset fehlt"* → `exportPresets.ts` → `EXPORT_PRESETS` Array
 - *"Fire-Ring sitzt nicht am Logo-Rand"* → `CenterLogo.tsx` → `fireScale = logoSize * beatScale` (nicht `* 2`), z=0.1, renderOrder=7
-- *"Logo Glow zeigt falsche Farbe / wird schwarz beim Color-Mode-Wechsel"* → Altes Preset geladen? `useF` defensive Default prüfen, `CenterLogo` `??`-Fallbacks prüfen
+- *"Logo Glow zeigt falsche Farbe / wird schwarz beim Color-Mode-Wechsel"* → Altes Preset geladen? `useF` defensive Default prüfen, `CenterLogo` `??`-Fallbacks prüfen. v12: betrifft `outerGlow*` UND `innerGlow*` ColorModes (solid/rainbow/custom/random).
+- *"Inner Glow folgt Logo nicht beim Beat-Pulse"* → `CenterLogo.tsx` → innerGlow plane-Scale = `logoSize * beatScale` (NICHT nur `logoSize`). Selbe Regel gilt für outerGlow plane.
 - *"Hz-Slider zu ungenau / klemmt in der Mitte"* → Logarithmisches Mapping (sliderToHz/hzToSlider) ist Standard. Linearer Slider 20-20000 Hz ist unbrauchbar → HzRangePicker statt Sl für Frequenz-Bereiche verwenden.
 - *"Neue Beat-Reactivity in Komponente X einbauen"* → Pattern: 1) Settings-Felder in settingsStore.ts hinzufügen (schema-bump nicht vergessen), 2) `useMemo(() => new FreqBeatDetector(48000), [])` in Komponente, 3) `useBeatDetectorRegistration(detector)` aus `AudioScene.tsx` aufrufen, 4) `setSensitivity()` VOR `update()` im useFrame, 5) HzRangePicker + Sensitivity-Slider in SettingsPanel via `useF`-Hook, 6) update §4.11 in AGENTS.md
 - *"Export-Bild ist gequetscht / Logo elliptisch"* → Components dürfen NICHT `useThree((s) => s.size)` für Closure-basierte Skalierung nutzen, sondern `useFrame((state, delta) => { const {width, height} = state.size; ... })`. Siehe AGENTS.md §6.
