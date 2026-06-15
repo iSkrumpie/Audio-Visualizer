@@ -407,6 +407,7 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 - **rawFreqData vs freqData**: `audioAnalysis.rawFreqData` = kick analyser (fftSize=2048, smoothing=0, 1024 Bins). `audioAnalysis.freqData` = visual analyser (fftSize=256, smoothing=0.55, 128 Bins). Für Beat-Detection IMMER rawFreqData - geglättete Daten verschlucken Transienten und die Detection feuert nie.
 - **Bloom-Shader**: 9×9 2D Gaussian Kernel mit 1-Texel-Stride und σ≈2. KEINE separable Two-Pass-Lösung im Single-Fragment-Shader - das erzeugt Kreuz/Linien-Artefakte.
 - **Glow-Plane**: CircleGeometry (64 Segmente) statt PlaneGeometry - verhindert sichtbare Rechtecks-Kanten. Shader hat zusätzlich `smoothstep(0.7, 1.0, dist)` Edge-Fade.
+- **🔴 Ring-Shader: NIEMALS `fract(angle/TAU)` für Noise-Input** (Session 17): Für Ring/Radial-Geometrien (Fire-Ring, künftige Donut-Effekte, Glow-Ring) **niemals** den Winkel via `fract((atan(y,x) + PI) / TAU)` als Noise-Koordinate verwenden. `fract()` hat eine harte Wrap-Diskontinuität bei 0.0/1.0 — das Hash-basierte Noise (`fr_h`/`fr_vn`/`fr_fbm`) sieht dort zwei komplett verschiedene Eingabewerte für Pixel, die geometrisch benachbart sind → **sichtbare vertikale Naht** durch den Ring. **Fix:** Stattdessen `vLocalPos.xy` direkt (oder eine Linearkombination) als X-Input verwenden — die ist per Konstruktion continuous um den Ring herum. Skalierung muss visuell passen (mid-Radius-Umfang ≈ 4.1 local units → Faktor ~1.5 für „6 Einheiten pro Umrundung“). Siehe §14.
 - **ThemeToggle.tsx** ist **aktiv in Verwendung** (gerendert in `Uploader.tsx:75`, importiert in `Uploader.tsx:13`). NICHT löschen. Frühere AGENTS.md-Behauptung "wird nicht mehr verwendet" war veraltet — wurde in Session 8 korrigiert.
 - **EyeDropper-API**: Typ-Deklaration in `vite-env.d.ts` (nicht in TypeScript DOM lib enthalten). Nur Chrome 95+.
 - **Session 8 Cleanup**: `workflowGradient.ts` (komplette Datei, 116 Zeilen) und `audioStore.rawWave`-Feld entfernt — beides war Dead Code seit dem colorMode 'workflow-gradient'-Removal. Typecheck + Build bleiben grün.
@@ -1044,3 +1045,97 @@ Läuft auf jedem Midrange-Laptop bei 60fps mit Reserve.
 - `now.md` war bereits in Session 15 gelöscht.
 - `STABLE.md` ist der aktuelle Rollback-Anchor (zeigt auf af2e2b8 + 795b025, den Pre-Session-13-Stand).
 - Bei einem Bug-Rollback: `git revert 0d63bcf b90a79d 935e4f5 092d520` macht alle 4 Commits rückgängig, ohne die Schema-Migration zu triggern (User-Settings auf v14 bleiben erhalten, aber die neuen Features sind weg).
+
+---
+
+## 14. Session 17 — Fire Color 1:1 + Seamless Ring UV
+
+*2-commit bugfix-Session. Zwei hartnäckige Fire-Shader-Bugs, beide optisch sichtbar, beide ohne Schema-Bump gelöst (settingsStore bleibt v14).*
+
+### 14.1 Die 2 Commits
+
+| # | Commit | Datei | Was |
+|---|---|---|---|
+| 1 | `2452afa` | `src/components/three/CenterLogo.tsx` | `fr_fireColor()` von 5-Stop-Blackbody mit 45-70% hardcoded Tönen auf 3-Stop-User-Gradient umgestellt. User-Picker-Farben fließen jetzt 1:1 durch. |
+| 2 | `569b85b` | `src/components/three/CenterLogo.tsx` | `fr_localX` von `fract(angle/TAU)` auf `(vLocalPos.x + vLocalPos.y) * 1.5` umgestellt. Eliminiert die vertikale Naht im Ring-Noise. |
+
+### 14.2 Fire Color 1:1 — der eigentliche Fix
+
+**Bug (Commits `a2e767b`, `48f9be4`, `3984f0e` zurückgenommen in `e210a23`):** Die `fr_fireColor()`-Funktion mischte 45-70% hardcoded Blackbody-Töne (dunkelrot/orange/gelb/weiß) in die User-Picker-Farben. Egal welche Farbe der User wählte — die Flamme blieb immer orange-gelb-weiß. Drei Versuche, ein vollständiges `colorMode`-Enum (solid/gradient/rainbow/...) analog zu Bars/Particles einzubauen, scheiterten alle an GLSL-Edge-Cases (`if/else-if`-Chains und `step()`-Boundary-Bugs auf der Ziel-Hardware).
+
+**Fix:** Statt neuem Color-Mode-Enum → **chirurgisch minimal**: 5-Stop-Blackbody raus, simpler 3-Stop-User-Gradient rein:
+
+```glsl
+vec3 fr_fireColor(float fr_heat) {
+  vec3 fr_c = mix(uFrColorOuter, uFrColorMid,   smoothstep(0.0,  0.5,  fr_heat));
+  fr_c      = mix(fr_c,           uFrColorInner, smoothstep(0.5,  0.85, fr_heat));
+  fr_c      = mix(fr_c,           vec3(0.0),     smoothstep(0.85, 1.0,  fr_heat));
+  return fr_c;
+}
+```
+
+Uniform-Semantik:
+- `uFrColorOuter` (UI: "Hot" / `#ffee88`) → **Basis** (fr_heat ≈ 0, heißester Punkt)
+- `uFrColorMid` (UI: "Mid" / `#ff7700`) → **Mitte**
+- `uFrColorInner` (UI: "Cool" / `#ff2200`) → **Spitze** (fr_heat ≈ 0.85, kühlster Punkt)
+- fr_heat > 0.85 → schwarz (Flammenspitze fadet aus)
+
+**Handover-Doc:** `HANDOVER-FIRE-COLOR.md` (jetzt gelöscht nach erfolgreichem Fix) — 3 fehlgeschlagene Versuche dokumentiert, inkl. „was NICHT zu tun ist" (kein if/else-Chain, keine `step()`-Boundary, kein 5-Stop-Blackbody).
+
+**Erhalten:** Der `uFrKick * 0.25 * vec3(1.0, 0.8, 0.5)`-Boost nach dem Color-Call bleibt — das ist ein **kurzer Audio-Reaktivitäts-Flash pro Kick** (1-2 Frames sichtbar), nicht die Flammenfarbe. Hartcodiert gelb/orange zu lassen ist hier korrekt, weil es ein „Glühen"-Effekt ist, keine Farbwahl.
+
+### 14.3 Seamless Ring UV — der Naht-Fix
+
+**Bug:** Vertikale Naht auf der linken Seite des Fire-Rings, sichtbar als harte Trennlinie. Ursache: `fr_localX = fract((atan(y,x) + PI) / TAU)` wrapt den Winkel in [0,1]. Am Wrap-Punkt (Winkel geht von +π zurück auf -π) springt `fract()` von ~1.0 auf 0.0. Hash-basiertes Noise (`fr_h`/`fr_vn`/`fr_fbm`) sieht dort zwei **unterschiedliche** Eingabewerte für geometrisch benachbarte Pixel → sichtbarer Sprung.
+
+**Fix:** Statt `fract(angle)` → `vLocalPos.xy` direkt als Noise-X verwenden:
+
+```glsl
+// Vorher (gebrochen):
+float fr_angle  = atan(vLocalPos.y, vLocalPos.x);
+float fr_localX = fract((fr_angle + fr_PI) / fr_TAU);  // 0..1 around ring
+
+// Nachher (seamless):
+float fr_localX = (vLocalPos.x + vLocalPos.y) * 1.5;
+```
+
+**Warum das funktioniert:** `vLocalPos.xy` ist die echte 3D-Position auf dem Ring — per Konstruktion continuous um den Ring herum, kein Wrap, kein Modulo. Hash-Noise sampelt eine glatte Mannigfaltigkeit.
+
+**Skalierung:** Faktor 1.5. Mid-Radius-Umfang bei `innerR=0.5, fireHeight=0.3` ist ≈ 2·π·0.65 ≈ 4.1 local units. Alter fract-Wert war `1.0 * 6.0 = 6.0` pro Umrundung. Neuer Wert ist `1.5 * 4.1 ≈ 6.0` pro Umrundung → visuell identische räumliche Noise-Frequenz.
+
+**Betrifft 4 Noise-Sample-Stellen**, die alle `fr_localX` als X-Input benutzten:
+1. `fr_flameMask()` — WBM outer edge crinkle (größter sichtbarer Effekt)
+2. `fr_flameMask()` — Flicker `sin()` (kaum sichtbar, aber konsistent)
+3. `main()` `fr_wfbm` — Heat-Streaks
+4. `main()` Hihat-Sparkle
+
+Alle vier lesen jetzt denselben `fr_localX` → eine einzige Code-Änderung fixt alle Naht-Quellen.
+
+### 14.4 Lessons Learned (für künftige Ring-Shader)
+
+In §6 als 🔴-Stolperfalle aufgenommen:
+
+> **Ring-Shader: NIEMALS `fract(angle/TAU)` für Noise-Input.** Für Ring/Radial-Geometrien (Fire-Ring, künftige Donut-Effekte, Glow-Ring) niemals den Winkel via `fract(atan/TAU)` als Noise-Koordinate. `fract()` hat eine harte Wrap-Diskontinuität bei 0.0/1.0. Stattdessen `vLocalPos.xy` direkt verwenden — die ist per Konstruktion seamless.
+
+Gilt für JEDEN zukünftigen Ring-Effekt (Donut-Sweep, Plasma-Ring, Audio-Ring-Spectrum, etc.).
+
+### 14.5 Verifikation
+
+| Commit | typecheck | build |
+|---|---|---|
+| `2452afa` (Color 1:1) | OK | OK (538 modules) |
+| `569b85b` (Seamless UV) | OK | OK (538 modules) |
+
+User-Verifikation (im Chat bestätigt):
+- ✅ Fire lodert sichtbar (continuous ring aus `9d6e6a5` blieb erhalten)
+- ✅ 3 User-Color-Picker (Hot/Mid/Cool) wirken 1:1 (User testete mit Grün/Blau)
+- ✅ Vertikale Naht auf der linken Seite ist weg
+
+**NICHT gelaufen:** `scripts/verify-export.mjs` — sollte der User laufen lassen um zu bestätigen, dass Preview und Export mit dem neuen `fr_localX` immer noch matchen (SSIM ≥ 0.80, bass Δ ≤ 0.02, energy Δ = 0.0, beatPhase Δ ≤ 0.10). Insbesondere die Naht-Elimination sollte **keinen** numerischen Einfluss auf die Audio-Werte haben (rein geometrischer Fix), aber die Hitzeverteilung könnte sich marginal verschoben haben.
+
+### 14.6 House-keeping
+
+- `HANDOVER-FIRE-COLOR.md` wurde nach erfolgreichem Fix gelöscht. Handover-Inhalt war 3-Kapitelliste an „was nicht zu tun ist" + „chirurgisch minimal"-Plan — die Lesson-Learned ist jetzt in §6 + §14.4 dieser Datei konserviert.
+- Kein Schema-Bump nötig (settingsStore bleibt v14).
+- `STABLE.md` bleibt der aktuelle Rollback-Anchor für die v13-Migration (af2e2b8 + 795b025).
+- Bei einem Bug-Rollback: `git revert 2452afa 569b85b` macht beide Fixes rückgängig, Settings v14 bleiben erhalten, aber Fire ist wieder orange-gelb-weiß + hat die Naht.
