@@ -255,10 +255,18 @@ vec3 fr_fireColor(float fr_heat) {
 void main() {
   // Polar coordinates from LOCAL position (ring is in XY plane)
   // RingGeometry: innerR=0.5, outerR=0.5+fireHeight (local units)
-  float fr_angle  = atan(vLocalPos.y, vLocalPos.x);
   float fr_radius = length(vLocalPos.xy);
-  float fr_localX = fract((fr_angle + fr_PI) / fr_TAU);  // 0..1 around ring
   float fr_localY = clamp((fr_radius - 0.5) / max(uFrHeight, 0.001), 0.0, 1.0);
+
+  // ── Seamless X coordinate ─────────────────────────
+  // fr_localX is the noise-space "around the ring" input. The old
+  // fract(angle/TAU) had a wrap discontinuity at the seam (one
+  // edge of fract at 0.0 / 1.0), which produced a visible vertical
+  // line in the noise. vLocalPos.xy is continuous around the ring
+  // by construction — no wrap, no seam. Scale 1.5 keeps the
+  // spatial frequency similar to the old fract(.)*6.0 mapping
+  // (mid-radius circumference is ~4.1, so 1.5×4.1 ≈ 6.0 per lap).
+  float fr_localX = (vLocalPos.x + vLocalPos.y) * 1.5;
 
   // Time
   float fr_t = uTime * uFrSpeed;
