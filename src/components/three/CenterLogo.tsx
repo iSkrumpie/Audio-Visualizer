@@ -177,74 +177,56 @@ float fr_wfbm(vec2 fr_p, float fr_t) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  FLAME MASK — N teardrop tongues pointing RADIALLY OUT
+//  FLAME MASK — continuous roaring ring around the logo
 // ═══════════════════════════════════════════════════════
-
+//
+//  No discrete flames. The ring is a solid wall of fire that
+//  curls and flickers in place. The OUTER edge crinkles via
+//  domain-warped FBM (the "ragged flame tips"), the INNER
+//  edge is hard against the logo (the "fuel source").
+//
+//  The base is solid (no gaps). The heat falls off upward
+//  (white-hot at the base, dark at the tips). Audio modulates
+//  the overall height and adds flicker on kicks.
+//
 float fr_flameMask(float fr_lx, float fr_ly, float fr_t, float fr_ah) {
-  // Slot subdivision: 8 chunky flames around the ring (fewer = bigger, more flame-like)
-  float fr_NUM    = 8.0;
-  float fr_slot   = fr_lx * fr_NUM;
-  float fr_idx    = floor(fr_slot);
-  float fr_frac   = fract(fr_slot);
 
-  // Per-flame pseudo-random seeds
-  float fr_s1 = fract(sin(fr_idx * 127.1 + 311.7) * 43758.5453);
-  float fr_s2 = fract(sin(fr_idx *  73.1 + 157.3) * 52948.1234);
+  // Domain-warped FBM for the crinkly outer edge
+  // Sample 2D: x=angle (scrolled slowly), y=height (scrolled fast upward)
+  float fr_warpX = fr_lx * 6.0 + fr_t * 0.3;
+  float fr_warpY = fr_ly * 4.0 - fr_t * 1.4;  // scroll UPWARD (flames rising)
+  float fr_warp  = fr_wfbm(vec2(fr_warpX, fr_warpY), fr_t);
 
-  // Per-flame height variation (0.85-1.10×)
-  float fr_hmod = 0.85 + 0.20 * fr_s1;
-  fr_hmod *= 0.92 + 0.08 * sin(fr_t * (1.1 + fr_s1 * 0.9) + fr_s1 * fr_TAU);
-  float fr_H = fr_ah * fr_hmod;
+  // Audio-driven overall height (kicks make the wall surge outward)
+  // fr_ah is 1.0 + kick*0.4 + beat*0.12 + vocal*0.08
+  float fr_H = fr_ah;
 
-  // Normalized height within this flame
-  float fr_ny = fr_ly / max(fr_H, 0.001);
+  // Normalized height within the flame band (0=base, 1=tip)
+  float fr_ny = fr_ly / fr_H;
   if (fr_ny > 1.0) return 0.0;
+  if (fr_ny < 0.0) return 0.0;
 
-  // Teardrop width: W = BASE × (1 - y^2) × belly(y)
-  // At y=0: width=BASE, at y=1: width=0 (pointed tip)
-  // belly peaks at y≈0.5 (the "belly" of a real flame)
-  //
-  // With NUM=8 slots (each 0.125 wide), BASE=0.045 gives
-  // half-width 0.045 at base → covers 72% of slot, 28% gap.
-  // Real flame ratio: wide base, sharply pointed tip.
-  float fr_BASE   = 0.045;
-  float fr_taper  = 1.0 - pow(fr_ny, 1.8);
-  float fr_belly  = 1.0 + 0.15 * sin(fr_PI * fr_ny);
-  float fr_halfW  = fr_BASE * fr_taper * fr_belly;
+  // ── Outer edge crinkle ─────────────────────────────
+  // The outer edge of the ring is at fr_ny = 1.0, but crinkles
+  // in/out via the FBM. The "effective tip" is wherever the
+  // edge is closest to us.
+  float fr_edge = 0.55 + fr_warp * 0.40;   // 0.15..0.95 random crinkle
+  // Mask: 1 below the edge, 0 above it
+  float fr_wallMask = 1.0 - smoothstep(fr_edge - 0.10, fr_edge, fr_ny);
 
-  // Flame sway (different per tongue)
-  float fr_sway = sin(fr_t * 1.7  + fr_s1 * fr_TAU) * 0.035
-                + sin(fr_t * 3.1  + fr_s2 * fr_TAU) * 0.018;
-  float fr_center = 0.5 + fr_sway;
+  // ── Inner edge: hard cut at the logo rim ───────────
+  // A small smooth band right at the rim
+  float fr_innerCut = smoothstep(0.0, 0.02, fr_ny);
 
-  // Angular distance from this flame's center
-  float fr_da = abs(fr_frac - fr_center);
+  // ── Heat-driven alpha along height ────────────────
+  // Brighter at base, fades to nothing at tip
+  float fr_heatFalloff = pow(1.0 - fr_ny, 1.4);
 
-  // Ragged edge noise
-  float fr_en = fr_wfbm(
-    vec2(fr_frac * 7.0 + fr_t * 0.4 + fr_s1 * 3.1,
-         fr_ly   * 9.0 - fr_t * 1.3),
-    fr_t
-  );
-  float fr_edgeShift = (fr_en - 0.5) * 0.05;
+  // Flicker from audio (the FBM gives spatial variation,
+  // we add temporal flicker)
+  float fr_flicker = 0.85 + 0.15 * sin(fr_t * 12.0 + fr_lx * 30.0);
 
-  // Soft angular edge (sharp at base, softer at tip)
-  float fr_softness = 0.008 + fr_ny * 0.012;
-  float fr_angMask = 1.0 - smoothstep(
-    fr_halfW + fr_edgeShift - fr_softness,
-    fr_halfW + fr_edgeShift + fr_softness,
-    fr_da
-  );
-
-  // Base fade: small smooth transition at the logo edge
-  float fr_baseFade = smoothstep(0.0, 0.03, fr_ly);
-
-  // Tip dissolution
-  float fr_tipFade = 1.0 - smoothstep(0.72, 1.0, fr_ny);
-  float fr_tipNoise = fr_vn(vec2(fr_lx * 20.0 + fr_t, fr_ly * 15.0));
-  fr_tipFade *= 0.6 + 0.4 * fr_tipNoise;
-
-  return fr_angMask * fr_baseFade * fr_tipFade;
+  return fr_wallMask * fr_innerCut * fr_heatFalloff * fr_flicker;
 }
 
 // ═══════════════════════════════════════════════════════
