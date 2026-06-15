@@ -230,20 +230,21 @@ float fr_flameMask(float fr_lx, float fr_ly, float fr_t, float fr_ah) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  FIRE COLOR — 5-stop blackbody gradient (user-tinted)
+//  FIRE COLOR — 3-stop user gradient (no hardcoded blackbody)
 // ═══════════════════════════════════════════════════════
+//  Heat 0.0 (base)    → uFrColorOuter   (hot core)
+//  Heat 0.5 (middle)  → uFrColorMid     (mid flame)
+//  Heat 0.85 (tip)    → uFrColorInner   (cool tip)
+//  Heat 1.0           → vec3(0)         (fade to invisible at tip)
+//
+//  User colors are passed 1:1 — no blackbody mix-in.
+//  This makes the 3 user color pickers (Hot/Mid/Cool in UI)
+//  behave as advertised: pick green, fire is green.
 
 vec3 fr_fireColor(float fr_heat) {
-  vec3 fr_black  = vec3(0.00, 0.00, 0.00);
-  vec3 fr_dkred  = mix(vec3(0.70, 0.04, 0.00), uFrColorOuter, 0.55);
-  vec3 fr_orange = mix(vec3(1.00, 0.32, 0.00), uFrColorMid,   0.45);
-  vec3 fr_yellow = vec3(1.00, 0.86, 0.14);
-  vec3 fr_white  = mix(vec3(1.00, 0.96, 0.80), uFrColorInner, 0.30);
-
-  vec3 fr_c = mix(fr_black,  fr_dkred,  smoothstep(0.00, 0.22, fr_heat));
-  fr_c      = mix(fr_c,      fr_orange, smoothstep(0.18, 0.48, fr_heat));
-  fr_c      = mix(fr_c,      fr_yellow, smoothstep(0.42, 0.72, fr_heat));
-  fr_c      = mix(fr_c,      fr_white,  smoothstep(0.66, 0.92, fr_heat));
+  vec3 fr_c = mix(uFrColorOuter, uFrColorMid,   smoothstep(0.0,  0.5,  fr_heat));
+  fr_c      = mix(fr_c,           uFrColorInner, smoothstep(0.5,  0.85, fr_heat));
+  fr_c      = mix(fr_c,           vec3(0.0),     smoothstep(0.85, 1.0,  fr_heat));
   return fr_c;
 }
 
