@@ -236,6 +236,8 @@ export type Settings = {
     fireFreqStart: number;      // 20..20000 Hz
     fireFreqEnd: number;        // 20..20000 Hz
     fireSensitivity: number;    // 0.1..5.0 fire beat detector sensitivity
+    fireColorMode: 'solid' | 'gradient' | 'rainbow' | 'random' | 'key-derived' | 'band-driven';
+    fireSolidColor: string;      // solid mode: single color for entire flame
     // ── Sparks / Embers (v16) — single pool, single toggle ─────────────
     sparksEnabled:    boolean;       // master toggle
     sparksCount:      number;        // particles in pool: 30..300
@@ -512,6 +514,8 @@ const DEFAULT_SETTINGS: Settings = {
     fireFreqStart: 20,
     fireFreqEnd: 200,
     fireSensitivity: 1.0,
+    fireColorMode:   'gradient',
+    fireSolidColor:  '#ff7700',
     // Sparks / Embers (v16) — single pool, default OFF
     sparksEnabled:    false,
     sparksCount:      150,
