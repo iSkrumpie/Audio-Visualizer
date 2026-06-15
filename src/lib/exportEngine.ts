@@ -169,15 +169,24 @@ export async function exportMP4(
       bitrate: videoBitrate,
       keyFrameInterval: 2,
     });
-    // Probe for supported AAC bitrate - Chrome WebCodecs often rejects high values
-    const aacCandidates = [audioBitrate, 320_000, 256_000, 192_000, 128_000].filter(
-      (v, i, a) => a.indexOf(v) === i, // deduplicate
-    );
+    // Probe for supported AAC bitrate. Try 512k first (some browsers allow it;
+    // gives YouTube's re-encode a better source), then preset-bitrate, then
+    // fall through the standard ladder. The dedup filter prevents probing
+    // the same value twice (e.g. if audioBitrate === 384000).
+    const aacCandidates = [512_000, audioBitrate, 384_000, 320_000, 256_000, 192_000, 128_000]
+      .filter((v, i, a) => a.indexOf(v) === i); // deduplicate
     const resolvedAudioBitrate = await findSupportedAacBitrate(
       aacCandidates,
       audioBuffer.sampleRate,
       audioBuffer.numberOfChannels,
     );
+    if (resolvedAudioBitrate < audioBitrate) {
+      console.info(
+        `[export] AAC bitrate fallback: requested ${audioBitrate} bps, ` +
+        `browser accepted ${resolvedAudioBitrate} bps. ` +
+        `YouTube recommends 384000 bps for stereo AAC.`
+      );
+    }
 
     const audioSource = new AudioBufferSource({
       codec: 'aac',
