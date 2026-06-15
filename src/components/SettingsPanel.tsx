@@ -1157,7 +1157,7 @@ function LogoSection_() {
 
   return (
     <div>
-      <Tg value={en as boolean} onChange={sEn} label="Show logo" info={hintFor('logo.enabled')} />
+      <Tg value={en as boolean} onChange={sEn} label="Show logo" />
 
       <Acc label="Size" description={ACCORDION_DESCRIPTIONS['logo.size']}>
         <FR label="Size" hint={`${size}px`} info={hintFor('logo.size')}>
@@ -1680,7 +1680,7 @@ function BarsSection() {
 
   return (
     <div>
-      <Tg value={en as boolean} onChange={sEn} label="Radial bars" info={hintFor('bars.enabled')} />
+      <Tg value={en as boolean} onChange={sEn} label="Radial bars" />
 
       <Acc label="General" description={ACCORDION_DESCRIPTIONS['bars.general']}>
         <FR label="Count" hint={`${cnt}`} info={hintFor('bars.count')}>
@@ -1811,7 +1811,7 @@ function ParticlesSection() {
 
   return (
     <div>
-      <Tg value={en as boolean} onChange={sEn} label="Particles" info={hintFor('particles.enabled')} />
+      <Tg value={en as boolean} onChange={sEn} label="Particles" />
 
       <Acc label="General" description={ACCORDION_DESCRIPTIONS['particles.general']}>
         <FR label="Count" hint={`${cnt}`} info={hintFor('particles.count')}>
