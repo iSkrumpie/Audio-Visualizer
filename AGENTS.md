@@ -309,8 +309,8 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 - `Sl({ value, min, max, step, onChange })` - Range Slider
 - `CP({ value, onChange })` - Color Picker mit EyeDropper-Button (Chrome 95+)
 - `CB<T>({ value, options, onChange })` - Segmented Buttons
-- `Tg({ value, onChange, label })` - Toggle Switch
-- `Acc({ label, defaultOpen?, children })` - Accordion
+- `Tg({ value, onChange, label, info? })` - Toggle Switch. **`info?`** rendert `Hint` als Sibling inline neben dem Toggle (DOM: `<div flex>` + inner `<button flex-1>` + `<Hint/>` — keine nested-buttons). Setze `info` nur, wenn der Toggle-Name nicht selbsterklärend ist (z.B. `outerGlowEnabled`, `connectionLines`). Master-Toggles wie `logo.enabled` / `bars.enabled` / `particles.enabled` **bekommen KEINEN Hint** — der Name ist klar genug.
+- `Acc({ label, children, description? })` - Accordion. **`defaultOpen?` ist in Session 19 entfernt** — `useState(false)` ist jetzt hartcodiert. Alle Zieharmonikas starten eingeklappt, ohne Ausnahme. Beim Hinzufügen eines neuen `<Acc>` **kein** `defaultOpen` setzen.
 - `EffectCard({ label, enabled, onToggle, children? })` - PostFX-Card mit Toggle
 - `CustomColorEditor({ group })` - Editor für custom Farb-Zonen (Bars + Particles; nicht Glow - Glow hat eigenen inline-Editor)
 - `useF(group, key)` - gibt `[value, setter]` zurück, **kein** Rerender-overhead für Three.js. **Defensive**: gibt `DEFAULT_SETTINGS[group][key]` zurück wenn Feld im aktuellen State `undefined` ist (z.B. altes Preset geladen).
@@ -858,7 +858,7 @@ function EffectCard({ label, enabled, onToggle, children, info }: {
 
 **Skipped (TODO if requested):**
 - `background.noiseColorMode` is a `Tg` boolean in code, not a `CB` enum — its enum hint in `ENUM_HINTS['background.noiseColorMode']` is unused.
-- 4 standalone `Tg` toggles (`nebulaBeatMode`, `glitchBeatSync`, etc.) sit directly in accordion bodies without an `FR` wrapper. Could be wrapped in a follow-up.
+- ~~4 standalone `Tg` toggles (`nebulaBeatMode`, `glitchBeatSync`, etc.) sit directly in accordion bodies without an `FR` wrapper.~~ **Gelöst in Session 19** — diese Toggles sitzen jetzt direkt im Accordion-Body ohne `FR`-Wrapper, aber das ist OK: ihr Kontext (Nebel, Glitch) ist im Accordion-Label selbsterklärend. Falls der User bei einem davon später doch einen Hint will, einfach `info={hintFor(...)}` als Prop an `Tg` setzen (Tg unterstützt das jetzt nativ, siehe §4.8 / §16).
 
 ### 12.5 CSS architecture
 
@@ -1208,3 +1208,94 @@ Gilt analog für künftige Edge-bezogene Glow/Rim-Shader (Donut-Rim, Stroke-Ring
 - Kein Schema-Bump (settingsStore bleibt v14).
 - Kein neuer Hot-Spot-Eintrag nötig (CenterLogo ist bereits in §7 referenziert).
 - Bei Bug-Rollback: `git revert 95d644e` macht den Fix rückgängig.
+
+---
+
+## 16. Session 19 — UI Polish: All-Closed Accordions + Hint Placement + AAC Probe
+
+*3-Commit Session mit 2 Themen. settingsStore bleibt v14 (kein Schema-Bump).*
+
+### 16.1 Die 3 Commits
+
+| # | Commit | Datei | Was |
+|---|---|---|---|
+| 1 | `da62beb` | `src/lib/exportEngine.ts` (13 +/−4) | AAC-Bitrate-Probe: 512k wird zuerst probiert (vor `audioBitrate`), dedup-Filter bleibt. `console.info` loggt, wenn der Browser den gewünschten Bitrate nicht akzeptiert. Happy-Path (Browser nimmt 384k+) unverändert. |
+| 2 | `0fe9afb` | `src/components/SettingsPanel.tsx` (56 +/−26) | UI Polish #1: Alle `<Acc>` `defaultOpen` entfernt — hartcodiert `useState(false)`. Tg erweitert um `info?` Prop. 10 `<FR label="" info={...}><Tg/></FR>` Pattern → `<Tg info={...} />` (kein "lonely (i)" mehr). |
+| 3 | `5cce271` | `src/components/SettingsPanel.tsx` (3 +/−3) | UI Polish #2: Hint-Icon von den 3 Master-Toggles (Show logo, Radial bars, Particles) entfernt. Die 7 obskureren Toggles (Outer/Inner Glow, Fire, Sparks, Peaks, Connection lines, Twinkle) behalten es. |
+
+### 16.2 Der "Lonely (i)"-Bug
+
+**Symptom (User-Report):** Bei "Show Logo" (und ähnlichen Master-Toggles) saß der `(i)`-Button ganz alleine in einer Header-Zeile, weil der Toggle in `<FR label="" info={...}><Tg .../></FR>` gewrappt war — `FR` rendert den Hint-Icon im Label-Bereich, und ein leeres Label produziert eine Header-Zeile mit nur dem Icon.
+
+**Root Cause:** `Tg` unterstützte ursprünglich kein eigenes `info`-Prop, also musste der Hint am `FR`-Wrapper hängen. Bei Toggle-Labels ist das strukturell falsch: ein Toggle hat sein Label *innerhalb* der Button-Fläche, der Hint gehört daneben.
+
+**Fix:** Tg nimmt jetzt `info?: string` entgegen. Bei gesetztem `info` restructuriert sich der DOM von `<button>` zu `<div flex>` + inner `<button flex-1>` + `<Hint/>` als Sibling. **Keine nested-buttons** (HTML-valid, Klick-Verhalten unverändert). Wenn `info` nicht gesetzt ist, bleibt der ursprüngliche Single-`<button>`-DOM — null Regression für alle anderen Tg-Verwendungen (z.B. in EffectCard).
+
+### 16.3 Wann Tg ein `info` bekommt — und wann nicht
+
+| Toggle-Typ | Hint? | Begründung |
+|---|---|---|
+| **Master-Toggles** (`logo.enabled`, `bars.enabled`, `particles.enabled`) | ❌ Nein | "Show logo", "Radial bars", "Particles" — selbsterklärend. (i) wäre Rauschen. |
+| **Sub-System-Toggles** (`outerGlowEnabled`, `innerGlowEnabled`, `fireEnabled`, `sparksEnabled`, `peakEnabled`, `connectionLines`, `twinkle`) | ✅ Ja | User kennt die Subsysteme evtl. nicht. Hint erklärt in 1 Satz was es macht. |
+| **EffectCard-interne Toggles** (`vignetteEnabled`, `nebulaEnabled`, `bloomEnabled`, `noiseEnabled`, `scanlineEnabled`, `glitchEnabled`, `pixelationEnabled`, `dotScreenEnabled`, `gridEnabled`, `sepiaEnabled`, `caEnabled`, `colorAverageEnabled`, `bgParticlesEnabled`, `rainEnabled`, `snowEnabled`) | ✅ Ja (via EffectCard's eigenes `info`-Prop) | EffectCard platziert das Hint-Icon **schon korrekt** als Sibling zum Tg — nix zu fixen. |
+| **Standalone Toggles im Accordion-Body** (`nebulaBeatMode`, `glitchBeatSync`, `noiseColorMode`) | ❌ Nein (aktuell) | Kontext im Accordion-Label ("Fog > Beat pulse mode", "Effects > Noise > Color grain") ist selbsterklärend. Falls User bei einem davon später doch einen Hint will, einfach `info={hintFor(...)}` an Tg hängen. |
+
+### 16.4 Acc `defaultOpen?` — entfernt, ohne Ausnahme
+
+Vorher hatte jeder Tab 1-2 Sektionen mit `defaultOpen` (Image, Size, Fire, Sparks, Detection Mode, Song Metadata, Band Sensitivity, Key Influence, Legacy Beat, Bars General, Particles General). User wollte **alle** standardmäßig eingeklappt, ohne Ausnahme. Fix:
+- `Acc({ label, children, defaultOpen? })` → `Acc({ label, children, description? })`
+- `useState(defaultOpen)` → `useState(false)` (hartcodiert)
+- 11 Aufrufstellen abgesucht und `defaultOpen`/`defaultOpen={false}` gestrippt
+
+**Künftige Agents:** Beim Hinzufügen einer neuen Sektion **kein** `defaultOpen` setzen. Wenn der User explizit "die Sektion soll auf sein wenn ich auf den Tab wechsle" sagt, ist das eine separate Diskussion.
+
+### 16.5 AAC-Probe-Reihenfolge
+
+**Motivation:** Ballern-Export endete bei 192 kbps, weil der Browser 384k ablehnte — silent fallback ohne Sichtbarkeit.
+
+**Neue Probe-Reihenfolge:**
+```typescript
+const aacCandidates = [512_000, audioBitrate, 384_000, 320_000, 256_000, 192_000, 128_000]
+  .filter((v, i, a) => a.indexOf(v) === i); // dedup
+```
+
+- **512k first** — manche Browser (Firefox, Edge) erlauben das. Bessere Source für YouTube-Re-Encode.
+- **audioBitrate** (z.B. 256k für TikTok) explizit drin, damit Preset-Vorgaben respektiert werden.
+- **384k explizit** — falls `audioBitrate=512k` ist (was nicht vorkommt, aber für Robustheit), 384k als Fallback.
+- Dedup-Filter verhindert Doppel-Probing.
+- `findSupportedAacBitrate` selbst unverändert.
+
+**Logging:**
+```typescript
+if (resolvedAudioBitrate < audioBitrate) {
+  console.info(`[export] AAC bitrate fallback: requested ${audioBitrate} bps, browser accepted ${resolvedAudioBitrate} bps. YouTube recommends 384000 bps for stereo AAC.`);
+}
+```
+
+Happy-Path bleibt still (Browser nimmt 384k+). Fallback ist sichtbar.
+
+### 16.6 Lessons Learned (in §4.8 / §12.7 / §6 ergänzt)
+
+> **🔴 Hint-Icon-Placement: Master-Toggles ohne Hint.** `<Tg>` für `logo.enabled` / `bars.enabled` / `particles.enabled` bekommen **kein** `info` Prop. Ein einsamer `(i)`-Button in einer Header-Zeile ohne Label-Look ist UX-Müll. Sub-System-Toggles (Outer Glow, Connection Lines, Twinkle) behalten den Hint, weil ihr Name nicht selbsterklärend ist.
+
+> **🔴 Toggles nicht in `<FR label="" info={...}>` wrappen.** Das produziert einen verwaisten Hint-Icon in einer leeren Header-Zeile. Stattdessen `Tg` direkt mit `info`-Prop verwenden.
+
+> **🟢 Acc ohne `defaultOpen`.** Standard ist "alle eingeklappt". Das spart visuellen Lärm beim ersten Öffnen. User können selbst aufklappen was sie brauchen.
+
+### 16.7 Verifikation
+
+| Commit | typecheck | build | grep-checks |
+|---|---|---|---|
+| `da62beb` (AAC) | OK | OK | `512_000` in exportEngine, `console.info.*AAC` in exportEngine |
+| `0fe9afb` (Acc + Tg) | OK | OK | `defaultOpen` count = 0, `<FR label="" info=` count = 0 |
+| `5cce271` (Hint-Drop) | OK | OK | 3 Master-Toggles ohne `info` |
+
+**NICHT gelaufen:** `scripts/verify-export.mjs` — kein Audio-Pipeline-Touch in dieser Session, SSIM/Audio-Werte sind garantiert unverändert.
+
+### 16.8 House-keeping
+
+- settingsStore bleibt v14 (kein Schema-Bump).
+- `Hint.tsx` unverändert — Tg nutzt die existierende Hint-Komponente.
+- `EffectCard` unverändert — Hint-Platzierung dort war schon korrekt.
+- Bei UI-Pollish-Rollback: `git revert 5cce271 0fe9afb da62beb` macht alle 3 Commits rückgängig (in umgekehrter Reihenfolge wegen Lineage).
+- §4.8 und §12.7 in AGENTS.md mit den neuen Konventionen aktualisiert (Tg `info`-Prop, Acc kein `defaultOpen`).
