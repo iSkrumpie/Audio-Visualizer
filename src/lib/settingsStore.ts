@@ -247,6 +247,9 @@ export type Settings = {
     sparksDrag:       number;        // drag coefficient: 0.5..4.0
     sparksSpread:     number;        // radial spread angle (radians): 0..1.5
     sparksOpacity:    number;        // overall opacity multiplier: 0..1
+    sparksColorHot:   string;        // hot color (freshly spawned, top of gradient)
+    sparksColorMid:   string;        // mid color (cooling, middle of gradient)
+    sparksColorCool:  string;        // cool color (about to die, bottom of gradient)
   };
 
   bars: {
@@ -520,6 +523,9 @@ const DEFAULT_SETTINGS: Settings = {
     sparksDrag:       2.0,
     sparksSpread:     0.4,
     sparksOpacity:    0.9,
+    sparksColorHot:   '#fff5d8',   // near-white
+    sparksColorMid:   '#ff7700',   // orange
+    sparksColorCool:  '#aa0000',   // dark red
   },
 
   bars: {

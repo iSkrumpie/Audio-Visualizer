@@ -359,6 +359,12 @@ export const SETTING_HINTS: Record<string, string> = {
     'Air resistance on the sparks. Higher = sparks slow down faster.',
   'logo.sparksSpread':
     'How wide the spawn angle is around the logo. 0° = all from one side, 90° = sparks from a quarter of the ring.',
+  'logo.sparksColorHot':
+    'Color of freshly spawned sparks (the white/yellow tip of the cooling gradient).',
+  'logo.sparksColorMid':
+    'Mid color in the cooling gradient — applied at ~50% through the spark\'s life.',
+  'logo.sparksColorCool':
+    'Color of sparks right before they die — the dark red end of the gradient.',
   'logo.sparksOpacity':
     'Overall brightness. Lower = ghostly, higher = punchy.',
 

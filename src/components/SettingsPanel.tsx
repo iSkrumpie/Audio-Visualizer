@@ -1119,6 +1119,9 @@ function LogoSection_() {
   const [sparksDrag,  sSparksDrag]  = useF('logo', 'sparksDrag');
   const [sparksSpread,sSparksSpread]= useF('logo', 'sparksSpread');
   const [sparksOp,    sSparksOp]    = useF('logo', 'sparksOpacity');
+  const [sparksCHot,  sSparksCHot]  = useF('logo', 'sparksColorHot');
+  const [sparksCMid,  sSparksCMid]  = useF('logo', 'sparksColorMid');
+  const [sparksCCool, sSparksCCool] = useF('logo', 'sparksColorCool');
 
   return (
     <div>
@@ -1346,6 +1349,15 @@ function LogoSection_() {
             </FR>
             <FR label="Spread" hint={`${((sparksSpread as number) * 57.3).toFixed(0)}°`} info={hintFor('logo.sparksSpread')}>
               <Sl value={sparksSpread as number} min={0} max={1.5} step={0.05} onChange={sSparksSpread} />
+            </FR>
+            <FR label="Hot color" info={hintFor('logo.sparksColorHot')}>
+              <CP value={sparksCHot as string} onChange={sSparksCHot} />
+            </FR>
+            <FR label="Mid color" info={hintFor('logo.sparksColorMid')}>
+              <CP value={sparksCMid as string} onChange={sSparksCMid} />
+            </FR>
+            <FR label="Cool color" info={hintFor('logo.sparksColorCool')}>
+              <CP value={sparksCCool as string} onChange={sSparksCCool} />
             </FR>
             <FR label="Opacity" hint={`${((sparksOp as number) * 100).toFixed(0)}%`} info={hintFor('logo.sparksOpacity')}>
               <Sl value={sparksOp as number} min={0} max={1} step={0.01} onChange={sSparksOp} />
