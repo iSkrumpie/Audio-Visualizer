@@ -215,8 +215,8 @@ float fr_flameMask(float fr_lx, float fr_ly, float fr_t, float fr_ah) {
   float fr_wallMask = 1.0 - smoothstep(fr_edge - 0.10, fr_edge, fr_ny);
 
   // ── Inner edge: hard cut at the logo rim ───────────
-  // A small smooth band right at the rim
-  float fr_innerCut = smoothstep(0.0, 0.02, fr_ny);
+  // No smooth band — the fire sits flush against the logo edge.
+  float fr_innerCut = step(0.0, fr_ny);
 
   // ── Heat-driven alpha along height ────────────────
   // Brighter at base, fades to nothing at tip

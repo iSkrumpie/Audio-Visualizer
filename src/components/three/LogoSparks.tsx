@@ -28,7 +28,6 @@ function initAmbientPool(count: number) {
   const velocities = new Float32Array(count * 3);
   const lifetimes  = new Float32Array(count);
   const offsets    = new Float32Array(count);
-  const seeds      = new Float32Array(count);
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
     const r     = LOGO_RADIUS_DEFAULT * (0.95 + Math.random() * 0.15);
@@ -43,9 +42,8 @@ function initAmbientPool(count: number) {
     velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.2;
     lifetimes[i] = 0.6 + Math.random() * 1.4;
     offsets[i]   = Math.random() * lifetimes[i];
-    seeds[i]     = Math.random();
   }
-  return { starts, velocities, lifetimes, offsets, seeds };
+  return { starts, velocities, lifetimes, offsets };
 }
 
 // ─── GLSL: Ambient (self-respawn) ─────────────────────────────────────────
@@ -61,26 +59,21 @@ uniform float uKick;
 uniform float uHihat;
 uniform float uLoudness;
 uniform float uLogoSize;
-uniform float uSpeedMul;     // user-controlled speed multiplier (0.3..3.0)
-uniform float uSpreadMul;    // user-controlled spread multiplier (0..1.5)
-uniform float uCountScale;   // user-controlled count (1.0 at default, 0..2 effective)
-uniform vec3  uColorHot;     // user-tunable hot color (white/yellow at birth)
-uniform vec3  uColorMid;     // user-tunable mid color (orange)
-uniform vec3  uColorCool;    // user-tunable cool color (dark red at death)
+uniform vec3  uColorHot;   // user-tunable hot color (freshly spawned)
+uniform vec3  uColorMid;   // user-tunable mid color (cooling, middle of gradient)
+uniform vec3  uColorCool;  // user-tunable cool color (about to die)
 
 attribute vec3  aStart;
 attribute vec3  aVelocity;
 attribute float aLifetime;
 attribute float aOffset;
-attribute float aSeed;
 
 varying vec3  vColor;
 varying float vAlpha;
 
 vec3 fr_sparkColor(float t) {
   t = clamp(t, 0.0, 1.0);
-  // 4-stop gradient: hot (white) -> mid (orange) -> cool (dark red) -> black
-  // User-tunable: c0..c3 from uniforms, c4 always black (full death)
+  // 4-stop gradient: hot -> mid -> cool -> black (death)
   float s = t * 3.0;
   vec3 col = mix(uColorHot,  uColorMid,  clamp(s,         0.0, 1.0));
   col = mix(col,           uColorCool, clamp(s - 1.0,   0.0, 1.0));
@@ -89,36 +82,25 @@ vec3 fr_sparkColor(float t) {
 }
 
 void main() {
-  // ── Lifetime: divide buffer-lifetime by uSpeedMul so faster speed
-  //    = sparks live shorter (they cover more distance in less time).
-  //    Actually: speed mul should NOT change lifetime, so we keep
-  //    aLifetime but speed up age for visual effect.
-  float age = mod(uTime * uSpeedMul + aOffset, aLifetime);
+  float age = mod(uTime + aOffset, aLifetime);
   float t   = age / aLifetime;
 
-  // Velocity: user speed mul modulates initial velocity,
-  // vocal boost adds extra energy.
-  float boost = uSpeedMul * (1.0 + uVocalBoost * 1.5);
+  // Velocity scaled by group + normalized by uLogoSize so world speed stays constant
+  float boost = 1.0 + uVocalBoost * 1.5;
   float invLs = 1.0 / max(uLogoSize, 1.0);
   vec3 vel    = aVelocity * boost * invLs;
 
   // Ballistic position with drag
   float k   = uDrag;
-  vec3 pos  = aStart + vel / k * (1.0 - exp(-k * age / uSpeedMul));
+  vec3 pos  = aStart + vel / k * (1.0 - exp(-k * age));
   pos.y    -= 0.5 * uGravity * age * age * invLs;
 
   vColor  = fr_sparkColor(t);
   vAlpha  = pow(1.0 - smoothstep(0.4, 1.0, t), 2.0);
 
-  // Size: bigger spark when fresh, shrinks over life
+  // Size: big when hot, shrinks over life. NOT divided by uLogoSize — bigger
+  // logo = bigger sparks (this is the v15 fix).
   float sz = uBaseSize * (1.0 - t * 0.7) * (1.0 + uBeatPulse * 0.5) * (1.0 + uKick * 0.3);
-
-  // Count scale: hide sparks whose seed is above the count threshold
-  // (uniform distribution from 0..1, so uCountScale=1.0 = 100% visible,
-  // uCountScale=0.5 = top 50% visible). Culls from the brightest end
-  // so density visibly drops.
-  float alive = step(aSeed, uCountScale);
-  sz *= alive;
 
   vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
   gl_PointSize = sz * (400.0 / -mvPos.z);
@@ -262,7 +244,7 @@ export function LogoSparks() {
 
   // ── Ambient pool geometry ────────────────────────────
   const ambientGeo = useMemo(() => {
-    const { starts, velocities, lifetimes, offsets, seeds } = initAmbientPool(AMBIENT_COUNT);
+    const { starts, velocities, lifetimes, offsets } = initAmbientPool(AMBIENT_COUNT);
     const geo = new THREE.BufferGeometry();
     const positions = new Float32Array(AMBIENT_COUNT * 3);
     geo.setAttribute('position',  new THREE.BufferAttribute(positions, 3));
@@ -270,7 +252,6 @@ export function LogoSparks() {
     geo.setAttribute('aVelocity', new THREE.BufferAttribute(velocities, 3));
     geo.setAttribute('aLifetime', new THREE.BufferAttribute(lifetimes, 1));
     geo.setAttribute('aOffset',   new THREE.BufferAttribute(offsets, 1));
-    geo.setAttribute('aSeed',     new THREE.BufferAttribute(seeds, 1));
     return geo;
   }, []);
 
@@ -288,9 +269,6 @@ export function LogoSparks() {
       uHihat:      { value: 0 },
       uLoudness:   { value: 0 },
       uLogoSize:   { value: 240 },
-      uSpeedMul:   { value: 1.0 },
-      uSpreadMul:  { value: 1.0 },
-      uCountScale: { value: 1.0 },
       uColorHot:   { value: new THREE.Color('#fff5d8') },
       uColorMid:   { value: new THREE.Color('#ff7700') },
       uColorCool:  { value: new THREE.Color('#aa0000') },
@@ -359,17 +337,13 @@ export function LogoSparks() {
     const beatPulse = sparksPhaseSrc();
 
     // Shared spark settings
-    const sparksSize      = sL.sparksSize       ?? 1.0;
-    const sparksSpeed     = sL.sparksSpeed      ?? 1.0;
-    const sparksBurst     = sL.sparksBurstCount ?? 30;
-    const sparksGravity   = sL.sparksGravity    ?? 2.5;
-    const sparksDrag      = sL.sparksDrag       ?? 2.0;
-    const sparksSpread    = sL.sparksSpread     ?? 0.4;
-    const sparksOpacity   = sL.sparksOpacity    ?? 0.9;
-    const sparksCount     = sL.sparksCount      ?? 150;
-    const sparksColorHot  = sL.sparksColorHot   ?? '#fff5d8';
-    const sparksColorMid  = sL.sparksColorMid   ?? '#ff7700';
-    const sparksColorCool = sL.sparksColorCool  ?? '#aa0000';
+    const sparksSize    = sL.sparksSize       ?? 1.0;
+    const sparksSpeed   = sL.sparksSpeed      ?? 1.0;
+    const sparksBurst   = sL.sparksBurstCount ?? 30;
+    const sparksGravity = sL.sparksGravity    ?? 2.5;
+    const sparksDrag    = sL.sparksDrag       ?? 2.0;
+    const sparksSpread  = sL.sparksSpread     ?? 0.4;
+    const sparksOpacity = sL.sparksOpacity    ?? 0.9;
 
     // Update ambient uniforms
     const aU = ambientMat.uniforms;
@@ -383,13 +357,9 @@ export function LogoSparks() {
     aU.uHihat.value      = audioAnalysis.hihatPhase ?? 0;
     aU.uLoudness.value   = audioAnalysis.loudness   ?? 0;
     aU.uLogoSize.value   = logoSize;
-    aU.uSpeedMul.value   = sparksSpeed;
-    aU.uSpreadMul.value  = sparksSpread;
-    // Count slider 30..300 → scale 0.2..2.0
-    aU.uCountScale.value = (sparksCount / 150.0);
-    aU.uColorHot.value.set(sparksColorHot);
-    aU.uColorMid.value.set(sparksColorMid);
-    aU.uColorCool.value.set(sparksColorCool);
+    aU.uColorHot.value.set(sL.sparksColorHot ?? '#fff5d8');
+    aU.uColorMid.value.set(sL.sparksColorMid ?? '#ff7700');
+    aU.uColorCool.value.set(sL.sparksColorCool ?? '#aa0000');
 
     // Update burst uniforms
     const bU = burstMat.uniforms;
