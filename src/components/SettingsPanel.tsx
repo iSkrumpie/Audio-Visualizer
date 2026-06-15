@@ -471,11 +471,44 @@ function Tg({
   value,
   onChange,
   label,
+  info,
 }: {
   value: boolean;
   onChange: (v: boolean) => void;
   label: string;
+  info?: string;
 }) {
+  if (info) {
+    return (
+      <div className="mb-3 flex w-full items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onChange(!value)}
+          className="flex flex-1 items-center justify-between rounded-md px-2.5 py-1.5 font-ui text-xs font-medium transition-colors"
+          style={{
+            background: value ? 'var(--bg-elev-2)' : 'transparent',
+            color: value ? 'var(--text)' : 'var(--text-muted)',
+            border: '1px solid var(--border)',
+          }}
+        >
+          <span>{label}</span>
+          <span
+            className="flex h-4 w-7 items-center rounded-full transition-colors"
+            style={{ background: value ? 'var(--accent)' : 'var(--border-strong)' }}
+          >
+            <span
+              className="h-3 w-3 rounded-full transition-transform"
+              style={{
+                background: 'var(--bg-elev-1)',
+                transform: value ? 'translateX(15px)' : 'translateX(2px)',
+              }}
+            />
+          </span>
+        </button>
+        <Hint text={info} />
+      </div>
+    );
+  }
   return (
     <button
       type="button"
@@ -565,13 +598,12 @@ function hintFor(...pathParts: string[]): string | undefined {
 
 // ── Accordion ────────────────────────────────────────────────────────────────
 
-function Acc({ label, children, defaultOpen = false, description }: {
+function Acc({ label, children, description }: {
   label: string;
   children: React.ReactNode;
-  defaultOpen?: boolean;
   description?: string;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpen] = useState(false);
   return (
     <div className="mb-2 overflow-hidden rounded-md border" style={{ borderColor: 'var(--border)' }}>
       <button
@@ -720,7 +752,7 @@ function BackgroundSection() {
 
   return (
     <div>
-      <Acc label="Image" defaultOpen description={ACCORDION_DESCRIPTIONS['background.image']}>
+      <Acc label="Image" description={ACCORDION_DESCRIPTIONS['background.image']}>
         <FR label="Blur" hint={`${blur}px`} info={hintFor('background.blur')}>
           <Sl value={blur as number} min={0} max={40} step={1} onChange={sBlur} />
         </FR>
@@ -1125,9 +1157,9 @@ function LogoSection_() {
 
   return (
     <div>
-      <FR label="" info={hintFor('logo.enabled')}><Tg value={en as boolean} onChange={sEn} label="Show logo" /></FR>
+      <Tg value={en as boolean} onChange={sEn} label="Show logo" info={hintFor('logo.enabled')} />
 
-      <Acc label="Size" defaultOpen description={ACCORDION_DESCRIPTIONS['logo.size']}>
+      <Acc label="Size" description={ACCORDION_DESCRIPTIONS['logo.size']}>
         <FR label="Size" hint={`${size}px`} info={hintFor('logo.size')}>
           <Sl value={size as number} min={80} max={1600} step={8} onChange={sSize} />
         </FR>
@@ -1137,7 +1169,7 @@ function LogoSection_() {
       </Acc>
 
       <Acc label="Outer Glow" description={ACCORDION_DESCRIPTIONS['logo.outerGlow']}>
-        <FR label="" info={hintFor('logo.outerGlowEnabled')}><Tg value={gE as boolean} onChange={sGE} label="Enabled" /></FR>
+        <Tg value={gE as boolean} onChange={sGE} label="Enabled" info={hintFor('logo.outerGlowEnabled')} />
         {!!gE && (
           <div className="mt-3 space-y-2">
             <FR label="Color mode" info={ENUM_HINTS['logo.outerGlowColorMode']?.[gCM as string]}>
@@ -1211,7 +1243,7 @@ function LogoSection_() {
       </Acc>
 
       <Acc label="Inner Glow" description={ACCORDION_DESCRIPTIONS['logo.innerGlow']}>
-        <FR label="" info={hintFor('logo.innerGlowEnabled')}><Tg value={igE as boolean} onChange={sIgE} label="Enabled" /></FR>
+        <Tg value={igE as boolean} onChange={sIgE} label="Enabled" info={hintFor('logo.innerGlowEnabled')} />
         {!!igE && (
           <div className="mt-3 space-y-2">
             <FR label="Color mode" info={ENUM_HINTS['logo.innerGlowColorMode']?.[igCM as string]}>
@@ -1284,8 +1316,8 @@ function LogoSection_() {
         )}
       </Acc>
 
-      <Acc label="Fire" defaultOpen description={ACCORDION_DESCRIPTIONS['logo.fire']}>
-        <FR label="" info={hintFor('logo.fireEnabled')}><Tg value={fireE as boolean} onChange={sFireE} label="Enabled" /></FR>
+      <Acc label="Fire" description={ACCORDION_DESCRIPTIONS['logo.fire']}>
+        <Tg value={fireE as boolean} onChange={sFireE} label="Enabled" info={hintFor('logo.fireEnabled')} />
         {!!fireE && (
           <div className="mt-3 space-y-2">
             <FR label="Intensity" info={hintFor('logo.fireIntensity')}>
@@ -1320,10 +1352,8 @@ function LogoSection_() {
         )}
       </Acc>
 
-      <Acc label="Sparks" defaultOpen description={ACCORDION_DESCRIPTIONS['logo.sparks']}>
-        <FR label="" info={hintFor('logo.sparksEnabled')}>
-          <Tg value={sparksE as boolean} onChange={sSparksE} label="Enabled" />
-        </FR>
+      <Acc label="Sparks" description={ACCORDION_DESCRIPTIONS['logo.sparks']}>
+        <Tg value={sparksE as boolean} onChange={sSparksE} label="Enabled" info={hintFor('logo.sparksEnabled')} />
         {Boolean(sparksE) && (
           <div className="mt-3 space-y-2">
             <FR label="Count" hint={`${sparksCount}`} info={hintFor('logo.sparksCount')}>
@@ -1505,7 +1535,7 @@ function AudioSection() {
 
   return (
     <div>
-      <Acc label="Detection Mode" defaultOpen description={ACCORDION_DESCRIPTIONS['audio.detection']}>
+      <Acc label="Detection Mode" description={ACCORDION_DESCRIPTIONS['audio.detection']}>
         <FR label="Mode" hint={isPrecomputed ? 'Pre-analysed' : 'Live spectral flux'} info={ENUM_HINTS['audio.detectionMode']?.[detMode as string]}>
           <CB value={detMode as string}
             options={[
@@ -1539,7 +1569,7 @@ function AudioSection() {
       </Acc>
 
       {isPrecomputed && hasResults && (
-        <Acc label="Detected Song Metadata" defaultOpen description={ACCORDION_DESCRIPTIONS['audio.metadata']}>
+        <Acc label="Detected Song Metadata" description={ACCORDION_DESCRIPTIONS['audio.metadata']}>
           <FR label="Tempo" hint={`${(bpm as number).toFixed(1)} BPM`}>
             <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
               Detected via essentia.js RhythmExtractor2013 (multifeature).
@@ -1558,7 +1588,7 @@ function AudioSection() {
       )}
 
       {isPrecomputed && (
-        <Acc label="Band Sensitivity" defaultOpen description={ACCORDION_DESCRIPTIONS['audio.bands']}>
+        <Acc label="Band Sensitivity" description={ACCORDION_DESCRIPTIONS['audio.bands']}>
           <FR label="Kick" hint={`×${(kickG as any).kick?.toFixed(2) ?? '1.00'}`} info={hintFor('audio', 'bandSensitivity.kick')}>
             <Sl value={(kickG as any).kick as number} min={0} max={2} step={0.05}
               onChange={(v) => sKickG({ ...(kickG as any), kick: v })} />
@@ -1585,7 +1615,7 @@ function AudioSection() {
         </Acc>
       )}
 
-      <Acc label="Key Influence" defaultOpen={false} description={ACCORDION_DESCRIPTIONS['audio.keyInfluence']}>
+      <Acc label="Key Influence" description={ACCORDION_DESCRIPTIONS['audio.keyInfluence']}>
         <FR label="Key → Color blend" hint={`${((keyInf as number) * 100).toFixed(0)}%`} info={hintFor('audio.keyInfluence')}>
           <Sl value={keyInf as number} min={0} max={1} step={0.05} onChange={sKeyInf as (v: number) => void} />
         </FR>
@@ -1597,7 +1627,7 @@ function AudioSection() {
         </FR>
       </Acc>
 
-      <Acc label="Legacy Global Beat" defaultOpen={false} description={ACCORDION_DESCRIPTIONS['audio.legacy']}>
+      <Acc label="Legacy Global Beat" description={ACCORDION_DESCRIPTIONS['audio.legacy']}>
         <FR label="" hint="These settings apply in both modes (Live always uses them, Precomputed uses them for the global beatPhase driver — logo pulse, glow, etc.)">
           <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
             The 7 per-component FreqBeatDetectors (Background, Logo, Fire, Particles,
@@ -1650,9 +1680,9 @@ function BarsSection() {
 
   return (
     <div>
-      <FR label="" info={hintFor('bars.enabled')}><Tg value={en as boolean} onChange={sEn} label="Radial bars" /></FR>
+      <Tg value={en as boolean} onChange={sEn} label="Radial bars" info={hintFor('bars.enabled')} />
 
-      <Acc label="General" defaultOpen description={ACCORDION_DESCRIPTIONS['bars.general']}>
+      <Acc label="General" description={ACCORDION_DESCRIPTIONS['bars.general']}>
         <FR label="Count" hint={`${cnt}`} info={hintFor('bars.count')}>
           <Sl value={cnt as number} min={8} max={256} step={8} onChange={sCnt} />
         </FR>
@@ -1724,7 +1754,7 @@ function BarsSection() {
       </Acc>
 
       <Acc label="Peak indicators" description={ACCORDION_DESCRIPTIONS['bars.peaks']}>
-        <FR label="" info={hintFor('bars.peakEnabled')}><Tg value={pe as boolean} onChange={sPe} label="Show peaks" /></FR>
+        <Tg value={pe as boolean} onChange={sPe} label="Show peaks" info={hintFor('bars.peakEnabled')} />
         {!!pe && (
           <div className="mt-2">
             <FR label="Decay" hint={`${(pd as number).toFixed(3)}`} info={hintFor('bars.peakDecay')}>
@@ -1781,9 +1811,9 @@ function ParticlesSection() {
 
   return (
     <div>
-      <FR label="" info={hintFor('particles.enabled')}><Tg value={en as boolean} onChange={sEn} label="Particles" /></FR>
+      <Tg value={en as boolean} onChange={sEn} label="Particles" info={hintFor('particles.enabled')} />
 
-      <Acc label="General" defaultOpen description={ACCORDION_DESCRIPTIONS['particles.general']}>
+      <Acc label="General" description={ACCORDION_DESCRIPTIONS['particles.general']}>
         <FR label="Count" hint={`${cnt}`} info={hintFor('particles.count')}>
           <Sl value={cnt as number} min={0} max={400} step={10} onChange={sCnt} />
         </FR>
@@ -1884,7 +1914,7 @@ function ParticlesSection() {
       </Acc>
 
       <Acc label="Connections" description={ACCORDION_DESCRIPTIONS['particles.connections']}>
-        <FR label="" info={hintFor('particles.connectionLines')}><Tg value={cl as boolean} onChange={sCl} label="Connection lines" /></FR>
+        <Tg value={cl as boolean} onChange={sCl} label="Connection lines" info={hintFor('particles.connectionLines')} />
         {!!cl && (
           <div className="mt-3 space-y-2">
             <FR label="Max distance" hint={`${cd}px`} sub="Capped at 200 particles when enabled" info={hintFor('particles.connectionDistance')}>
@@ -1898,7 +1928,7 @@ function ParticlesSection() {
       </Acc>
 
       <Acc label="Flicker" description={ACCORDION_DESCRIPTIONS['particles.flicker']}>
-        <FR label="" info={hintFor('particles.twinkle')}><Tg value={tw as boolean} onChange={sTw} label="Twinkle" /></FR>
+        <Tg value={tw as boolean} onChange={sTw} label="Twinkle" info={hintFor('particles.twinkle')} />
         {!!tw && (
           <div className="mt-2">
             <FR label="Speed" info={hintFor('particles.twinkleSpeed')}>
