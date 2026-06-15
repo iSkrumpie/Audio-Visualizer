@@ -341,26 +341,22 @@ export const SETTING_HINTS: Record<string, string> = {
     'How easily the fire reacts to quieter beats.',
 
   // ── Logo: Sparks ──────────────────────────────────────────────────────────
-  'logo.sparksWeldEnabled':
-    'Sharp white-hot sparks that fly outward in sudden bursts on every kick. Best for fast, punchy music.',
-  'logo.sparksVolcanicEnabled':
-    'Slow orange embers that rise upward from the logo. Best for cinematic or slow music.',
-  'logo.sparksAmbientEnabled':
-    'Constant soft floating embers around the logo. Always-on, gentle motion. Try combining with Weld for a layered look.',
+  'logo.sparksEnabled':
+    'Adds a ring of glowing embers that fly out from the logo. On every kick a burst of extra sparks fires outward.',
   'logo.sparksCount':
-    'Particles per pool. 3 pools (Weld/Volcanic/Ambient) can each have this many, so total can be 3× this value.',
+    'How many sparks are in the ambient pool around the logo. More = denser look but slightly more GPU cost.',
   'logo.sparksSize':
-    'How big each spark appears. Try 0.5 for subtle, 1.5 for bold, 3.0 for dramatic. Bigger logo = bigger sparks.',
+    'How big each spark is. 0.5 = subtle, 1.5 = bold, 3.0 = dramatic. Bigger logo = bigger sparks.',
   'logo.sparksSpeed':
     'How fast the sparks fly outward from the logo. Higher = more energetic.',
   'logo.sparksBurstCount':
-    'How many extra sparks fire on every kick (Weld only). 0 = no bursts, 50+ = dramatic bursts.',
+    'How many extra sparks fire on every kick. 0 = no bursts (ambient only), 50+ = dramatic bursts.',
   'logo.sparksLifetime':
-    'How long each spark lives. Short (0.4s) = sharp metallic. Long (2.5s) = lingering embers.',
+    'How long each spark lives before fading. Short (0.4s) = sharp metallic feel. Long (2.5s) = lingering embers.',
   'logo.sparksGravity':
-    'How strongly sparks fall. 0 = float in space, 5+ = heavy drop like real metal sparks.',
+    'How strongly sparks fall after spawning. 0 = no gravity (float in space), 5+ = heavy drop.',
   'logo.sparksDrag':
-    'Air resistance. Higher = sparks slow down faster.',
+    'Air resistance on the sparks. Higher = sparks slow down faster.',
   'logo.sparksSpread':
     'How wide the spawn angle is around the logo. 0° = all from one side, 90° = sparks from a quarter of the ring.',
   'logo.sparksOpacity':
@@ -517,7 +513,7 @@ export const ACCORDION_DESCRIPTIONS: Record<string, string> = {
 
   // Logo tab
   'logo.sparks':
-    'Three independent spark styles that can run together. Weld = sharp white bursts on kicks. Volcanic = slow orange embers rising. Ambient = constant floating glow. Each toggled separately.',
+    'Glowing embers and sparks that fly outward from the logo. Ambient pool + extra burst on every kick.',
   'logo.size':
     'Control the size and visibility of the logo, and how it bounces on the beat.',
   'logo.outerGlow':

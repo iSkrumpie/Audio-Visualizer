@@ -111,17 +111,7 @@ void main() {
   // The RingGeometry is [innerR=0.5, outerR=0.5+height] in local space,
   // so polar math stays in the [-0.5..1.5] range regardless of mesh scale.
   vLocalPos = position;
-
-  // Keep the radial ripple for nice edge variation
-  vec3 pos = position;
-  float outerWeight = smoothstep(0.3, 1.0, length(position.xy) * 2.0);
-  float wave = sin(atan(position.y, position.x) * 12.0 + uTime * 3.5) * 0.04
-             + sin(atan(position.y, position.x) * 7.0  - uTime * 2.1) * 0.025;
-  wave *= outerWeight * (1.0 + uFrBass * 1.5);
-  vec2 radialDir = normalize(pos.xy);
-  pos.xy += radialDir * wave;
-
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `;
 
@@ -213,9 +203,9 @@ float fr_flameMask(float fr_lx, float fr_ly, float fr_t, float fr_ah) {
   // Teardrop width: W = BASE × (1 - y^0.65) × belly(y)
   // At y=0: width=BASE, at y=1: width=0 (pointed tip)
   // belly peaks at y≈0.35 (the "belly" of a real flame)
-  float fr_BASE   = 0.27;  // base half-width as fraction of slot
-  float fr_taper  = 1.0 - pow(fr_ny, 0.65);
-  float fr_belly  = 1.0 + 0.30 * sin(fr_PI * fr_ny);
+  float fr_BASE   = 0.45;  // base half-width as fraction of slot (bigger = wider flames, less gap)
+  float fr_taper  = 1.0 - pow(fr_ny, 0.5);
+  float fr_belly  = 1.0 + 0.20 * sin(fr_PI * fr_ny);
   float fr_halfW  = fr_BASE * fr_taper * fr_belly;
 
   // Flame sway (different per tongue)

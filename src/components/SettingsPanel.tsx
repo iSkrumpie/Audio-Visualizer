@@ -1109,9 +1109,7 @@ function LogoSection_() {
   const [fireFS, sFireFS] = useF('logo', 'fireFreqStart');
   const [fireFE, sFireFE] = useF('logo', 'fireFreqEnd');
   const [fireSn, sFireSn] = useF('logo', 'fireSensitivity');
-  const [sparksWE,    sSparksWE]    = useF('logo', 'sparksWeldEnabled');
-  const [sparksVE,    sSparksVE]    = useF('logo', 'sparksVolcanicEnabled');
-  const [sparksAE,    sSparksAE]    = useF('logo', 'sparksAmbientEnabled');
+  const [sparksE,    sSparksE]    = useF('logo', 'sparksEnabled');
   const [sparksCount, sSparksCount] = useF('logo', 'sparksCount');
   const [sparksSize,  sSparksSize]  = useF('logo', 'sparksSize');
   const [sparksSpeed, sSparksSpeed] = useF('logo', 'sparksSpeed');
@@ -1291,7 +1289,7 @@ function LogoSection_() {
               <Sl value={fireI as number} min={0} max={2} step={0.05} onChange={sFireI} />
             </FR>
             <FR label="Height" info={hintFor('logo.fireHeight')}>
-              <Sl value={fireH as number} min={0} max={1} step={0.05} onChange={sFireH} />
+              <Sl value={fireH as number} min={0} max={2} step={0.05} onChange={sFireH} />
             </FR>
             <FR label="Speed" info={hintFor('logo.fireSpeed')}>
               <Sl value={fireSp as number} min={0} max={3} step={0.1} onChange={sFireSp} />
@@ -1320,22 +1318,13 @@ function LogoSection_() {
       </Acc>
 
       <Acc label="Sparks" defaultOpen description={ACCORDION_DESCRIPTIONS['logo.sparks']}>
-        {/* 3 independent style toggles */}
-        <FR label="" info={hintFor('logo.sparksWeldEnabled')}>
-          <Tg value={sparksWE as boolean} onChange={sSparksWE} label="Weld" />
+        <FR label="" info={hintFor('logo.sparksEnabled')}>
+          <Tg value={sparksE as boolean} onChange={sSparksE} label="Enabled" />
         </FR>
-        <FR label="" info={hintFor('logo.sparksVolcanicEnabled')}>
-          <Tg value={sparksVE as boolean} onChange={sSparksVE} label="Volcanic" />
-        </FR>
-        <FR label="" info={hintFor('logo.sparksAmbientEnabled')}>
-          <Tg value={sparksAE as boolean} onChange={sSparksAE} label="Ambient" />
-        </FR>
-
-        {/* Shared controls — only show when at least one pool is on */}
-        {Boolean(sparksWE || sparksVE || sparksAE) && (
+        {Boolean(sparksE) && (
           <div className="mt-3 space-y-2">
-            <FR label="Count per pool" hint={`${sparksCount}`} info={hintFor('logo.sparksCount')}>
-              <Sl value={sparksCount as number} min={30} max={200} step={10} onChange={sSparksCount} />
+            <FR label="Count" hint={`${sparksCount}`} info={hintFor('logo.sparksCount')}>
+              <Sl value={sparksCount as number} min={30} max={300} step={10} onChange={sSparksCount} />
             </FR>
             <FR label="Size" hint={`${(sparksSize as number).toFixed(2)}×`} info={hintFor('logo.sparksSize')}>
               <Sl value={sparksSize as number} min={0.3} max={3.0} step={0.05} onChange={sSparksSize} />
@@ -1343,8 +1332,8 @@ function LogoSection_() {
             <FR label="Speed" hint={`${(sparksSpeed as number).toFixed(2)}×`} info={hintFor('logo.sparksSpeed')}>
               <Sl value={sparksSpeed as number} min={0.3} max={3.0} step={0.05} onChange={sSparksSpeed} />
             </FR>
-            <FR label="Burst count (Weld)" hint={`${sparksBurst}`} info={hintFor('logo.sparksBurstCount')}>
-              <Sl value={sparksBurst as number} min={0} max={80} step={1} onChange={sSparksBurst} />
+            <FR label="Burst count" hint={`${sparksBurst}`} info={hintFor('logo.sparksBurstCount')}>
+              <Sl value={sparksBurst as number} min={0} max={100} step={1} onChange={sSparksBurst} />
             </FR>
             <FR label="Lifetime" hint={`${(sparksLife as number).toFixed(2)}s`} info={hintFor('logo.sparksLifetime')}>
               <Sl value={sparksLife as number} min={0.3} max={3.0} step={0.05} onChange={sSparksLife} />
