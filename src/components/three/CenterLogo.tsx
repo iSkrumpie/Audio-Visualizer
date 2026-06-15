@@ -181,8 +181,8 @@ float fr_wfbm(vec2 fr_p, float fr_t) {
 // ═══════════════════════════════════════════════════════
 
 float fr_flameMask(float fr_lx, float fr_ly, float fr_t, float fr_ah) {
-  // Slot subdivision: 14 flames around the ring
-  float fr_NUM    = 14.0;
+  // Slot subdivision: 8 chunky flames around the ring (fewer = bigger, more flame-like)
+  float fr_NUM    = 8.0;
   float fr_slot   = fr_lx * fr_NUM;
   float fr_idx    = floor(fr_slot);
   float fr_frac   = fract(fr_slot);
@@ -200,12 +200,16 @@ float fr_flameMask(float fr_lx, float fr_ly, float fr_t, float fr_ah) {
   float fr_ny = fr_ly / max(fr_H, 0.001);
   if (fr_ny > 1.0) return 0.0;
 
-  // Teardrop width: W = BASE × (1 - y^0.65) × belly(y)
+  // Teardrop width: W = BASE × (1 - y^2) × belly(y)
   // At y=0: width=BASE, at y=1: width=0 (pointed tip)
-  // belly peaks at y≈0.35 (the "belly" of a real flame)
-  float fr_BASE   = 0.45;  // base half-width as fraction of slot (bigger = wider flames, less gap)
-  float fr_taper  = 1.0 - pow(fr_ny, 0.5);
-  float fr_belly  = 1.0 + 0.20 * sin(fr_PI * fr_ny);
+  // belly peaks at y≈0.5 (the "belly" of a real flame)
+  //
+  // With NUM=8 slots (each 0.125 wide), BASE=0.045 gives
+  // half-width 0.045 at base → covers 72% of slot, 28% gap.
+  // Real flame ratio: wide base, sharply pointed tip.
+  float fr_BASE   = 0.045;
+  float fr_taper  = 1.0 - pow(fr_ny, 1.8);
+  float fr_belly  = 1.0 + 0.15 * sin(fr_PI * fr_ny);
   float fr_halfW  = fr_BASE * fr_taper * fr_belly;
 
   // Flame sway (different per tongue)
@@ -224,8 +228,8 @@ float fr_flameMask(float fr_lx, float fr_ly, float fr_t, float fr_ah) {
   );
   float fr_edgeShift = (fr_en - 0.5) * 0.05;
 
-  // Soft angular edge
-  float fr_softness = 0.022 + fr_ny * 0.018;
+  // Soft angular edge (sharp at base, softer at tip)
+  float fr_softness = 0.008 + fr_ny * 0.012;
   float fr_angMask = 1.0 - smoothstep(
     fr_halfW + fr_edgeShift - fr_softness,
     fr_halfW + fr_edgeShift + fr_softness,
@@ -233,7 +237,7 @@ float fr_flameMask(float fr_lx, float fr_ly, float fr_t, float fr_ah) {
   );
 
   // Base fade: small smooth transition at the logo edge
-  float fr_baseFade = smoothstep(0.0, 0.05, fr_ly);
+  float fr_baseFade = smoothstep(0.0, 0.03, fr_ly);
 
   // Tip dissolution
   float fr_tipFade = 1.0 - smoothstep(0.72, 1.0, fr_ny);
