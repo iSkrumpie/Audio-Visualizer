@@ -64,10 +64,12 @@ void main() {
 `;
 
 // ─── Inner Glow fragment shader ───────────────────────────────────────────────
-// Geometry is sized to the LOGO (so vUv 0..1 == full logo disc). uIgSize
-// is the inner-glow REACH: 0.0 = glow only at the very edge, 1.0 = glow
-// covers the entire logo. Decays from logo edge INWARD toward center.
-// Soft falloff: exp(-d^2/b^2), faded to 0 at the disc center.
+// Geometry is 1.03× the LOGO size (so vUv 0..1 covers the full plane,
+// with the logo edge at ig_dist ≈ 0.97). uIgSize is the inner-glow REACH:
+// 0.0 = glow only at the very edge, 1.0 = glow covers the entire logo.
+// Decays from logo edge INWARD toward center.
+// Soft falloff: exp(-d^2/b^2), edge-fade over the outermost 3% of the plane
+// so there's no hard cutoff / no visible gap at the logo edge.
 
 const INNER_GLOW_FRAG = /* glsl */ `
 varying vec2 vUv;
@@ -88,9 +90,11 @@ void main() {
   float ig_blur     = max(0.01, uIgBlur * 0.05);
   float ig_alpha    = exp(-ig_into * ig_into / (ig_blur * ig_blur));
 
-  // Hard-clip anything outside the logo disc (uIgSize > 1 would otherwise leak)
-  float ig_discMask = 1.0 - smoothstep(0.98, 1.0, ig_dist);
-  ig_alpha *= ig_discMask;
+  // Soft edge fade - the plane is 1.03× larger than the logo, so the logo edge
+  // sits at ig_dist ≈ 0.97 where alpha is still 1.0. The last 3% of the plane
+  // fade out smoothly so we get no hard cutoff / no visible gap.
+  float ig_edgeFade = 1.0 - smoothstep(0.97, 1.0, ig_dist);
+  ig_alpha *= ig_edgeFade;
 
   ig_alpha *= uIgIntensity * (1.0 + uIgBeat * 0.5);
 
@@ -473,7 +477,7 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     toneMapped:     false,
   }), [innerGlowUniforms]);
 
-  const innerGlowGeo = useMemo(() => new THREE.CircleGeometry(0.5, 64), []);
+  const innerGlowGeo = useMemo(() => new THREE.CircleGeometry(0.5 * 1.03, 64), []);
 
   // ── Fire uniforms (created once, mutated in useFrame) ───────────────────────
   const fireUniforms = useMemo(() => ({
