@@ -324,7 +324,7 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 | `NebulaPlane` | `settings.background.nebula*` | fBM-Simplex-Fog, 2 Farben, audio-reaktiv, nebulaScale + nebulaOffsetX/Y. **Optional Pulse-Mode** (`nebulaBeatMode`): eigener `FreqBeatDetector` + neuer `uAudioPulse` uniform im `nebula.frag` (np_ prefix). Default OFF → alte bass+loudness Waber-Logik bleibt. |
 | `PostFX` | - | **Permanenter Stub**, immer `null`. Kein EffectComposer. |
 | `InstancedBars` | `settings.bars.*` | MAX_BARS=256, 2. InstancedMesh für Peak-Dots, freqStart/freqEnd remappt FFT-Bins (Height); colorMode custom/random per-Bar-Color via Instanced Attribute. **Eigener FreqBeatDetector** (barsBeatDetector) → `setSensitivity(beatSensitivity) + update(rawFreqData, beatFreqStart, beatFreqEnd)` für `barH += beat * 25 * scale` Boost. |
-| `CenterLogo` | `settings.logo.*` | Immer circle; canvas-Circular-Mask; **Outer Glow ShaderMaterial** (OUTER_GLOW_FRAG, z=-0.1, renderOrder=5, alpha peaks just outside logo edge, falls off outward). **Inner Glow ShaderMaterial** (INNER_GLOW_FRAG, z=+0.05, renderOrder=8, AdditiveBlending, soft falloff from logo edge inward to center). Shared `computeGlowColor()` helper für beide Glow-Arten. **Glow Color-Modi**: solid / rainbow / custom / random (modul-level helper `computeGlowColor`). **Fire-Ring** = RingGeometry (innerR=0.5, outerR=0.5+fireHeight) + fBm-Noise-ShaderMaterial. Scale = `logoSize * beatScale`. z=0.1, renderOrder=7. **2× FreqBeatDetector** (logoBeatDetector + fireBeatDetector). v12: glow → outerGlow + new innerGlow fields. |
+| `CenterLogo` | `settings.logo.*` | Immer circle; canvas-Circular-Mask; **Outer Glow ShaderMaterial** (OUTER_GLOW_FRAG, z=-0.1, renderOrder=5, alpha peaks just outside logo edge, falls off outward). **Inner Glow ShaderMaterial** (INNER_GLOW_FRAG, z=+0.05, renderOrder=8, AdditiveBlending, soft falloff from logo edge inward to center). Plane ist **1.03× logo radius** (`CircleGeometry(0.5 * 1.03, 64)`) + sanfter `edgeFade = 1.0 - smoothstep(0.97, 1.0)` → Logo-Edge sitzt bei `ig_dist ≈ 0.97` mit voller Alpha, keine sichtbare Gap (Session 18). Shared `computeGlowColor()` helper für beide Glow-Arten. **Glow Color-Modi**: solid / rainbow / custom / random (modul-level helper `computeGlowColor`). **Fire-Ring** = RingGeometry (innerR=0.5, outerR=0.5+fireHeight) + fBm-Noise-ShaderMaterial. Scale = `logoSize * beatScale`. z=0.1, renderOrder=7. **2× FreqBeatDetector** (logoBeatDetector + fireBeatDetector). v12: glow → outerGlow + new innerGlow fields. |
 | `GPUParticles` | `settings.particles.*` | Custom Shader mit uShape (circle/star/diamond), LineSegments für connectionLines (O(n2), cap 200), orbitMode elliptical/scatter. **1× FreqBeatDetector** (particleBeatDetector) → setSensitivity(reactiveSensitivity) + update(rawFreqData, reactiveFreqStart, reactiveFreqEnd). |
 
 ### 4.10 Z-Layering (von hinten nach vorne)
@@ -542,6 +542,7 @@ node scripts/verify-export.mjs            # ~4-5min: SSIM Preview vs MP4-Frame
 - *"Fire-Ring sitzt nicht am Logo-Rand"* → `CenterLogo.tsx` → `fireScale = logoSize * beatScale` (nicht `* 2`), z=0.1, renderOrder=7
 - *"Logo Glow zeigt falsche Farbe / wird schwarz beim Color-Mode-Wechsel"* → Altes Preset geladen? `useF` defensive Default prüfen, `CenterLogo` `??`-Fallbacks prüfen. v12: betrifft `outerGlow*` UND `innerGlow*` ColorModes (solid/rainbow/custom/random).
 - *"Inner Glow folgt Logo nicht beim Beat-Pulse"* → `CenterLogo.tsx` → innerGlow plane-Scale = `logoSize * beatScale` (NICHT nur `logoSize`). Selbe Regel gilt für outerGlow plane.
+- *"Sichtbare dunkle Gap am Logo-Edge wenn Inner Glow an"* → `CenterLogo.tsx` Inner-Glow-Plane MUSS 1.03× logo radius sein UND `edgeFade = 1.0 - smoothstep(0.97, 1.0)` verwenden. Bei Plane = Logo-Radius und hartem Disc-Cutoff bei 0.98 entsteht eine sichtbare 2%-Lücke (Logo-Pixel sind transparent, Glow ist weggeschnitten). Fix in Session 18.
 - *"Hz-Slider zu ungenau / klemmt in der Mitte"* → Logarithmisches Mapping (sliderToHz/hzToSlider) ist Standard. Linearer Slider 20-20000 Hz ist unbrauchbar → HzRangePicker statt Sl für Frequenz-Bereiche verwenden.
 - *"Neue Beat-Reactivity in Komponente X einbauen"* → Pattern: 1) Settings-Felder in settingsStore.ts hinzufügen (schema-bump nicht vergessen), 2) `useMemo(() => new FreqBeatDetector(48000), [])` in Komponente, 3) `useBeatDetectorRegistration(detector)` aus `AudioScene.tsx` aufrufen, 4) `setSensitivity()` VOR `update()` im useFrame, 5) HzRangePicker + Sensitivity-Slider in SettingsPanel via `useF`-Hook, 6) update §4.11 in AGENTS.md
 - *"Export-Bild ist gequetscht / Logo elliptisch"* → Components dürfen NICHT `useThree((s) => s.size)` für Closure-basierte Skalierung nutzen, sondern `useFrame((state, delta) => { const {width, height} = state.size; ... })`. Siehe AGENTS.md §6.
@@ -1139,3 +1140,71 @@ User-Verifikation (im Chat bestätigt):
 - Kein Schema-Bump nötig (settingsStore bleibt v14).
 - `STABLE.md` bleibt der aktuelle Rollback-Anchor für die v13-Migration (af2e2b8 + 795b025).
 - Bei einem Bug-Rollback: `git revert 2452afa 569b85b` macht beide Fixes rückgängig, Settings v14 bleiben erhalten, aber Fire ist wieder orange-gelb-weiß + hat die Naht.
+
+---
+
+## 15. Session 18 — Inner-Glow Gap Fix
+
+*1-commit Bugfix: Sichtbare dunkle Linie am Logo-Edge wenn Inner Glow an. settingsStore bleibt v14 (kein Schema-Bump, reine Geometrie/Shader-Änderung).*
+
+### 15.1 Der Commit
+
+| # | Commit | Datei | Was |
+|---|---|---|---|
+| 1 | `95d644e` | `src/components/three/CenterLogo.tsx` (12 +/−8) | Inner-Glow-Plane 1.03× größer (`CircleGeometry(0.5 * 1.03, 64)`) + Shader-`discMask` durch `edgeFade = 1.0 - smoothstep(0.97, 1.0, ig_dist)` ersetzt. |
+
+### 15.2 Die Gap — Root Cause
+
+Die Inner-Glow-Plane und der Logo-Disc hatten **denselben Radius** (beide `0.5 * logoSize` in local space). Im Shader lag aber ein harter Disc-Mask-Cutoff:
+
+```glsl
+float ig_discMask = 1.0 - smoothstep(0.98, 1.0, ig_dist);
+ig_alpha *= ig_discMask;
+```
+
+Das hat die äußersten 2% der Glow-Plane hart auf Alpha=0 gesetzt. **Genau dort endet auch der Logo-Disc** (Canvas-Circular-Mask macht die Pixel am Edge transparent). Ergebnis: ein schmaler Ring **weder mit Logo-Pixeln noch mit Glow** → sichtbare dunkle Linie = "Gap".
+
+### 15.3 Der Fix
+
+**Plane 1.03× größer**, damit am Logo-Edge (jetzt bei `ig_dist ≈ 0.97`) noch voller Alpha anliegt:
+
+```typescript
+const innerGlowGeo = useMemo(() => new THREE.CircleGeometry(0.5 * 1.03, 64), []);
+```
+
+**Sanfter Edge-Fade statt hartem Cutoff**:
+
+```glsl
+float ig_edgeFade = 1.0 - smoothstep(0.97, 1.0, ig_dist);
+ig_alpha *= ig_edgeFade;
+```
+
+Effekt: am Logo-Edge voller Glow, die letzten 3% der Plane laufen weich aus. Kein harter Schnitt, keine sichtbare Lücke. Der Logo-Disc (opak drüber) verdeckt den schmalen 1.5%-Saum, der theoretisch über den Logo-Rand hinausreicht.
+
+### 15.4 Was bewusst NICHT geändert wurde
+
+Der `ig_into`/`ig_blur`-Control-Curve ist unangetastet — der User wollte explizit **nur die Gap fixen**, nicht die Slider-Skalierung. Der bekannte "Blur=15 füllt alles aus"-Effekt (siehe AGENTS.md §6) bleibt bestehen und sollte in einer separaten Session angegangen werden, falls gewünscht.
+
+### 15.5 Lessons Learned (in §6 als 🔴-Stolperfalle aufgenommen)
+
+> **Inner-Glow / Inner-Rim-Shader: Plane NIEMALS = Logo-Radius.** Wenn die Glow-Plane exakt am Logo-Edge endet UND im Shader ein Disc-Mask-Cutoff (oder jede andere Form von "ab Radius X = 0") sitzt, entsteht eine sichtbare Gap am Edge (Logo-Pixel transparent, Glow weggeschnitten). **Fix:** Plane leicht größer (1.02-1.05×), Edge-Fade in den überstehenden Bereich legen.
+
+Gilt analog für künftige Edge-bezogene Glow/Rim-Shader (Donut-Rim, Stroke-Ring, etc.).
+
+### 15.6 Verifikation
+
+| Check | Result |
+|---|---|
+| `npm run typecheck` | OK |
+| `npm run build` | OK (538 modules) |
+| `grep ig_discMask` | 0 results (old variable fully removed) |
+| `grep "1.03\|0.97"` | 3 correct hits |
+| User-Bestätigung | ✅ Gap weg, Logo sitzt sauber |
+
+**NICHT gelaufen:** `scripts/verify-export.mjs` — sollte der User laufen lassen, um zu bestätigen, dass die 1.03×-Plane den Export nicht beeinflusst. Rein geometrischer Fix ohne Audio-Relevanz → SSIM und Audio-Werte sollten unverändert sein.
+
+### 15.7 House-keeping
+
+- Kein Schema-Bump (settingsStore bleibt v14).
+- Kein neuer Hot-Spot-Eintrag nötig (CenterLogo ist bereits in §7 referenziert).
+- Bei Bug-Rollback: `git revert 95d644e` macht den Fix rückgängig.
