@@ -251,12 +251,14 @@ float fr_flameMask(float fr_lx, float fr_ly, float fr_t, float fr_ah) {
 vec3 fr_fireColor(float fr_heat, float fr_lx, float fr_t) {
   // SOLID: one color for the whole flame
   if (uFrColorMode < 0.5) {
-    return uFrSolidColor * fr_heat;
+    return uFrSolidColor * fr_heat * 1.4;
   }
   // GRADIENT: 3-stop user-tinted gradient, hot->mid->cool->black
   if (uFrColorMode < 1.5) {
     // Smoothly interpolate 4 stops: hot(0.0), mid(0.4), cool(0.75), black(1.0)
-    vec3 fr_c = uFrColorHot;
+    // Heat is bright at base, dark at tip — we brighten the gradient with
+    // a multiplier so it remains visible against the dark background.
+    vec3 fr_c = uFrColorHot * 1.4;
     fr_c      = mix(fr_c, uFrColorMid,  smoothstep(0.00, 0.45, fr_heat));
     fr_c      = mix(fr_c, uFrColorCool, smoothstep(0.45, 0.80, fr_heat));
     fr_c      = mix(fr_c, vec3(0.0),   smoothstep(0.80, 1.00, fr_heat));
@@ -346,7 +348,7 @@ void main() {
 
   // Alpha: mask × intensity, with core glow boost
   float fr_coreGlow = exp(-fr_localY * 3.5) * 0.4;
-  float fr_alpha    = fr_mask * (0.65 + fr_coreGlow + fr_fval * 0.25);
+  float fr_alpha    = fr_mask * (0.85 + fr_coreGlow + fr_fval * 0.25);
   fr_alpha         *= uFrIntensity;
   fr_alpha          = clamp(fr_alpha, 0.0, 1.0);
 
