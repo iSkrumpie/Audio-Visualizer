@@ -136,10 +136,6 @@ uniform float uFrSpeed;
 uniform vec3  uFrColorInner;
 uniform vec3  uFrColorMid;
 uniform vec3  uFrColorOuter;
-uniform float uFrColorMode;   // 0=solid, 1=gradient, 2=rainbow, 3=random, 4=key, 5=band
-uniform vec3  uFrSolidColor;  // for solid mode
-uniform float uFrKeyHue;      // 0..1 (from detected key)
-uniform float uFrBandHue;     // 0..1 (from current band energy)
 
 // ═══════════════════════════════════════════════════════
 //  NOISE
@@ -234,55 +230,21 @@ float fr_flameMask(float fr_lx, float fr_ly, float fr_t, float fr_ah) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  FIRE COLOR — mode-driven (matches Bars/Particles colorMode API)
+//  FIRE COLOR — 5-stop blackbody gradient (user-tinted)
 // ═══════════════════════════════════════════════════════
-//
-//  colorMode == 0: solid       — single user-picked color for entire flame
-//  colorMode == 1: gradient    — 3-stop gradient from user-tinted inner/mid/outer
-//  colorMode == 2: rainbow     — hue cycles around the ring
-//  colorMode == 3: random      — random color per flame pixel
-//  colorMode == 4: key-derived — color tinted by detected musical key
-//  colorMode == 5: band-driven — color tinted by current frequency band
-//
-//  In all modes except 'gradient' and 'rainbow', the brightness comes
-//  from the heat value (0..1, with 0=tip and 1=base). For non-heat
-//  modes we still use a quick falloff so the flame doesn't look flat.
-//
-vec3 fr_fireColor(float fr_heat, float fr_lx, float fr_t) {
-  // Compute all mode colors and pick via mix() (no branching — robust on all GPUs)
-  // SOLID
-  vec3 fr_solid = uFrSolidColor * fr_heat * 1.4;
-  // GRADIENT
-  vec3 fr_gradient = uFrColorHot * 1.4;
-  fr_gradient      = mix(fr_gradient, uFrColorMid,  smoothstep(0.00, 0.45, fr_heat));
-  fr_gradient      = mix(fr_gradient, uFrColorCool, smoothstep(0.45, 0.80, fr_heat));
-  fr_gradient      = mix(fr_gradient, vec3(0.0),   smoothstep(0.80, 1.00, fr_heat));
-  // RAINBOW
-  float fr_hue1 = fract(fr_lx * 1.0 + fr_t * 0.05);
-  vec3 fr_rainbow = clamp(abs(fract(fr_hue1 + vec3(0.0, 0.666, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0) * fr_heat;
-  // RANDOM
-  float fr_rnd = fract(sin(fr_lx * 91.7 + floor(fr_t * 8.0) * 17.3) * 43758.5);
-  vec3 fr_random = clamp(abs(fract(fr_rnd + vec3(0.0, 0.666, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0) * fr_heat;
-  // KEY
-  float fr_hue2 = fract(uFrKeyHue + fr_t * 0.03);
-  vec3 fr_key = clamp(abs(fract(fr_hue2 + vec3(0.0, 0.666, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0) * fr_heat;
-  // BAND
-  float fr_hue3 = fract(uFrBandHue + fr_t * 0.03);
-  vec3 fr_band = clamp(abs(fract(fr_hue3 + vec3(0.0, 0.666, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0) * fr_heat;
 
-  // Mode weights via step() — exactly one mode is active at a time
-  float fr_w0 = step(uFrColorMode, 0.5);                    // solid
-  float fr_w1 = step(0.5, uFrColorMode) * step(uFrColorMode, 1.5);  // gradient
-  float fr_w2 = step(1.5, uFrColorMode) * step(uFrColorMode, 2.5);  // rainbow
-  float fr_w3 = step(2.5, uFrColorMode) * step(uFrColorMode, 3.5);  // random
-  float fr_w4 = step(3.5, uFrColorMode) * step(uFrColorMode, 4.5);  // key
-  float fr_w5 = step(4.5, uFrColorMode) * step(uFrColorMode, 5.5);  // band
-  // Fallback: if no mode matched (e.g. uFrColorMode = 1.5 exactly), use gradient
-  float fr_wSum = fr_w0 + fr_w1 + fr_w2 + fr_w3 + fr_w4 + fr_w5;
-  fr_w1 += step(fr_wSum, 0.5); // ensure at least gradient is active
+vec3 fr_fireColor(float fr_heat) {
+  vec3 fr_black  = vec3(0.00, 0.00, 0.00);
+  vec3 fr_dkred  = mix(vec3(0.70, 0.04, 0.00), uFrColorOuter, 0.55);
+  vec3 fr_orange = mix(vec3(1.00, 0.32, 0.00), uFrColorMid,   0.45);
+  vec3 fr_yellow = vec3(1.00, 0.86, 0.14);
+  vec3 fr_white  = mix(vec3(1.00, 0.96, 0.80), uFrColorInner, 0.30);
 
-  return (fr_solid * fr_w0 + fr_gradient * fr_w1 + fr_rainbow * fr_w2 +
-          fr_random  * fr_w3 + fr_key      * fr_w4 + fr_band    * fr_w5);
+  vec3 fr_c = mix(fr_black,  fr_dkred,  smoothstep(0.00, 0.22, fr_heat));
+  fr_c      = mix(fr_c,      fr_orange, smoothstep(0.18, 0.48, fr_heat));
+  fr_c      = mix(fr_c,      fr_yellow, smoothstep(0.42, 0.72, fr_heat));
+  fr_c      = mix(fr_c,      fr_white,  smoothstep(0.66, 0.92, fr_heat));
+  return fr_c;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -331,14 +293,12 @@ void main() {
   fr_heat  = clamp(fr_heat, 0.0, 1.0);
 
   // Color
-  vec3 fr_color = fr_fireColor(fr_heat, fr_localX, fr_t);
+  vec3 fr_color = fr_fireColor(fr_heat);
   fr_color += uFrKick * 0.25 * vec3(1.0, 0.8, 0.5) * fr_mask;
-  // Brightness safety floor: ensure fire is always visible against dark bg
-  fr_color = max(fr_color, vec3(0.6, 0.2, 0.0)) * fr_heat;
 
   // Alpha: mask × intensity, with core glow boost
   float fr_coreGlow = exp(-fr_localY * 3.5) * 0.4;
-  float fr_alpha    = fr_mask * (1.0 + fr_coreGlow + fr_fval * 0.25);
+  float fr_alpha    = fr_mask * (0.65 + fr_coreGlow + fr_fval * 0.25);
   fr_alpha         *= uFrIntensity;
   fr_alpha          = clamp(fr_alpha, 0.0, 1.0);
 
@@ -520,11 +480,7 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     uFrKick:       { value: 0.0 },
     uFrHihat:      { value: 0.0 },
     uFrVocal:      { value: 0.0 },
-    uFrSpeed:      { value: 1.0 },
-    uFrColorMode:  { value: 1.0 },   // default: gradient
-    uFrSolidColor: { value: new THREE.Color('#ff7700') },
-    uFrKeyHue:     { value: 0.0 },
-    uFrBandHue:    { value: 0.0 },
+    uFrSpeed:      { value: 1.0 },  // NEW
   }), []);
 
   const fireMat = useMemo(() => new THREE.ShaderMaterial({
@@ -722,29 +678,6 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     fireUniforms.uFrHeight.value = s.fireHeight;
     fireUniforms.uFrKick.value   = audioAnalysis.kickPhase  ?? 0;
     fireUniforms.uFrHihat.value  = audioAnalysis.hihatPhase ?? 0;
-    fireUniforms.uFrVocal.value  = audioAnalysis.vocalPhase ?? 0;
-    fireUniforms.uFrSpeed.value  = s.fireSpeed;
-    // v17: color mode + solid color + key/band hue for advanced color modes
-    const fr_cmMap: Record<string, number> = { solid: 0, gradient: 1, rainbow: 2, random: 3, 'key-derived': 4, 'band-driven': 5 };
-    fireUniforms.uFrColorMode.value  = fr_cmMap[s.fireColorMode ?? 'gradient'] ?? 1;
-    fireUniforms.uFrSolidColor.value.set(s.fireSolidColor ?? '#ff7700');
-    // Key hue: use audioAnalysis.key if present (0..11 chromatic -> 0..1)
-    // Map 0..11 evenly around the hue wheel. 'C' = 0, 'C#' = 1, etc.
-    const fr_keyStr: string = (audioAnalysis as any).key ?? '';
-    const fr_keyMap: Record<string, number> = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
-    fireUniforms.uFrKeyHue.value     = (fr_keyMap[fr_keyStr] ?? 0) / 12;
-    // Band hue: pick hue from dominant band energy
-    const fr_kickE = audioAnalysis.kickPhase  ?? 0;
-    const fr_snrE  = audioAnalysis.snarePhase ?? 0;
-    const fr_vocE  = audioAnalysis.vocalPhase ?? 0;
-    const fr_hiE   = audioAnalysis.hihatPhase ?? 0;
-    const fr_maxBand = Math.max(fr_kickE, fr_snrE, fr_vocE, fr_hiE);
-    let fr_bandIdx = 0;
-    if (fr_maxBand === fr_kickE) fr_bandIdx = 0;
-    else if (fr_maxBand === fr_snrE) fr_bandIdx = 1;
-    else if (fr_maxBand === fr_vocE) fr_bandIdx = 2;
-    else fr_bandIdx = 3;
-    fireUniforms.uFrBandHue.value    = (fr_bandIdx + fr_maxBand) / 5;
     fireUniforms.uFrVocal.value  = audioAnalysis.vocalPhase ?? 0;
     fireUniforms.uFrSpeed.value  = s.fireSpeed;
   });

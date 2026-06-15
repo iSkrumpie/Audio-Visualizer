@@ -1106,8 +1106,6 @@ function LogoSection_() {
   const [fireCM, sFireCM] = useF('logo', 'fireColorMid');
   const [fireCO, sFireCO] = useF('logo', 'fireColorOuter');
   const [fireR,  sFireR]  = useF('logo', 'fireReactivity');
-  const [fireCMode, sFireCMode] = useF('logo', 'fireColorMode');
-  const [fireCColor, sFireCColor] = useF('logo', 'fireSolidColor');
   const [fireFS, sFireFS] = useF('logo', 'fireFreqStart');
   const [fireFE, sFireFE] = useF('logo', 'fireFreqEnd');
   const [fireSn, sFireSn] = useF('logo', 'fireSensitivity');
@@ -1302,32 +1300,9 @@ function LogoSection_() {
             <FR label="Reactivity" info={hintFor('logo.fireReactivity')}>
               <Sl value={fireR as number} min={0} max={3} step={0.1} onChange={sFireR} />
             </FR>
-            <FR label="Color mode" info={ENUM_HINTS['logo.fireColorMode']?.[fireCMode as string]}>
-              <CB
-                value={fireCMode as string}
-                options={[
-                  { value: 'solid',       label: 'Solid' },
-                  { value: 'gradient',    label: 'Gradient' },
-                  { value: 'rainbow',     label: 'Rainbow' },
-                  { value: 'random',      label: 'Random' },
-                  { value: 'key-derived', label: 'Key' },
-                  { value: 'band-driven', label: 'Band' },
-                ]}
-                onChange={sFireCMode as (v: string) => void}
-              />
-            </FR>
-            {fireCMode === 'solid' && (
-              <FR label="Color" info={hintFor('logo.fireSolidColor')}>
-                <CP value={fireCColor as string} onChange={sFireCColor} />
-              </FR>
-            )}
-            {fireCMode === 'gradient' && (
-              <>
-                <FR label="Hot color" info={hintFor('logo.fireColorInner')}><CP value={fireCI as string} onChange={sFireCI} /></FR>
-                <FR label="Mid color" info={hintFor('logo.fireColorMid')}><CP value={fireCM as string} onChange={sFireCM} /></FR>
-                <FR label="Cool color" info={hintFor('logo.fireColorOuter')}><CP value={fireCO as string} onChange={sFireCO} /></FR>
-              </>
-            )}
+            <FR label="Inner color" info={hintFor('logo.fireColorInner')}><CP value={fireCI as string} onChange={sFireCI} /></FR>
+            <FR label="Mid color" info={hintFor('logo.fireColorMid')}><CP value={fireCM as string} onChange={sFireCM} /></FR>
+            <FR label="Outer color" info={hintFor('logo.fireColorOuter')}><CP value={fireCO as string} onChange={sFireCO} /></FR>
             <div className="mt-2">
               <HzRangePicker
                 startHz={fireFS as number}

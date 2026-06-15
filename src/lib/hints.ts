@@ -328,15 +328,11 @@ export const SETTING_HINTS: Record<string, string> = {
   'logo.fireReactivity':
     'How much the fire surges in response to the audio.',
   'logo.fireColorInner':
-    'Color at the hottest core of the flame (closest to the logo). Used in Gradient mode.',
+    'Color at the hottest core of the flame (closest to the logo).',
   'logo.fireColorMid':
-    'Mid-range flame color — the transition between inner and outer. Used in Gradient mode.',
+    'Mid-range flame color — the transition between inner and outer.',
   'logo.fireColorOuter':
-    'Color at the tips of the flame (furthest from the logo). Used in Gradient mode.',
-  'logo.fireColorMode':
-    'Solid = one color for the whole flame. Gradient = 3-stop gradient from hot to cool. Rainbow = hue cycles around the ring. Random = random color per frame. Key = tinted by detected musical key. Band = tinted by the currently loudest frequency band.',
-  'logo.fireSolidColor':
-    'The single color used for the entire flame when Color mode = Solid.',
+    'Color at the tips of the flame (furthest from the logo).',
   'logo.fireFreqStart':
     'Lowest frequency that makes the fire surge on a beat.',
   'logo.fireFreqEnd':
@@ -582,15 +578,6 @@ export const ACCORDION_DESCRIPTIONS: Record<string, string> = {
 // 3. Enum / color-mode hints: 'group.field' → { enumValue → explanation }
 // ─────────────────────────────────────────────────────────────────────────────
 export const ENUM_HINTS: Record<string, Record<string, string>> = {
-
-  'logo.fireColorMode': {
-    'solid':       'One single color for the entire flame.',
-    'gradient':    'Smooth 3-stop gradient from hot to cool. Set 3 colors below.',
-    'rainbow':     'Hue cycles around the ring and slowly with time.',
-    'random':      'Random color for each frame.',
-    'key-derived': 'Color tinted by the detected musical key.',
-    'band-driven': 'Color tinted by whichever frequency band is loudest right now.',
-  },
 
   'background.tintMode': {
     'multiply':
