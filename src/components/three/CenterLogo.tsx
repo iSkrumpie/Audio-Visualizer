@@ -249,52 +249,40 @@ float fr_flameMask(float fr_lx, float fr_ly, float fr_t, float fr_ah) {
 //  modes we still use a quick falloff so the flame doesn't look flat.
 //
 vec3 fr_fireColor(float fr_heat, float fr_lx, float fr_t) {
-  // SOLID: one color for the whole flame
-  if (uFrColorMode < 0.5) {
-    return uFrSolidColor * fr_heat * 1.4;
-  }
-  // GRADIENT: 3-stop user-tinted gradient, hot->mid->cool->black
-  if (uFrColorMode < 1.5) {
-    // Smoothly interpolate 4 stops: hot(0.0), mid(0.4), cool(0.75), black(1.0)
-    // Heat is bright at base, dark at tip — we brighten the gradient with
-    // a multiplier so it remains visible against the dark background.
-    vec3 fr_c = uFrColorHot * 1.4;
-    fr_c      = mix(fr_c, uFrColorMid,  smoothstep(0.00, 0.45, fr_heat));
-    fr_c      = mix(fr_c, uFrColorCool, smoothstep(0.45, 0.80, fr_heat));
-    fr_c      = mix(fr_c, vec3(0.0),   smoothstep(0.80, 1.00, fr_heat));
-    return fr_c;
-  }
-  // RAINBOW: hue cycles around the ring AND with time
-  if (uFrColorMode < 2.5) {
-    float fr_hue = fract(fr_lx * 1.0 + fr_t * 0.05);
-    // HSV -> RGB, saturation 1, value = fr_heat
-    vec3 fr_rgb = clamp(abs(fract(fr_hue + vec3(0.0, 0.666, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
-    return fr_rgb * fr_heat;
-  }
-  // RANDOM: per-pixel hash, brightness from heat
-  if (uFrColorMode < 3.5) {
-    float fr_rnd = fract(sin(fr_lx * 91.7 + floor(fr_t * 8.0) * 17.3) * 43758.5);
-    vec3 fr_rgb = clamp(abs(fract(fr_rnd + vec3(0.0, 0.666, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
-    return fr_rgb * fr_heat;
-  }
-  // KEY-DERIVED: tint by detected key (uFrKeyHue 0..1)
-  if (uFrColorMode < 4.5) {
-    float fr_hue = fract(uFrKeyHue + fr_t * 0.03);
-    vec3 fr_rgb = clamp(abs(fract(fr_hue + vec3(0.0, 0.666, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
-    return fr_rgb * fr_heat;
-  }
-  // BAND-DRIVEN: tint by current frequency band (uFrBandHue 0..1)
-  if (uFrColorMode < 5.5) {
-    float fr_hue = fract(uFrBandHue + fr_t * 0.03);
-    vec3 fr_rgb = clamp(abs(fract(fr_hue + vec3(0.0, 0.666, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
-    return fr_rgb * fr_heat;
-  }
-  // Fallback: gradient
-  vec3 fr_c = uFrColorHot;
-  fr_c      = mix(fr_c, uFrColorMid,  smoothstep(0.00, 0.45, fr_heat));
-  fr_c      = mix(fr_c, uFrColorCool, smoothstep(0.45, 0.80, fr_heat));
-  fr_c      = mix(fr_c, vec3(0.0),   smoothstep(0.80, 1.00, fr_heat));
-  return fr_c;
+  // Compute all mode colors and pick via mix() (no branching — robust on all GPUs)
+  // SOLID
+  vec3 fr_solid = uFrSolidColor * fr_heat * 1.4;
+  // GRADIENT
+  vec3 fr_gradient = uFrColorHot * 1.4;
+  fr_gradient      = mix(fr_gradient, uFrColorMid,  smoothstep(0.00, 0.45, fr_heat));
+  fr_gradient      = mix(fr_gradient, uFrColorCool, smoothstep(0.45, 0.80, fr_heat));
+  fr_gradient      = mix(fr_gradient, vec3(0.0),   smoothstep(0.80, 1.00, fr_heat));
+  // RAINBOW
+  float fr_hue1 = fract(fr_lx * 1.0 + fr_t * 0.05);
+  vec3 fr_rainbow = clamp(abs(fract(fr_hue1 + vec3(0.0, 0.666, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0) * fr_heat;
+  // RANDOM
+  float fr_rnd = fract(sin(fr_lx * 91.7 + floor(fr_t * 8.0) * 17.3) * 43758.5);
+  vec3 fr_random = clamp(abs(fract(fr_rnd + vec3(0.0, 0.666, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0) * fr_heat;
+  // KEY
+  float fr_hue2 = fract(uFrKeyHue + fr_t * 0.03);
+  vec3 fr_key = clamp(abs(fract(fr_hue2 + vec3(0.0, 0.666, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0) * fr_heat;
+  // BAND
+  float fr_hue3 = fract(uFrBandHue + fr_t * 0.03);
+  vec3 fr_band = clamp(abs(fract(fr_hue3 + vec3(0.0, 0.666, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0) * fr_heat;
+
+  // Mode weights via step() — exactly one mode is active at a time
+  float fr_w0 = step(uFrColorMode, 0.5);                    // solid
+  float fr_w1 = step(0.5, uFrColorMode) * step(uFrColorMode, 1.5);  // gradient
+  float fr_w2 = step(1.5, uFrColorMode) * step(uFrColorMode, 2.5);  // rainbow
+  float fr_w3 = step(2.5, uFrColorMode) * step(uFrColorMode, 3.5);  // random
+  float fr_w4 = step(3.5, uFrColorMode) * step(uFrColorMode, 4.5);  // key
+  float fr_w5 = step(4.5, uFrColorMode) * step(uFrColorMode, 5.5);  // band
+  // Fallback: if no mode matched (e.g. uFrColorMode = 1.5 exactly), use gradient
+  float fr_wSum = fr_w0 + fr_w1 + fr_w2 + fr_w3 + fr_w4 + fr_w5;
+  fr_w1 += step(fr_wSum, 0.5); // ensure at least gradient is active
+
+  return (fr_solid * fr_w0 + fr_gradient * fr_w1 + fr_rainbow * fr_w2 +
+          fr_random  * fr_w3 + fr_key      * fr_w4 + fr_band    * fr_w5);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -345,10 +333,12 @@ void main() {
   // Color
   vec3 fr_color = fr_fireColor(fr_heat, fr_localX, fr_t);
   fr_color += uFrKick * 0.25 * vec3(1.0, 0.8, 0.5) * fr_mask;
+  // Brightness safety floor: ensure fire is always visible against dark bg
+  fr_color = max(fr_color, vec3(0.6, 0.2, 0.0)) * fr_heat;
 
   // Alpha: mask × intensity, with core glow boost
   float fr_coreGlow = exp(-fr_localY * 3.5) * 0.4;
-  float fr_alpha    = fr_mask * (0.85 + fr_coreGlow + fr_fval * 0.25);
+  float fr_alpha    = fr_mask * (1.0 + fr_coreGlow + fr_fval * 0.25);
   fr_alpha         *= uFrIntensity;
   fr_alpha          = clamp(fr_alpha, 0.0, 1.0);
 
