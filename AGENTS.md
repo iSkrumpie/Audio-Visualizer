@@ -1324,10 +1324,8 @@ Happy-Path bleibt still (Browser nimmt 384k+). Fallback ist sichtbar.
 
 | # | Commit | Datei | Was |
 |---|---|---|---|
-| (Phase 1) | `<PENDING>` | `package.json` + `package-lock.json` + `src/components/three/Strands.tsx` (NEU, 270 Zeilen) + `src/lib/settingsStore.ts` + `src/lib/hints.ts` | Foundation: ogl@^1.0.11 installiert, Strands.tsx portiert (GLSL mit `str_` Prefix für ANGLE-Sicherheit, Audio-Reaktivität via usePhaseSource), settingsStore v15 mit 19 neuen `strands*` Feldern + deep-merge migrate, 19 neue Hint-Texte |
-| (Phase 2) | `<PENDING>` | `src/components/VisualizerStage.tsx` + `src/components/SettingsPanel.tsx` | UI-Integration: `<Strands/>` in VisualizerStage (DOM-Order z-index), neues "Strands"-Accordion im Background-Tab mit 18 Settings (Color-Editor für strandsColors, 13 Slider, HzRangePicker + Sensitivity) |
-
-**HINWEIS:** Commit-Hashes sind als `<PENDING>` markiert — der Orchestrator muss sie nach den Commits mit den echten Hashes ersetzen.
+| (Phase 1) | `d04b225` | `package.json` + `package-lock.json` + `src/components/three/Strands.tsx` (NEU, 270 Zeilen) + `src/lib/settingsStore.ts` + `src/lib/hints.ts` | Foundation: ogl@^1.0.11 installiert, Strands.tsx portiert (GLSL mit `str_` Prefix für ANGLE-Sicherheit, Audio-Reaktivität via usePhaseSource), settingsStore v15 mit 19 neuen `strands*` Feldern + deep-merge migrate, 19 neue Hint-Texte |
+| (Phase 2) | `5b35348` | `src/components/VisualizerStage.tsx` + `src/components/SettingsPanel.tsx` | UI-Integration: `<Strands/>` in VisualizerStage (DOM-Order z-index), neues "Strands"-Accordion im Background-Tab mit 18 Settings (Color-Editor für strandsColors, 13 Slider, HzRangePicker + Sensitivity) |
 
 ### 17.2 Architektur — Standalone ogl-Renderer
 
@@ -1462,5 +1460,5 @@ Läuft parallel zum R3F-Render (separater WebGL-Kontext) → kein direkter Overh
 
 - `nul` Datei im Working Tree (Artefakt aus Windows-cmd-Echo) — kann jederzeit gelöscht werden
 - settingsStore v15 bleibt, bis ein neuer Schema-Bump nötig wird
-- Bei Bug-Rollback: `git revert <PENDING>` macht alle Strands-Änderungen rückgängig, v15-Migration-Code bleibt erhalten (User-Settings auf v15 mit `strandsEnabled=false` als Default)
+- Bei Bug-Rollback: `git revert 5b35348 d04b225` macht alle Strands-Änderungen rückgängig, v15-Migration-Code bleibt erhalten (User-Settings auf v15 mit `strandsEnabled=false` als Default)
 - **Commit-Hashes in §17.1**: Orchestrator muss `<PENDING>` durch echte Hashes aus `git log --oneline -n 5` ersetzen, nachdem die Commits gemacht wurden.
