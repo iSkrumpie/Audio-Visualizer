@@ -718,6 +718,40 @@ function BackgroundSection() {
   const [gridWS,   sGridWS]   = useF('background', 'gridWaveSpeed');
   const [gridMv,   sGridMv]   = useF('background', 'gridMovement');
   const [gridCl,   sGridCl]   = useF('background', 'gridColor');
+  // Strands
+  const [stE,     sStE]     = useF('background', 'strandsEnabled');
+  const [stBL,    sStBL]    = useF('background', 'strandsBehindLogo');
+  const [stCnt,   sStCnt]   = useF('background', 'strandsCount');
+  const [stSp,    sStSp]    = useF('background', 'strandsSpeed');
+  const [stAmp,   sStAmp]   = useF('background', 'strandsAmplitude');
+  const [stWav,   sStWav]   = useF('background', 'strandsWaviness');
+  const [stThk,   sStThk]   = useF('background', 'strandsThickness');
+  const [stGlw,   sStGlw]   = useF('background', 'strandsGlow');
+  const [stTap,   sStTap]   = useF('background', 'strandsTaper');
+  const [stSpr,   sStSpr]   = useF('background', 'strandsSpread');
+  const [stHue,   sStHue]   = useF('background', 'strandsHueShift');
+  const [stInt,   sStInt]   = useF('background', 'strandsIntensity');
+  const [stSat,   sStSat]   = useF('background', 'strandsSaturation');
+  const [stOp,    sStOp]    = useF('background', 'strandsOpacity');
+  const [stScl,   sStScl]   = useF('background', 'strandsScale');
+  const [stBFS,   sStBFS]   = useF('background', 'strandsBeatFreqStart');
+  const [stBFE,   sStBFE]   = useF('background', 'strandsBeatFreqEnd');
+  const [stBSen,  sStBSen]  = useF('background', 'strandsBeatSensitivity');
+  const strandsColors = useSettingsStore((s) => s.settings.background.strandsColors);
+  const setStrandsColors = (newColors: string[]) =>
+    useSettingsStore.getState().setSettings((prev) => ({
+      ...prev,
+      background: { ...prev.background, strandsColors: newColors },
+    }));
+  const updateStrandColor = (i: number, v: string) => {
+    const nc = [...strandsColors]; nc[i] = v; setStrandsColors(nc);
+  };
+  const addStrandColor = () => {
+    if (strandsColors.length < 8) setStrandsColors([...strandsColors, '#ffffff']);
+  };
+  const removeStrandColor = (i: number) => {
+    if (strandsColors.length > 1) setStrandsColors(strandsColors.filter((_, idx) => idx !== i));
+  };
   // Weather FX
   const [bgPE,    sBgPE]    = useF('background', 'bgParticlesEnabled');
   const [bgPCnt,  sBgPCnt]  = useF('background', 'bgParticlesCount');
@@ -999,6 +1033,96 @@ function BackgroundSection() {
             <Sl value={gridMv as number} min={0} max={2} step={0.05} onChange={sGridMv} />
           </FR>
         </EffectCard>
+      </Acc>
+
+      <Acc label="Strands" description={ACCORDION_DESCRIPTIONS['background.strands']}>
+        <Tg value={stE as boolean} onChange={sStE} label="Show strands" />
+        {(stE as boolean) && (
+          <>
+            <FR label="Position" info={hintFor('background.strandsBehindLogo')}>
+              <CB
+                value={(stBL as boolean) ? 'behind' : 'front'}
+                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+                onChange={(v) => sStBL(v === 'behind')}
+              />
+            </FR>
+            <FR label="Colors" info={hintFor('background.strandsColors')}>
+              <div className="flex flex-col gap-1 w-full">
+                {strandsColors.map((c, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <CP value={c} onChange={(v) => updateStrandColor(i, v)} />
+                    {strandsColors.length > 1 && (
+                      <button
+                        onClick={() => removeStrandColor(i)}
+                        className="text-xs px-1 rounded"
+                        style={{ color: 'var(--text-dim)', background: 'var(--bg-elev-2)' }}
+                      >×</button>
+                    )}
+                  </div>
+                ))}
+                {strandsColors.length < 8 && (
+                  <button
+                    onClick={addStrandColor}
+                    className="mt-1 text-xs px-2 py-0.5 rounded self-start"
+                    style={{ color: 'var(--accent)', background: 'var(--bg-elev-2)' }}
+                  >+ Add color</button>
+                )}
+              </div>
+            </FR>
+            <FR label="Strand count" hint={`${stCnt}`} info={hintFor('background.strandsCount')}>
+              <Sl value={stCnt as number} min={1} max={12} step={1} onChange={sStCnt} />
+            </FR>
+            <FR label="Speed" hint={`${(stSp as number).toFixed(2)}`} info={hintFor('background.strandsSpeed')}>
+              <Sl value={stSp as number} min={0} max={3} step={0.05} onChange={sStSp} />
+            </FR>
+            <FR label="Amplitude" hint={`${(stAmp as number).toFixed(2)}`} info={hintFor('background.strandsAmplitude')}>
+              <Sl value={stAmp as number} min={0} max={3} step={0.05} onChange={sStAmp} />
+            </FR>
+            <FR label="Waviness" hint={`${(stWav as number).toFixed(2)}`} info={hintFor('background.strandsWaviness')}>
+              <Sl value={stWav as number} min={0} max={3} step={0.05} onChange={sStWav} />
+            </FR>
+            <FR label="Thickness" hint={`${(stThk as number).toFixed(2)}`} info={hintFor('background.strandsThickness')}>
+              <Sl value={stThk as number} min={0} max={3} step={0.05} onChange={sStThk} />
+            </FR>
+            <FR label="Glow" hint={`${(stGlw as number).toFixed(1)}`} info={hintFor('background.strandsGlow')}>
+              <Sl value={stGlw as number} min={0} max={6} step={0.1} onChange={sStGlw} />
+            </FR>
+            <FR label="Taper" hint={`${(stTap as number).toFixed(1)}`} info={hintFor('background.strandsTaper')}>
+              <Sl value={stTap as number} min={0} max={10} step={0.1} onChange={sStTap} />
+            </FR>
+            <FR label="Spread" hint={`${(stSpr as number).toFixed(2)}`} info={hintFor('background.strandsSpread')}>
+              <Sl value={stSpr as number} min={0} max={3} step={0.05} onChange={sStSpr} />
+            </FR>
+            <FR label="Hue shift" hint={`${(stHue as number).toFixed(2)}`} info={hintFor('background.strandsHueShift')}>
+              <Sl value={stHue as number} min={0} max={2} step={0.01} onChange={sStHue} />
+            </FR>
+            <FR label="Intensity" hint={`${Math.round((stInt as number) * 100)}%`} info={hintFor('background.strandsIntensity')}>
+              <Sl value={stInt as number} min={0} max={1} step={0.01} onChange={sStInt} />
+            </FR>
+            <FR label="Saturation" hint={`${(stSat as number).toFixed(2)}`} info={hintFor('background.strandsSaturation')}>
+              <Sl value={stSat as number} min={0} max={3} step={0.05} onChange={sStSat} />
+            </FR>
+            <FR label="Opacity" hint={`${Math.round((stOp as number) * 100)}%`} info={hintFor('background.strandsOpacity')}>
+              <Sl value={stOp as number} min={0} max={1} step={0.01} onChange={sStOp} />
+            </FR>
+            <FR label="Scale" hint={`${(stScl as number).toFixed(1)}×`} info={hintFor('background.strandsScale')}>
+              <Sl value={stScl as number} min={0.1} max={5} step={0.1} onChange={sStScl} />
+            </FR>
+            <div className="mt-2">
+              <HzRangePicker
+                startHz={stBFS as number}
+                endHz={stBFE as number}
+                onChangeStart={sStBFS}
+                onChangeEnd={sStBFE}
+              />
+              <div className="mt-2">
+                <FR label="Beat sensitivity" hint={`${(stBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.strandsBeatSensitivity')}>
+                  <Sl value={stBSen as number} min={0} max={5} step={0.1} onChange={sStBSen} />
+                </FR>
+              </div>
+            </div>
+          </>
+        )}
       </Acc>
 
       <Acc label="Weather FX" description={ACCORDION_DESCRIPTIONS['background.weather']}>
