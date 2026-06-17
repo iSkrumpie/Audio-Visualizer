@@ -253,6 +253,7 @@ export function Strands({ className, style }: StrandsProps = {}) {
       vertex:   VERT,
       fragment: FRAG,
       uniforms,
+      transparent: true, // enables gl.SRC_ALPHA / gl.ONE_MINUS_SRC_ALPHA blend — otherwise strands are invisible (default is gl.ONE / gl.ZERO = opaque, ignores alpha)
     });
 
     const mesh = new Mesh(gl, {
@@ -265,12 +266,23 @@ export function Strands({ className, style }: StrandsProps = {}) {
       if (!ctn) return;
       const w = ctn.offsetWidth;
       const h = ctn.offsetHeight;
+      if (w === 0 || h === 0) return; // skip 0×0 (initial layout not yet committed)
       renderer.setSize(w, h);
       resBuf[0] = w;
       resBuf[1] = h;
     }
     resize();
     window.addEventListener('resize', resize);
+
+    // ResizeObserver catches cases where the container size changes
+    // without a window resize (e.g. parent layout shifts, sidebar toggle,
+    // or — most importantly — the initial mount where offsetWidth may
+    // briefly be 0 before React commits the layout).
+    let resizeObserver: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(resize);
+      resizeObserver.observe(ctn);
+    }
 
     // ── rAF loop ──────────────────────────────────────────────────────────
     let animId: number;
@@ -330,6 +342,7 @@ export function Strands({ className, style }: StrandsProps = {}) {
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', resize);
+      resizeObserver?.disconnect();
       try {
         (gl as WebGL2RenderingContext)
           .getExtension('WEBGL_lose_context')
