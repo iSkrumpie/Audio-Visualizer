@@ -271,7 +271,7 @@ exportMP4(file, options)
 |--------|--------|
 | `theme` | `mode`, `accent`, `secondary` (Palette-Farben, kein eigener Tab) |
 | `audio` (NEU v11) | `globalBeatFreqStart`, `globalBeatFreqEnd` (Hz, default 40-120 = Kick), `globalBeatSensitivity` (0.1-5.0, default 1.0). Treibt den globalen `FreqBeatDetector` in `useAudioReactive` + `exportEngine` → schreibt `audioAnalysis.beatPhase`. |
-| `background` | blur, brightness, saturation, contrast, hueShift, sharpen, tint (color/opacity/mode), **beatFxFreqStart/beatFxFreqEnd** (HzRangePicker), **beatFxSensitivity** (0.1-5.0), scaleOnBeat (0..0.5), vignette (enabled/strength), nebula (enabled/intensity/color1/color2/driftSpeed/reactivity/scale/offsetX/offsetY + **nebulaBeatMode/FreqStart/End/Sensitivity** für optionalen Pulse-Mode), PostFX: bloom (enabled/intensity/threshold), CA (enabled/offset), noise (enabled/intensity/speed/beatReactivity/scale/colorMode), scanlines (enabled/density/speed/beatReactivity/thickness), glitch (enabled/delay/strength/RGBSplit/BlockSize/BlockProb/Vertical/BeatSync/Decay), sepia (enabled/intensity), pixelation (enabled/granularity/beatReactivity/wave/waveSpeed), dotscreen (enabled/scale/rotation/rotSpeed/beatScale/colorSep), grid (enabled/scale/pulseStrength/wave/waveSpeed/movement/color), colorAverage (enabled), **bgParticles** (bgParticlesEnabled/Count/Speed/Size/Opacity/Color/BeatFreqStart/BeatFreqEnd/BeatSensitivity), **rain** (rainEnabled/Count/Speed/Angle/Length/Width/Color/Opacity/BeatFreqStart/BeatFreqEnd/BeatSensitivity), **snow** (snowEnabled/Count/Speed/Size/Color/Opacity/Sway/BeatFreqStart/BeatFreqEnd/BeatSensitivity) |
+| `background` | blur, brightness, saturation, contrast, hueShift, sharpen, tint (color/opacity/mode), **beatFxFreqStart/beatFxFreqEnd** (HzRangePicker), **beatFxSensitivity** (0.1-5.0), scaleOnBeat (0..0.5), vignette (enabled/strength), nebula (enabled/intensity/color1/color2/driftSpeed/reactivity/scale/offsetX/offsetY + **nebulaBeatMode/FreqStart/End/Sensitivity** für optionalen Pulse-Mode), PostFX: bloom (enabled/intensity/threshold), CA (enabled/offset), noise (enabled/intensity/speed/beatReactivity/scale/colorMode), scanlines (enabled/density/speed/beatReactivity/thickness), glitch (enabled/delay/strength/RGBSplit/BlockSize/BlockProb/Vertical/BeatSync/Decay), sepia (enabled/intensity), pixelation (enabled/granularity/beatReactivity/wave/waveSpeed), dotscreen (enabled/scale/rotation/rotSpeed/beatScale/colorSep), grid (enabled/scale/pulseStrength/wave/waveSpeed/movement/color), colorAverage (enabled), **bgParticles** (bgParticlesEnabled/Count/Speed/Size/Opacity/Color/BeatFreqStart/BeatFreqEnd/BeatSensitivity), **rain** (rainEnabled/Count/Speed/Angle/Length/Width/Color/Opacity/BeatFreqStart/BeatFreqEnd/BeatSensitivity), **snow** (snowEnabled/Count/Speed/Size/Color/Opacity/Sway/BeatFreqStart/BeatFreqEnd/BeatSensitivity), **strands** (strandsEnabled/Colors/Count/Speed/Amplitude/Waviness/Thickness/Glow/Taper/Spread/HueShift/Intensity/Saturation/Opacity/Scale/BeatFreqStart/BeatFreqEnd/BeatSensitivity/BehindLogo) |
 | `logo` | enabled, size (80-1600), opacity, **beatScaleStrength**, **beatFxFreqStart/beatFxFreqEnd** (HzRangePicker), **beatFxSensitivity**, **outerGlow** (outerGlowEnabled/Intensity/Color/Size/Blur/ColorMode/CycleSpeed/CustomColors), **innerGlow** (innerGlowEnabled/Intensity/Color/Size/Blur/ColorMode/CycleSpeed/CustomColors — soft falloff from logo edge toward center), fire (enabled/intensity/height/speed/inner/mid/outerColor/**reactivity/freqStart/freqEnd/sensitivity**). - shape/cornerRadius/**beatRotationBurst**/ring entfernt (v11), Logo ist immer circle, kein Rotation-Burst mehr. v12: Glow → Outer Glow + new Inner Glow (soft falloff). |
 | `bars` | enabled, count, thickness, lengthScale, innerRadius, rotationSpeed, rotationOnBeat, colorMode (solid/rainbow/custom/random), solidColor, customColors (string[]), customFreqBoundaries (number[]), reactivity, freqStart/freqEnd (Bin-Index, für Height-Mapping - **separat** von beatFreq*), opacity, minHeight, gapSize, smoothing, peakEnabled, peakDecay - **NEU v11: beatFreqStart/beatFreqEnd (HzRangePicker) + beatSensitivity** für eigenen Bars-Beat-Boost. mirror entfernt |
 | `particles` | enabled, count, size, orbitRadius, speed, spread, kickBurstStrength, opacity, sizeOnBeat, colorMode (solid/rainbow/custom/random), solidColor, customColors (string[]), customFreqBoundaries (number[]), reactiveFreqStart/reactiveFreqEnd (HzRangePicker), **reactiveSensitivity**, orbitMode (circular/elliptical/scatter), ellipseRatio, particleShape (circle/star/diamond), blendMode, connectionLines, connectionDistance, connectionOpacity, twinkle, twinkleSpeed - monoColor/reactiveAxis entfernt |
@@ -326,6 +326,7 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 | `InstancedBars` | `settings.bars.*` | MAX_BARS=256, 2. InstancedMesh für Peak-Dots, freqStart/freqEnd remappt FFT-Bins (Height); colorMode custom/random per-Bar-Color via Instanced Attribute. **Eigener FreqBeatDetector** (barsBeatDetector) → `setSensitivity(beatSensitivity) + update(rawFreqData, beatFreqStart, beatFreqEnd)` für `barH += beat * 25 * scale` Boost. |
 | `CenterLogo` | `settings.logo.*` | Immer circle; canvas-Circular-Mask; **Outer Glow ShaderMaterial** (OUTER_GLOW_FRAG, z=-0.1, renderOrder=5, alpha peaks just outside logo edge, falls off outward). **Inner Glow ShaderMaterial** (INNER_GLOW_FRAG, z=+0.05, renderOrder=8, AdditiveBlending, soft falloff from logo edge inward to center). Plane ist **1.03× logo radius** (`CircleGeometry(0.5 * 1.03, 64)`) + sanfter `edgeFade = 1.0 - smoothstep(0.97, 1.0)` → Logo-Edge sitzt bei `ig_dist ≈ 0.97` mit voller Alpha, keine sichtbare Gap (Session 18). Shared `computeGlowColor()` helper für beide Glow-Arten. **Glow Color-Modi**: solid / rainbow / custom / random (modul-level helper `computeGlowColor`). **Fire-Ring** = RingGeometry (innerR=0.5, outerR=0.5+fireHeight) + fBm-Noise-ShaderMaterial. Scale = `logoSize * beatScale`. z=0.1, renderOrder=7. **2× FreqBeatDetector** (logoBeatDetector + fireBeatDetector). v12: glow → outerGlow + new innerGlow fields. |
 | `GPUParticles` | `settings.particles.*` | Custom Shader mit uShape (circle/star/diamond), LineSegments für connectionLines (O(n2), cap 200), orbitMode elliptical/scatter. **1× FreqBeatDetector** (particleBeatDetector) → setSensitivity(reactiveSensitivity) + update(rawFreqData, reactiveFreqStart, reactiveFreqEnd). |
+| `Strands` | `settings.background.strands*` | **Standalone ogl-WebGL2-Canvas**, nicht in R3F. Eigener rAF-Loop, eigener ResizeListener. **1× FreqBeatDetector** → `setSensitivity(beatSensitivity) + update(rawFreqData, beatFreqStart, beatFreqEnd)`. Beat boostet uAmplitude +40% und uGlow +30%. GLSL: alle lokalen Vars mit `str_` Prefix (ANGLE-Windows-Sicherheit, §6). |
 
 ### 4.10 Z-Layering (von hinten nach vorne)
 
@@ -343,6 +344,16 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
       Outer-Glow Plane (renderOrder=5) sitzt hinter dem Logo, eigene z=-0.1 in useFrame
 ```
 
+**HTML-Overlay-Layer** (DOM-Order entscheidet z-index, kein R3F-z-Wert):
+```
+1. VisualizerStage Backdrop (CSS-Hintergrund)
+2. <Strands/> mit strandsBehindLogo=true  (default — hinter R3F, vor Backdrop, eigene WebGL2-Canvas)
+3. <AudioScene/> R3F Canvas
+4. <Strands/> mit strandsBehindLogo=false  (über R3F — mit mixBlendMode: 'screen' für additive Überlagerung)
+5. TransportBar, ExportOverlay, etc. (HTML-Overlays)
+```
+**Hinweis:** Strands ist ein eigenständiger ogl-Renderer außerhalb des R3F-SceneGraphs. Die z-Position wird über DOM-Order in `VisualizerStage.tsx` gesteuert, nicht über Three.js-Z-Werte.
+
 ### 4.11 FreqBeatDetector-Inventar (welche Komponente hat eigene Instanz)
 
 | Instanz | Datei | Settings-Quelle | update() Argumente |
@@ -357,8 +368,9 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 | particles | `GPUParticles.tsx` (`particleBeatDetector`) | `settings.particles.reactiveFreq*` + `reactiveSensitivity` | `rawFreqData`, `reactiveFreqStart`, `reactiveFreqEnd` |
 | bars | `InstancedBars.tsx` (`barsBeatDetector`) | `settings.bars.beatFreq*` + `beatSensitivity` | `rawFreqData`, `beatFreqStart`, `beatFreqEnd` |
 | nebula-pulse | `NebulaPlane.tsx` (`nebulaBeatDetector`) | `settings.background.nebulaBeatFreq*` + `nebulaBeatSensitivity` | `rawFreqData`, `nebulaBeatFreqStart`, `nebulaBeatFreqEnd` |
+| strands | `Strands.tsx` (`strandsBeatDetector`) | `settings.background.strandsBeatFreq*` + `strandsBeatSensitivity` | `rawFreqData`, `strandsBeatFreqStart`, `strandsBeatFreqEnd` |
 
-**10 Instanzen gesamt** (1 global, 9 komponenten-spezifisch). Alle nutzen `setSensitivity()` VOR `update()` im useFrame.
+**11 Instanzen gesamt** (1 global + 9 komponenten-spezifisch + 1 strands-ogl). Alle nutzen `setSensitivity()` VOR `update()` im useFrame.
 
 **Detektor-Konstruktion:** Alle Component-Instanzen: `new FreqBeatDetector(48000)` mit hartcodiertem 48 kHz sampleRate. Constructor-Param `sampleRate` ist Pflicht (default 48000), weil die Hz→bin-Map sonst bei 44.1 kHz vs. 48 kHz Contexts driften würde. Tatsächliche Sample-Rate im Live-Stream hängt vom `AudioContext` ab (Browser-Default, meist 48 kHz); im Export ist es hartcodiert 48 kHz (`new AudioContext({ sampleRate: 48000 })` in `exportEngine.ts:88`).
 
@@ -451,6 +463,7 @@ Bei 30-fps-Export und 60-fps-Live-Preview: ohne Normalisierung decayed `phase` b
 | Was passieren soll | Datei |
 |---|---|
 | BG weather effects (particles/rain/snow) | `BackgroundFx.tsx` + `settingsStore.background.{bgParticles*,rain*,snow*}` |
+| Strands Background Effect | `Strands.tsx` + `settingsStore.background.strands*` |
 | Hintergrund-Effekt ändern (Blur, Tint, Bloom, CA, etc.) | `BackgroundPlane.tsx` Shader + Uniforms in useFrame + `settingsStore.background` |
 | Neuen Hintergrund-Effekt hinzufügen | `BackgroundPlane.tsx` erweitern - ANGLE-Prefix-Regel beachten! |
 | Bars-Settings | `InstancedBars.tsx` + `settingsStore.bars` |
@@ -659,8 +672,9 @@ git reset --hard <hash>             # nur nach User-Freigabe
 | BackgroundFx (bgParticles) | `bgParticlesBeatDetector` | `kickPhase` |
 | BackgroundFx (rain) | `rainBeatDetector` | `snarePhase` |
 | BackgroundFx (snow) | `snowBeatDetector` | `hihatPhase` |
+| `Strands` | `strandsBeatDetector` | `kickPhase` (default; `usePhaseSource` weights based on user Hz-range config — e.g. setting 2000-8000 Hz shifts weight toward `snarePhase`) |
 
-**Total: 9 phase sources** (1 global beat via ticks + 8 component-specific pre-analysis fields). All registered via `useBeatDetectorRegistration` for export-reset compatibility.
+**Total: 10 phase sources** (1 global beat via ticks + 9 component-specific pre-analysis fields). All registered via `useBeatDetectorRegistration` for export-reset compatibility.
 
 ### 10.6 `now.md` rollback anchor
 
@@ -1299,3 +1313,154 @@ Happy-Path bleibt still (Browser nimmt 384k+). Fallback ist sichtbar.
 - `EffectCard` unverändert — Hint-Platzierung dort war schon korrekt.
 - Bei UI-Pollish-Rollback: `git revert 5cce271 0fe9afb da62beb` macht alle 3 Commits rückgängig (in umgekehrter Reihenfolge wegen Lineage).
 - §4.8 und §12.7 in AGENTS.md mit den neuen Konventionen aktualisiert (Tg `info`-Prop, Acc kein `defaultOpen`).
+
+---
+
+## 17. Session 20 — Strands Background Effect
+
+*2-commit Session: ogl-basierter "Strands"-Effekt (Aurora/Lichtbänder) von https://reactbits.dev portiert. settingsStore v14 → v15 mit deep-merge migrate (alte User-Settings bleiben erhalten).*
+
+### 17.1 Die Commits
+
+| # | Commit | Datei | Was |
+|---|---|---|---|
+| (Phase 1) | `<PENDING>` | `package.json` + `package-lock.json` + `src/components/three/Strands.tsx` (NEU, 270 Zeilen) + `src/lib/settingsStore.ts` + `src/lib/hints.ts` | Foundation: ogl@^1.0.11 installiert, Strands.tsx portiert (GLSL mit `str_` Prefix für ANGLE-Sicherheit, Audio-Reaktivität via usePhaseSource), settingsStore v15 mit 19 neuen `strands*` Feldern + deep-merge migrate, 19 neue Hint-Texte |
+| (Phase 2) | `<PENDING>` | `src/components/VisualizerStage.tsx` + `src/components/SettingsPanel.tsx` | UI-Integration: `<Strands/>` in VisualizerStage (DOM-Order z-index), neues "Strands"-Accordion im Background-Tab mit 18 Settings (Color-Editor für strandsColors, 13 Slider, HzRangePicker + Sensitivity) |
+
+**HINWEIS:** Commit-Hashes sind als `<PENDING>` markiert — der Orchestrator muss sie nach den Commits mit den echten Hashes ersetzen.
+
+### 17.2 Architektur — Standalone ogl-Renderer
+
+Strands nutzt **NICHT** R3F. Es ist eine eigenständige React-Component mit:
+- Eigenem WebGL2-Canvas (ogl `Renderer` mit `alpha: true`, `premultipliedAlpha: false`)
+- Eigenem rAF-Loop im `useEffect` (nicht R3F `useFrame`)
+- Eigenem `ResizeListener` (`window.addEventListener('resize')`)
+- Eigener Cleanup (`cancelAnimationFrame` + `WEBGL_lose_context` + `canvas.remove()`)
+
+**Warum nicht R3F?**
+- Original reactbits-Code nutzt ogl direkt (1:1 portiert = kein Three.js-Rewrite nötig)
+- Strands braucht nur Fullscreen-Triangle + Custom-Shader — kein 3D-Transform, keine Camera, keine Beleuchtung
+- Eigenständiger Canvas = keine Interferenz mit R3F-Render-Pipeline
+- **Trade-off:** Strands wird NICHT in den MP4-Export aufgenommen (exportEngine capture'd nur R3F's gl). Wenn der User Strands auch im Export will, müsste man den ogl-Canvas pro Frame screenshotten und in die R3F-Szene composen — signifikanter Aufwand, **TODO für später**.
+
+### 17.3 ANGLE-Sicherheit (KRITISCH)
+
+Alle lokalen GLSL-Variablen im Strands-Fragment-Shader haben das `str_` Prefix (45 Vorkommen). `uTime`, `uResolution`, `uColors`, `uColorCount`, `uStrandCount`, `uSpeed`, `uAmplitude`, etc. bleiben unverändert (Uniforms).
+
+Beispiel:
+```glsl
+// Original reactbits:
+float h = fi / float(uStrandCount) + uv.x * 0.30 + uTime * 0.04 + uHueShift;
+col += strandColor(h) * g * env;
+
+// Portiert:
+float str_h = str_fi / float(uStrandCount) + str_uv.x * 0.30 + uTime * 0.04 + uHueShift;
+str_col += str_strandColor(str_h) * str_g * str_env;
+```
+
+Gilt für JEDEN zukünftigen ogl/Three.js-Shader in dieser App. Siehe §6.
+
+### 17.4 Audio-Reaktivität
+
+Strands nutzt exakt das gleiche Pattern wie BackgroundFx:
+- `useMemo(() => new FreqBeatDetector(48000), [])` (registriert für Export-Reset)
+- `usePhaseSource({ detector, getPrecomputedRange, liveFn })`
+- Hz-Range: `settings.background.strandsBeatFreqStart/End` (default 20-200 Hz)
+- Sensitivity: `settings.background.strandsBeatSensitivity` (default 0 = aus)
+
+**Beat-Effekt auf den Shader:**
+```typescript
+const beat = phaseSrcRef.current();
+const boost = sensitivity * beat;  // 0..5 * 0..1
+uniforms.uAmplitude.value = baseAmp  * (1 + boost * 0.4);  // bis zu +200% Amplitude bei Sens=5
+uniforms.uGlow.value      = baseGlow * (1 + boost * 0.3);  // bis zu +150% Glow bei Sens=5
+```
+
+Andere Strands-Props (Speed, Waviness, Thickness, ...) reagieren NICHT auf Audio — das würde "flickrig" wirken. Amplitude + Glow sind die visuell stabilsten Pulse-Props.
+
+### 17.5 z-Index / Layering
+
+Strands wird in `VisualizerStage.tsx` als HTML-Overlay gemounted, mit DOM-Order als z-index-Logik:
+1. Backdrop
+2. `<Strands/>` wenn `strandsBehindLogo=true` (default — hinter R3F, vor Backdrop)
+3. `<AudioScene/>` R3F Canvas
+4. `<Strands/>` wenn `strandsBehindLogo=false` (über R3F, mit `mixBlendMode: 'screen'` für additive Überlagerung)
+5. HTML-Overlays (TransportBar, ExportOverlay, etc.)
+
+### 17.6 Schema-Bump v14 → v15 (deep-merge, kein Reset)
+
+**Wichtig:** Im Gegensatz zu v13→v14 (Fire+Sparks) wird bei v15 **kein** hard-reset der User-Settings gemacht. Der User behält seine v14-Einstellungen, nur die 19 neuen `strands*` Felder werden mit Defaults gefüllt.
+
+Migration-Code (in `settingsStore.ts`):
+```typescript
+migrate: (persistedState: any, version: number) => {
+  if (!persistedState?.settings) return { settings: DEFAULT_SETTINGS };
+  if (version < 15) {
+    persistedState.settings.background = {
+      ...DEFAULT_SETTINGS.background,
+      ...persistedState.settings.background,  // alte v14-Settings überschreiben Defaults
+    };
+  }
+  return persistedState;
+}
+```
+
+Storage-Key: `audiovisualizer:settings:v15`.
+
+### 17.7 19 neue Settings (`background.strands*`)
+
+| Field | Type | Default | Range | Was |
+|---|---|---|---|---|
+| `strandsEnabled` | bool | false | - | Master-Toggle |
+| `strandsColors` | string[] | ['#FF4242', '#7C3AED', '#06B6D4', '#EAB308'] | 1..8 | Palette (max 8 wie Shader MAX_COLORS) |
+| `strandsCount` | number | 3 | 1..12 | Anzahl Stränge (Shader MAX_STRANDS) |
+| `strandsSpeed` | number | 0.5 | 0..3 | Animationsgeschwindigkeit |
+| `strandsAmplitude` | number | 1.0 | 0..3 | Höhe der Waves |
+| `strandsWaviness` | number | 1.0 | 0..3 | Frequenz der Wellen |
+| `strandsThickness` | number | 0.7 | 0..3 | Strich-Dicke |
+| `strandsGlow` | number | 2.6 | 0..6 | Glow/Helligkeit |
+| `strandsTaper` | number | 3 | 0..10 | Fade an Screen-Edges (Envelope-Funktion) |
+| `strandsSpread` | number | 1 | 0..3 | Phasenversatz zwischen Strängen |
+| `strandsHueShift` | number | 0 | 0..2 | Hue-Shift über Zeit |
+| `strandsIntensity` | number | 0.6 | 0..1 | Maximale Helligkeit |
+| `strandsSaturation` | number | 1.5 | 0..3 | Farbsättigung |
+| `strandsOpacity` | number | 1 | 0..1 | Gesamt-Transparenz |
+| `strandsScale` | number | 1.5 | 0.1..5 | Räumliche Skalierung (UV-Divisor) |
+| `strandsBeatFreqStart` | number | 20 | 20..20000 | Hz-Range für Beat-Detection |
+| `strandsBeatFreqEnd` | number | 200 | 20..20000 | |
+| `strandsBeatSensitivity` | number | 0 | 0..5 | 0 = Audio-Reaktivität AUS |
+| `strandsBehindLogo` | bool | true | - | true = hinter R3F, false = davor (mit mixBlendMode) |
+
+### 17.8 SettingsPanel-Integration
+
+Neues Accordion "Strands" im Background-Tab (zwischen "Effects" und "Weather FX"):
+- Master-Toggle ohne Hint (analog zu `logo.enabled`)
+- Position-CB (behind/front) — nur sichtbar wenn enabled
+- Color-Editor (add/remove) — max 8 Farben, nutzt `useSettingsStore.getState().setSettings` Pattern (analog zu `CustomColorEditor`)
+- 13 Sliders mit Hint via `hintFor('background.strandsXxx')`
+- HzRangePicker für Beat-Frequenz
+- Sensitivity-Slider für Beat-Reaktion
+
+Accordion startet IMMER geschlossen (kein `defaultOpen`, §16.4). `strandsEnabled`-Toggle hat kein Hint (Master-Toggle-Regel, §16.3).
+
+### 17.9 Performance-Budget
+
+| Layer | Draw Calls | Geschätzte GPU-Kosten (60fps) |
+|---|---|---|
+| Strands (ogl, fullscreen triangle) | 1 | ~0.3-0.5ms (zwei Sinus + Sample-Palette + Tone-Mapping) |
+
+Läuft parallel zum R3F-Render (separater WebGL-Kontext) → kein direkter Overhead in R3F-Frame.
+
+### 17.10 Bekannte Einschränkungen
+
+- **Export-Pipeline:** Strands ist NICHT im MP4-Export enthalten (exportEngine capture'd nur R3F's gl). TODO für später: ogl-Canvas screenshotten und in R3F-Szene composen. Aktuelle Lösung: User sieht Strands nur im Live-Preview.
+- **Color-Picker-Color-Editor:** Die +/− Buttons funktionieren, aber es gibt keine Color-Palette-Vorschau (anders als der Custom-Color-Editor in Bars/Particles). Falls das gewünscht ist: einfach ein Swatch-Row-Pattern nachrüsten.
+- **`uTaper=0`** führt zu flat-line Envelope (kein Edge-Fade) → Strands fließen über den ganzen Screen ohne Fade. Visuell oft erwünscht, aber falls "zu hart an den Rändern": uTaper erhöhen.
+- **`strandsCount=12`** + **`strandsSpeed=3`** + **`strandsGlow=6`** = maximale GPU-Last. Auf low-end Laptops könnten einzelne Frames >16ms brauchen. Default-Werte sind konservativ.
+
+### 17.11 House-keeping
+
+- `nul` Datei im Working Tree (Artefakt aus Windows-cmd-Echo) — kann jederzeit gelöscht werden
+- settingsStore v15 bleibt, bis ein neuer Schema-Bump nötig wird
+- Bei Bug-Rollback: `git revert <PENDING>` macht alle Strands-Änderungen rückgängig, v15-Migration-Code bleibt erhalten (User-Settings auf v15 mit `strandsEnabled=false` als Default)
+- **Commit-Hashes in §17.1**: Orchestrator muss `<PENDING>` durch echte Hashes aus `git log --oneline -n 5` ersetzen, nachdem die Commits gemacht wurden.
