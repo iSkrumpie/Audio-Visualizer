@@ -37,14 +37,17 @@ export function VisualizerStage({
       className="relative h-full w-full overflow-hidden"
       style={{ background: 'var(--bg-base)' }}
     >
-      {/* Strands BEHIND logo (rendered before R3F canvas in DOM order) */}
-      {strandsEnabled && strandsBehindLogo && <Strands />}
-
-      {/* Three.js Canvas — all visual layers */}
+      {/* Three.js Canvas — all visual layers (R3F with alpha:false is opaque) */}
       <AudioScene />
 
-      {/* Strands IN FRONT of logo (rendered after R3F canvas in DOM order) */}
-      {strandsEnabled && !strandsBehindLogo && <Strands style={{ mixBlendMode: 'screen' }} />}
+      {/* Strands AFTER R3F canvas in DOM order. R3F is opaque (alpha:false),
+          so strands can never appear *behind* it — they always render on top.
+          `behindLogo` mode uses normal blend, `in front` adds mix-blend-mode:screen
+          for additive blending with the logo. The naming is now about visual
+          integration, not DOM order. */}
+      {strandsEnabled && (
+        <Strands style={strandsBehindLogo ? undefined : { mixBlendMode: 'screen' }} />
+      )}
 
       {/* HTML overlays on top of the canvas */}
       <TransportBar

@@ -347,11 +347,16 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 **HTML-Overlay-Layer** (DOM-Order entscheidet z-index, kein R3F-z-Wert):
 ```
 1. VisualizerStage Backdrop (CSS-Hintergrund)
-2. <Strands/> mit strandsBehindLogo=true  (default — hinter R3F, vor Backdrop, eigene WebGL2-Canvas)
-3. <AudioScene/> R3F Canvas
-4. <Strands/> mit strandsBehindLogo=false  (über R3F — mit mixBlendMode: 'screen' für additive Überlagerung)
-5. TransportBar, ExportOverlay, etc. (HTML-Overlays)
+2. <AudioScene/> R3F Canvas  (opak — gl: { alpha: false }, daher keine Transparenz)
+3. <Strands/>  (immer NACH R3F gemounted — siehe §17.5)
+4. TransportBar, ExportOverlay, etc. (HTML-Overlays)
 ```
+
+**Wichtig:** `strandsBehindLogo` steuert NICHT die DOM-Order, sondern nur den Blend-Mode:
+- `strandsBehindLogo=true` (default): normaler Alpha-Blend — Strands überdecken das Logo opak
+- `strandsBehindLogo=false`: `mix-blend-mode: screen` — Strands additiv über Logo (subtiler, Glow bleibt sichtbar)
+
+Beide Varianten werden nach dem R3F-Canvas gerendert, weil R3F opak ist — siehe §17.5.
 **Hinweis:** Strands ist ein eigenständiger ogl-Renderer außerhalb des R3F-SceneGraphs. Die z-Position wird über DOM-Order in `VisualizerStage.tsx` gesteuert, nicht über Three.js-Z-Werte.
 
 ### 4.11 FreqBeatDetector-Inventar (welche Komponente hat eigene Instanz)
@@ -1378,12 +1383,17 @@ Andere Strands-Props (Speed, Waviness, Thickness, ...) reagieren NICHT auf Audio
 
 ### 17.5 z-Index / Layering
 
-Strands wird in `VisualizerStage.tsx` als HTML-Overlay gemounted, mit DOM-Order als z-index-Logik:
-1. Backdrop
-2. `<Strands/>` wenn `strandsBehindLogo=true` (default — hinter R3F, vor Backdrop)
-3. `<AudioScene/>` R3F Canvas
-4. `<Strands/>` wenn `strandsBehindLogo=false` (über R3F, mit `mixBlendMode: 'screen'` für additive Überlagerung)
-5. HTML-Overlays (TransportBar, ExportOverlay, etc.)
+Strands wird in `VisualizerStage.tsx` als HTML-Overlay gemounted, **immer NACH** dem `<AudioScene/>` (R3F-Canvas). Der R3F-Canvas hat `gl: { alpha: false }` — also opak — daher ist ein Rendering VOR dem Canvas sinnlos (Strands wären unsichtbar). Die `strandsBehindLogo`-Setting steuert daher nur den **Blend-Mode**:
+- `strandsBehindLogo=true` (default): normaler Alpha-Blend, Strands überdecken das Logo
+- `strandsBehindLogo=false`: `mix-blend-mode: screen`, Strands additiv über Logo
+
+**Bugfix Session 20.1:** Die initiale Implementation hatte Strands per DOM-Order gemounted — `<Strands/>` vor R3F wenn `behindLogo=true`. Das war unsichtbar, weil der R3F-Canvas opak ist. Fix: Strands IMMER nach R3F mounten, `strandsBehindLogo` ist nur noch ein Blend-Mode-Toggle.
+
+DOM-Order (1 = unten):
+1. Backdrop (CSS-Hintergrund)
+2. `<AudioScene/>` R3F Canvas (opak)
+3. `<Strands/>`  (immer nach R3F)
+4. HTML-Overlays (TransportBar, ExportOverlay, etc.)
 
 ### 17.6 Schema-Bump v14 → v15 (deep-merge, kein Reset)
 
@@ -1427,7 +1437,7 @@ Storage-Key: `audiovisualizer:settings:v15`.
 | `strandsBeatFreqStart` | number | 20 | 20..20000 | Hz-Range für Beat-Detection |
 | `strandsBeatFreqEnd` | number | 200 | 20..20000 | |
 | `strandsBeatSensitivity` | number | 0 | 0..5 | 0 = Audio-Reaktivität AUS |
-| `strandsBehindLogo` | bool | true | - | true = hinter R3F, false = davor (mit mixBlendMode) |
+| `strandsBehindLogo` | bool | true | - | true = normaler Alpha-Blend (Strands überdecken Logo), false = mix-blend-mode: screen (additiv) |
 
 ### 17.8 SettingsPanel-Integration
 
