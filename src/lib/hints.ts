@@ -264,7 +264,47 @@ export const SETTING_HINTS: Record<string, string> = {
   'background.snowBeatSensitivity':
     'How easily a beat triggers the snow burst.',
 
-  // ── Logo ──────────────────────────────────────────────────────────────────
+  // ── Background: Strands ───────────────────────────────────────────────
+  'background.strandsEnabled':
+    'Glowing ribbon-like strands that ripple across the screen. Looks like aurora or light trails.',
+  'background.strandsColors':
+    'Color palette for the strands. Up to 8 colors, smoothly blended as the ribbons flow.',
+  'background.strandsCount':
+    'How many strands to draw. 1–3 looks clean and elegant; 6+ gets busy and layered.',
+  'background.strandsSpeed':
+    'How fast the strands ripple and flow across the screen. 0 = frozen; 2+ = fast wave.',
+  'background.strandsAmplitude':
+    'How far the strands wave up and down. Higher = more dramatic, sweeping motion.',
+  'background.strandsWaviness':
+    'Frequency of the wave bends along each strand. Low = gentle curves; high = tight zigzags.',
+  'background.strandsThickness':
+    'How thick each ribbon is at its brightest point. Thin = fine laser lines; thick = fat ribbons.',
+  'background.strandsGlow':
+    'How bright the glow around each strand is. Low = muted; high = neon/overexposed look.',
+  'background.strandsTaper':
+    'How quickly strands fade toward the left and right edges. High = centered spotlight look.',
+  'background.strandsSpread':
+    'Phase offset between strands so they fan out rather than all moving together.',
+  'background.strandsHueShift':
+    'Shifts all strand colors around the color wheel. 0 = palette as-is; 1 = full rotation.',
+  'background.strandsIntensity':
+    'Overall brightness multiplier. 0 = very dim; 1 = full design brightness.',
+  'background.strandsSaturation':
+    'How vivid the strand colors are. 0 = grayscale ribbons; 3 = ultra-saturated.',
+  'background.strandsOpacity':
+    'Global opacity of the entire strands layer. Fade it for a subtle atmospheric accent.',
+  'background.strandsScale':
+    'Zoom level of the effect. Higher = zoomed in on fewer, larger strands; lower = zoomed out.',
+  'background.strandsBeatFreqStart':
+    'Lowest frequency that makes the strands pulse on a beat.',
+  'background.strandsBeatFreqEnd':
+    'Highest frequency watched for the strands beat trigger.',
+  'background.strandsBeatSensitivity':
+    'How strongly the audio beat pulses through the strands. 0 = no reaction; 5 = strong pulse.',
+  'background.strandsBehindLogo':
+    'When on, strands render behind the logo and bars. Off = strands float in front of everything.',
+
+  // ── Logo ───────────────────────────────────────────────────────────────────────────────────
   'logo.enabled':
     'Show or hide the circular logo at the center of the visualizer.',
   'logo.size':
@@ -516,6 +556,8 @@ export const ACCORDION_DESCRIPTIONS: Record<string, string> = {
     'Stylistic effects: grain, scanlines, glitch, pixelation, halftone dots, and grid overlay.',
   'background.weather':
     'Atmospheric particle effects: floating dust, falling rain, and drifting snow.',
+  'background.strands':
+    'Animated light ribbons that flow across the screen. Great for ambient, cinematic, or beat-driven tracks.',
 
   // Logo tab
   'logo.sparks':

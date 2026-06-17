@@ -195,6 +195,26 @@ export type Settings = {
     snowBeatFreqStart: number;      // 20..20000 Hz
     snowBeatFreqEnd: number;        // 20..20000 Hz
     snowBeatSensitivity: number;    // 0.1..5.0
+    // ── Strands (v15) — ribbon/aurora light trails ──────────────────────
+    strandsEnabled: boolean;            // master toggle
+    strandsColors: string[];            // 1..8 hex colors
+    strandsCount: number;               // 1..12
+    strandsSpeed: number;               // 0..3
+    strandsAmplitude: number;           // 0..3
+    strandsWaviness: number;            // 0..3
+    strandsThickness: number;           // 0..3
+    strandsGlow: number;                // 0..6
+    strandsTaper: number;               // 0..10
+    strandsSpread: number;              // 0..3
+    strandsHueShift: number;            // 0..2
+    strandsIntensity: number;           // 0..1
+    strandsSaturation: number;          // 0..3
+    strandsOpacity: number;             // 0..1
+    strandsScale: number;               // 0.1..5
+    strandsBeatFreqStart: number;       // 20..20000 Hz
+    strandsBeatFreqEnd: number;         // 20..20000 Hz
+    strandsBeatSensitivity: number;     // 0..5  (0 = no audio reactivity)
+    strandsBehindLogo: boolean;         // true = behind logo, false = over everything
   };
 
   logo: {
@@ -473,6 +493,26 @@ const DEFAULT_SETTINGS: Settings = {
     snowBeatFreqStart: 3000,
     snowBeatFreqEnd: 12000,
     snowBeatSensitivity: 1.0,
+    // ── Strands (v15) ─────────────────────────────────────────────────
+    strandsEnabled: false,
+    strandsColors: ['#FF4242', '#7C3AED', '#06B6D4', '#EAB308'],
+    strandsCount: 3,
+    strandsSpeed: 0.5,
+    strandsAmplitude: 1,
+    strandsWaviness: 1,
+    strandsThickness: 0.7,
+    strandsGlow: 2.6,
+    strandsTaper: 3,
+    strandsSpread: 1,
+    strandsHueShift: 0,
+    strandsIntensity: 0.6,
+    strandsSaturation: 1.5,
+    strandsOpacity: 1,
+    strandsScale: 1.5,
+    strandsBeatFreqStart: 20,
+    strandsBeatFreqEnd: 200,
+    strandsBeatSensitivity: 0,
+    strandsBehindLogo: true,
   },
 
   logo: {
@@ -623,10 +663,23 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v14',
+      name: 'audiovisualizer:settings:v15',
       storage: createJSONStorage(() => localStorage),
-      version: 14,
-      migrate: () => ({ settings: DEFAULT_SETTINGS }),
+      version: 15,
+      migrate: (persistedState: unknown, version: number): { settings: Settings } => {
+        // Safety: no persisted data → start fresh
+        const ps = persistedState as Record<string, unknown> | null | undefined;
+        if (!ps || typeof ps !== 'object' || !ps['settings']) {
+          return { settings: DEFAULT_SETTINGS };
+        }
+        const s = ps['settings'] as Record<string, unknown>;
+        if (version < 15) {
+          // Deep-merge background: keep old user values, fill in new strands* fields
+          const oldBg = (s['background'] as Record<string, unknown>) ?? {};
+          s['background'] = { ...DEFAULT_SETTINGS.background, ...oldBg };
+        }
+        return ps as { settings: Settings };
+      },
     },
   ),
 );
