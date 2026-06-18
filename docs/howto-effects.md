@@ -2,6 +2,113 @@
 
 > Geladen von `AGENTS.md` bei Bedarf. Enthält Implementierungs-Checklisten und Konventionen.
 
+## Core Patterns — Schnell-Referenz
+
+Diese Patterns werden überall im Projekt genutzt. Kurze Erklärung damit du sie beim Implementieren korrekt einsetzen kannst.
+
+### Pattern 1: `audioAnalysis` mutable (Hot-Path)
+
+```typescript
+// src/hooks/useAudioReactive.ts exportiert:
+export const audioAnalysis: {
+  freqData: Uint8Array;      // 128 bins, visual analyser (smoothed 0.55)
+  rawFreqData: Uint8Array;   // 1024 bins, kick analyser (raw, no smoothing)
+  bass: number; loudness: number; highs: number; energy: number;
+  beatPhase: number;         // global beat phase 0..1
+  kickPhase: number; snarePhase: number; vocalPhase: number; hihatPhase: number;
+}
+```
+
+**Regel:** Three.js-Komponenten lesen NIE per-Frame-Daten aus Zustand-Store. Immer `audioAnalysis` direkt lesen. Für Beat-Detection immer `rawFreqData` (nicht `freqData` — geglättete Daten verschlucken Transienten).
+
+---
+
+### Pattern 2: FreqBeatDetector (Beat-Reaktivität)
+
+```typescript
+// In jeder Komponente die auf Beats reagiert:
+const myDetector = useMemo(() => new FreqBeatDetector(48000), []);
+useBeatDetectorRegistration(myDetector);  // aus './AudioScene' — für Export-Reset
+
+const phaseSrc = usePhaseSource({
+  detector: myDetector,
+  getPrecomputedRange: () => ({
+    startHz: getSettings().background.myBeatFreqStart,
+    endHz:   getSettings().background.myBeatFreqEnd,
+  }),
+  liveFn: () => {
+    myDetector.setSensitivity(getSettings().background.myBeatSensitivity);
+    return myDetector.update(
+      audioAnalysis.rawFreqData,
+      getSettings().background.myBeatFreqStart,
+      getSettings().background.myBeatFreqEnd,
+    );
+  },
+});
+
+// in useFrame:
+const beat = phaseSrc();  // 0..1, decaying
+```
+
+**Regeln:** `setSensitivity()` IMMER vor `update()`. `rawFreqData` (1024 bins), NICHT `freqData`. Jede Komponente hat ihre EIGENE Instanz (kein Teilen). `useBeatDetectorRegistration` damit Export-Pipeline vor Frame 0 resetten kann.
+
+---
+
+### Pattern 3: `getSettings()` in Three.js (kein Rerender)
+
+```typescript
+// useFrame und Drei.js Komponenten:
+import { getSettings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
+
+useFrame((state, delta) => {
+  const { width, height } = state.size;  // aus state.size, NICHT aus useThree()-Closure!
+  const bg = getSettings().background;
+  const val = bg.myField ?? DEFAULT_SETTINGS.background.myField;  // defensive default!
+});
+```
+
+**Regel:** Nie `useSettingsStore((s) => s.settings)` in Three.js-Komponenten — das triggert React-Rerenders für jeden Frame-Update. `getSettings()` ist synchron, kein Rerender.
+
+---
+
+### Pattern 4: `useF` in SettingsPanel (UI-Controls)
+
+```typescript
+// Nur in SettingsPanel.tsx zulässig:
+const [myValue, setMyValue] = useF('background', 'myField');
+// Gibt DEFAULT_SETTINGS.background.myField zurück wenn Feld undefined (alte Presets)
+```
+
+---
+
+### Pattern 5: `sceneRegistry` (Export-Pipeline-Integration)
+
+```typescript
+// src/components/three/AudioScene.tsx exportiert:
+export const sceneRegistry = {
+  gl, scene, camera, advance,  // werden von SceneCapture-Component befüllt
+  setSize: (w, h) => void,     // resize R3F + WebGL gleichzeitig
+  beatDetectors: Set<{ reset: () => void }>,  // alle FreqBeatDetector-Instanzen
+};
+```
+
+**Export-Pipeline liest daraus:** `gl` für Canvas-Capture, `advance(ts)` zum Frame-Rendern, `beatDetectors` für Reset vor Frame 0. Komponenten registrieren ihre Detektoren via `useBeatDetectorRegistration`.
+
+---
+
+### Pattern 6: `useFrame` state.size (R3F-Resize-Safety)
+
+```typescript
+useFrame((state, delta) => {
+  const { width, height } = state.size;  // ✅ Live aus Callback
+  // NICHT: const { width } = useThree((s) => s.size);  // ❌ async Closure-Problem
+});
+```
+
+**Warum:** `r3fSetSize()` updatet `state.size` synchron, aber der React-Re-Render der `useThree`-Closure ist async. Im Export-Loop (der `advance()` synchron aufruft) würde die Closure noch die alte Preview-Größe sehen.
+
+---
+
 ## 5. Konventionen
 
 ### 5.1 Patterns

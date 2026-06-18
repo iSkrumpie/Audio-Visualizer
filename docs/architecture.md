@@ -83,9 +83,9 @@ Der Canvas läuft auf `frameloop="never"`. Das bedeutet:
 - **Live-Preview**: `useAudioReactive`-rAF-Tick ruft `sceneRegistry.advance(performance.now()/1000)` am Ende jedes Ticks.
 - **Export**: `exportEngine.ts` ruft `sceneRegistry.advance(timestamp)` pro Frame - dadurch laufen alle `useFrame`-Callbacks (Bars, Particles, etc.) mit den precomputed FFT-Daten.
 - `sceneRegistry` hat Felder: `gl`, `scene`, `camera`, `advance`, `setSize`, `beatDetectors: Set<{reset: () => void}>`.
-- **`sceneRegistry.setSize(w, h)`** ruft intern `gl.setSize(w, h, false)` (kein Style-Update) + R3F's `r3fSetSize(w, h)`. R3F's subscribe triggert daraufhin `gl.setSize(w, h, true)` mit Style-Update. Im Export-Loop `gl.setSize(w, h, false)` **nach** `advance()` erneut aufrufen, falls ResizeObserver die Canvas-Größe zwischendurch verändert hat. Siehe §6.
+- **`sceneRegistry.setSize(w, h)`** ruft intern `gl.setSize(w, h, false)` (kein Style-Update) + R3F's `r3fSetSize(w, h)`. R3F's subscribe triggert daraufhin `gl.setSize(w, h, true)` mit Style-Update. Im Export-Loop `gl.setSize(w, h, false)` **nach** `advance()` erneut aufrufen, falls ResizeObserver die Canvas-Größe zwischendurch verändert hat. → docs/stolpersteine.md
 
-**R3F-State-Sync:** Components dürfen `useFrame`-intern `width/height` aus dem `state.size`-Parameter des Callbacks lesen — **NICHT** aus einem `useThree((s) => s.size)`-Subscription, weil die Closure bei `r3fSetSize` **asynchron** (React-Re-Render) re-evaluiert wird, der `useFrame`-Callback aber im selben synchronen Block schon läuft. Siehe §6.
+**R3F-State-Sync:** Components dürfen `useFrame`-intern `width/height` aus dem `state.size`-Parameter des Callbacks lesen — **NICHT** aus einem `useThree((s) => s.size)`-Subscription, weil die Closure bei `r3fSetSize` **asynchron** (React-Re-Render) re-evaluiert wird, der `useFrame`-Callback aber im selben synchronen Block schon läuft. → docs/stolpersteine.md
 
 ### 4.4 Datendfluss Audio
 
@@ -155,7 +155,7 @@ exportMP4(file, options)
 
 - Key: `audiovisualizer:settings:v12`
 - `version: 12`, `migrate: () => DEFAULT_SETTINGS` → bei Schema-Bump alles wipen
-- `DEFAULT_SETTINGS` ist **exportiert** (für `useF`-Defensive-Defaults bei alten Presets - siehe §6)
+- `DEFAULT_SETTINGS` ist **exportiert** (für `useF`-Defensive-Defaults bei alten Presets - → docs/stolpersteine.md)
 - **Gruppen:**
 
 | Gruppe | Inhalt |
@@ -172,7 +172,7 @@ exportMP4(file, options)
 - Key: `audiovisualizer:presets:v1`
 - Jedes Preset: `{ id, name, createdAt, settings: Settings }` - **vollständiger** Settings-Snapshot (überlebt Schema-Bumps nicht)
 - UI: Dropdown (auto-load bei Auswahl) + "Save"-Button (expandiert Name-Input) + Trash-Icon
-- **Alte Presets** (vor Schema-Bump gespeichert) haben Felder der neueren Version **nicht**. Wird vom `useF`-Hook defensiv behandelt (siehe §6 + §9).
+- **Alte Presets** (vor Schema-Bump gespeichert) haben Felder der neueren Version **nicht**. Wird vom `useF`-Hook defensiv behandelt (→ docs/stolpersteine.md).
 
 ### 4.8 SettingsPanel - Tab-Struktur
 
@@ -270,6 +270,6 @@ Die SVG-Maske wird einmal beim Mount berechnet basierend auf `settings.logo.size
 
 **Detektor-Konstruktion:** Alle Component-Instanzen: `new FreqBeatDetector(48000)` mit hartcodiertem 48 kHz sampleRate. Constructor-Param `sampleRate` ist Pflicht (default 48000), weil die Hz→bin-Map sonst bei 44.1 kHz vs. 48 kHz Contexts driften würde. Tatsächliche Sample-Rate im Live-Stream hängt vom `AudioContext` ab (Browser-Default, meist 48 kHz); im Export ist es hartcodiert 48 kHz (`new AudioContext({ sampleRate: 48000 })` in `exportEngine.ts:88`).
 
-**Detektor-Reset (Session 9):** `FreqBeatDetector.reset()` Methode löscht `prevBins`, `fluxHistory`, `phase`, `lastEnergy`. Jede Component registriert ihre Instanz via `useBeatDetectorRegistration(detector)` in `sceneRegistry.beatDetectors` Set. `exportEngine.ts` ruft `for (const d of sceneRegistry.beatDetectors) d.reset()` einmalig vor Frame 0, damit die ersten ~40 Frames des Exports nicht gegen den Live-Stream-trainierten Detector-State vergleichen. Siehe `bug.md` H3 für Details, warum das nötig ist. (bug.md gelöscht in Session 12 Cleanup, Inhalt in §6.1.)
+**Detektor-Reset (Session 9):** `FreqBeatDetector.reset()` Methode löscht `prevBins`, `fluxHistory`, `phase`, `lastEnergy`. Jede Component registriert ihre Instanz via `useBeatDetectorRegistration(detector)` in `sceneRegistry.beatDetectors` Set. `exportEngine.ts` ruft `for (const d of sceneRegistry.beatDetectors) d.reset()` einmalig vor Frame 0, damit die ersten ~40 Frames des Exports nicht gegen den Live-Stream-trainierten Detector-State vergleichen. (→ docs/stolpersteine.md §6.1)
 
 ---
