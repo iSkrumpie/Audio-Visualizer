@@ -508,7 +508,7 @@ const DEFAULT_SETTINGS: Settings = {
     strandsIntensity: 0.6,
     strandsSaturation: 1.5,
     strandsOpacity: 1,
-    strandsScale: 1.5,
+    strandsScale: 1.0,
     strandsBeatFreqStart: 20,
     strandsBeatFreqEnd: 200,
     strandsBeatSensitivity: 0,
