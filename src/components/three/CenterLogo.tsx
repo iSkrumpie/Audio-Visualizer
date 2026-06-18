@@ -22,6 +22,13 @@ import { usePhaseSource } from '@/hooks/usePhaseSource';
 
 const REF_VMIN = 900;
 
+/**
+ * Live logo display radius in CSS pixels, updated every frame by useFrame.
+ * Read by VisualizerStage's rAF loop to update overlay mask sizes without
+ * any DOM writes inside the Three.js render loop.
+ */
+export const logoMaskRadiusRef: { current: number } = { current: 0 };
+
 // ─── Shared vertex shader ─────────────────────────────────────────────────────
 
 const GLOW_VERT = /* glsl */ `
@@ -585,6 +592,9 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
       meshRef.current.scale.set(logoSize * beatScale, logoSize * beatScale, 1);
       meshRef.current.rotation.z = rotRef.current;
     }
+    // Expose live radius (CSS px) — read by VisualizerStage mask loop.
+    // No DOM write here; VisualizerStage has its own rAF that reads this.
+    logoMaskRadiusRef.current = (logoSize * beatScale) / 2;
     if (logoMatRef.current) {
       logoMatRef.current.opacity = s.opacity;
     }
