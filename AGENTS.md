@@ -352,11 +352,11 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 4. TransportBar, ExportOverlay, etc. (HTML-Overlays)
 ```
 
-**Wichtig:** `strandsBehindLogo` steuert NICHT die DOM-Order, sondern nur den Blend-Mode:
-- `strandsBehindLogo=true` (default): `mix-blend-mode: soft-light` — subtile Licht/Schatten-Überlagerung; Logo und Hintergrund bleiben klar sichtbar durch die Strands
-- `strandsBehindLogo=false`: normaler Alpha-Blend — Strands überdecken das Logo opak (volle Sichtbarkeit)
+**Wichtig:** `strandsBehindLogo` nutzt eine SVG-Maske um einen kreisförmigen Bereich in der Logo-Position aus dem Strands-Overlay auszuschneiden. Das simuliert eine echte Z-Layer-Trennung zwischen Logo (oben) und Background (unten):
+- `strandsBehindLogo=true` (default): Strands voll sichtbar im Hintergrund-Bild, kreisförmiger Ausschnitt in der Mitte wo das Logo sitzt → visuell wie „hinter dem Logo aber vor dem Background"
+- `strandsBehindLogo=false`: keine Maske → Strands liegen über allem
 
-Beide Varianten werden nach dem R3F-Canvas gerendert, weil R3F opak ist — siehe §17.5.
+Die SVG-Maske wird einmal beim Mount berechnet basierend auf `settings.logo.size` und der aktuellen Viewport-Größe (kein Live-Resize-Listener — wenn der User das Browser-Fenster resized, muss die Seite neu geladen werden für korrekte Mask-Größe).
 **Hinweis:** Strands ist ein eigenständiger ogl-Renderer außerhalb des R3F-SceneGraphs. Die z-Position wird über DOM-Order in `VisualizerStage.tsx` gesteuert, nicht über Three.js-Z-Werte.
 
 ### 4.11 FreqBeatDetector-Inventar (welche Komponente hat eigene Instanz)
@@ -1383,9 +1383,11 @@ Andere Strands-Props (Speed, Waviness, Thickness, ...) reagieren NICHT auf Audio
 
 ### 17.5 z-Index / Layering
 
-Strands wird in `VisualizerStage.tsx` als HTML-Overlay gemounted, **immer NACH** dem `<AudioScene/>` (R3F-Canvas). Der R3F-Canvas hat `gl: { alpha: false }` — also opak — daher ist ein Rendering VOR dem Canvas sinnlos (Strands wären unsichtbar). Die `strandsBehindLogo`-Setting steuert daher nur den **Blend-Mode**:
-- `strandsBehindLogo=true` (default): `mix-blend-mode: soft-light`, Strands subtiler Tint über Logo/BG (Logo bleibt klar lesbar)
-- `strandsBehindLogo=false`: normaler Alpha-Blend, Strands überdecken das Logo opak (volle Sichtbarkeit)
+Strands wird in `VisualizerStage.tsx` als HTML-Overlay gemounted, **immer NACH** dem `<AudioScene/>` (R3F-Canvas). Der R3F-Canvas hat `gl: { alpha: false }` — also opak — daher ist ein Rendering VOR dem Canvas sinnlos (Strands wären unsichtbar). Die `strandsBehindLogo`-Setting nutzt eine **SVG-Maske** um einen kreisförmigen Bereich in der Mitte des Overlays (Größe = `settings.logo.size`) aus dem Strands-Rendering auszuschneiden:
+- `strandsBehindLogo=true` (default): SVG-Maske schneidet das Logo aus den Strands aus; Strands sind voll sichtbar über dem Background-Bild, aber nicht über dem Logo
+- `strandsBehindLogo=false`: keine Maske, Strands überdecken alles
+
+Mask-Berechnung: `radiusPct = (logoSize / 2) / Math.min(innerWidth, innerHeight)` → wird bei Mount einmal berechnet. Bei Window-Resize muss die Seite neu geladen werden, sonst ist die Maske evtl. falsch positioniert.
 
 **Bugfix Session 20.1:** Die initiale Implementation hatte Strands per DOM-Order gemounted — `<Strands/>` vor R3F wenn `behindLogo=true`. Das war unsichtbar, weil der R3F-Canvas opak ist. Fix: Strands IMMER nach R3F mounten, `strandsBehindLogo` ist nur noch ein Blend-Mode-Toggle.
 
@@ -1437,7 +1439,7 @@ Storage-Key: `audiovisualizer:settings:v15`.
 | `strandsBeatFreqStart` | number | 20 | 20..20000 | Hz-Range für Beat-Detection |
 | `strandsBeatFreqEnd` | number | 200 | 20..20000 | |
 | `strandsBeatSensitivity` | number | 0 | 0..5 | 0 = Audio-Reaktivität AUS |
-| `strandsBehindLogo` | bool | true | - | true = mix-blend-mode: soft-light (subtiler Tint, Logo bleibt lesbar), false = normaler Alpha-Blend (volle Sichtbarkeit) |
+| `strandsBehindLogo` | bool | true | - | true = SVG-Maske schneidet Logo-Kreis aus den Strands aus (Strands hinter Logo aber vor BG), false = keine Maske (Strands über allem) |
 
 ### 17.8 SettingsPanel-Integration
 
