@@ -271,6 +271,7 @@ export type Settings = {
     lightPillarBeatSensitivity: number;  // 0..5, default 1.0
     lightPillarBeatIntensity: number;    // 0..2, default 0.5
     lightPillarBeatWidthBoost: number;   // 0..1, default 0.3
+    lightPillarBlendMode: 'normal' | 'multiply' | 'overlay' | 'soft-light' | 'screen'; // default 'normal'
   };
 
   logo: {
@@ -621,6 +622,7 @@ const DEFAULT_SETTINGS: Settings = {
     lightPillarBeatSensitivity: 1.0,
     lightPillarBeatIntensity: 0.5,
     lightPillarBeatWidthBoost: 0.3,
+    lightPillarBlendMode: 'normal' as const,
   },
 
   logo: {

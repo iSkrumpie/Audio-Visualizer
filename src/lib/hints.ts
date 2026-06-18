@@ -736,6 +736,14 @@ export const ENUM_HINTS: Record<string, Record<string, string>> = {
       'Brightens the image. Use for neon glows and high-energy looks.',
   },
 
+  'background.lightPillarBlendMode': {
+    'normal':     'Standard alpha compositing. The pillar is transparent where dark and opaque at bright peaks.',
+    'multiply':   'Multiplies pillar colors with the scene — darkens and tints where the pillar glows.',
+    'overlay':    'Strong contrast blend — bright pillar areas lighten, dark areas deepen the scene.',
+    'soft-light': 'Gentle, filmic blend. Subtly brightens and saturates the scene under the pillar.',
+    'screen':     'Additive light blend. The pillar adds brightness without darkening anything. Classic glow look.',
+  },
+
   'background.noiseColorMode': {
     'monochrome':
       'Gray grain, like film grain or a black-and-white photo.',

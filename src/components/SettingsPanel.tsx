@@ -789,6 +789,7 @@ function BackgroundSection() {
   const [lpBSen,   sLpBSen]   = useF('background', 'lightPillarBeatSensitivity');
   const [lpBInt,   sLpBInt]   = useF('background', 'lightPillarBeatIntensity');
   const [lpBW,     sLpBW]     = useF('background', 'lightPillarBeatWidthBoost');
+  const [lpBM,     sLpBM]     = useF('background', 'lightPillarBlendMode');
   const strandsColors = useSettingsStore((s) => s.settings.background.strandsColors);
   const setStrandsColors = (newColors: string[]) =>
     useSettingsStore.getState().setSettings((prev) => ({
@@ -1311,6 +1312,19 @@ function BackgroundSection() {
                 </FR>
               </div>
             </div>
+            <FR label="Blend mode" info={ENUM_HINTS['background.lightPillarBlendMode']?.[lpBM as string]}>
+              <CB
+                value={lpBM as string}
+                options={[
+                  { value: 'normal',     label: 'Normal'   },
+                  { value: 'multiply',   label: 'Multiply' },
+                  { value: 'overlay',    label: 'Overlay'  },
+                  { value: 'soft-light', label: 'Soft'     },
+                  { value: 'screen',     label: 'Screen'   },
+                ]}
+                onChange={sLpBM as (v: string) => void}
+              />
+            </FR>
           </>
         )}
       </Acc>

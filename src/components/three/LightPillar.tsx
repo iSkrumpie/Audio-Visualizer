@@ -9,7 +9,7 @@
 import { useEffect, useRef, useMemo, type CSSProperties } from 'react';
 import * as THREE from 'three';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
-import { getSettings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
+import { getSettings, DEFAULT_SETTINGS, useSettingsStore } from '@/lib/settingsStore';
 import { FreqBeatDetector } from '@/lib/audioUtils';
 import { useBeatDetectorRegistration } from './AudioScene';
 import { usePhaseSource } from '@/hooks/usePhaseSource';
@@ -297,6 +297,10 @@ export function LightPillar({ className, style }: LightPillarProps = {}) {
     };
   }, []);
 
+  const blendMode = useSettingsStore(
+    (s) => s.settings.background.lightPillarBlendMode ?? DEFAULT_SETTINGS.background.lightPillarBlendMode,
+  );
+
   return (
     <div
       ref={containerRef}
@@ -306,6 +310,7 @@ export function LightPillar({ className, style }: LightPillarProps = {}) {
         inset:         0,
         pointerEvents: 'none',
         overflow:      'hidden',
+        mixBlendMode:  blendMode !== 'normal' ? (blendMode as CSSProperties['mixBlendMode']) : undefined,
         ...style,
       }}
     />
