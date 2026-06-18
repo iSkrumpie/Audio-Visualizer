@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useRef, useMemo, type CSSProperties } from 'react';
-import { Renderer, Program, Mesh, Triangle } from 'ogl';
+import { Renderer, Program, Mesh, Triangle, Color } from 'ogl';
 import type { OGLRenderingContext } from 'ogl';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { getSettings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
@@ -143,16 +143,23 @@ void main() {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Convert an array of CSS hex colors to a flat Float32Array (length MAX_COLORS*3). */
-function buildColorsBuffer(colors: string[], buf: Float32Array): void {
-  buf.fill(0);
-  const count = Math.min(colors.length, MAX_COLORS);
-  for (let i = 0; i < count; i++) {
-    const hex = colors[i].replace('#', '');
-    buf[i * 3]     = parseInt(hex.slice(0, 2), 16) / 255;
-    buf[i * 3 + 1] = parseInt(hex.slice(2, 4), 16) / 255;
-    buf[i * 3 + 2] = parseInt(hex.slice(4, 6), 16) / 255;
+/**
+ * Convert an array of CSS hex colors to a padded number[][] for ogl.
+ * ogl's setUniform calls flatten() which requires a number[][] for vec3[]
+ * arrays (each inner array = one vec3 component triple). A flat Float32Array
+ * is treated as a length-only array and the inner dimension is undefined —
+ * ogl warns "Active uniform uColors[0] has not been supplied" and the uniform
+ * never reaches the shader, leaving uColors as all-zeros (black strands).
+ */
+function buildPalette(colors: string[]): number[][] {
+  const filled = colors.length ? colors : ['#ffffff'];
+  const padded: number[][] = [];
+  for (let i = 0; i < MAX_COLORS; i++) {
+    const hex = filled[i] ?? filled[filled.length - 1];
+    const c = new Color(hex);
+    padded.push([c.r, c.g, c.b]);
   }
+  return padded;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -223,16 +230,16 @@ export function Strands({ className, style }: StrandsProps = {}) {
       'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;';
     ctn.appendChild(canvas);
 
-    // ── Uniform storage (mutated in-place each frame) ──────────────────────
-    const colorsBuf = new Float32Array(MAX_COLORS * 3);
-    const resBuf    = [0, 0] as [number, number];
-    buildColorsBuffer(DEFAULT_SETTINGS.background.strandsColors, colorsBuf);
+    // ── Uniform storage ───────────────────────────────────────────────────
+    // uColors must be number[][] (not Float32Array) for ogl's flatten() to
+    // recognize the inner dimension. See buildPalette() comment.
+    const resBuf = [0, 0] as [number, number];
 
     // ogl uniform map — each entry is { value: T }
-    const uniforms: Record<string, { value: number | number[] | Float32Array }> = {
+    const uniforms: Record<string, { value: number | number[] | number[][] }> = {
       uTime:        { value: 0 },
       uResolution:  { value: resBuf },
-      uColors:      { value: colorsBuf },
+      uColors:      { value: buildPalette(DEFAULT_SETTINGS.background.strandsColors) },
       uColorCount:  { value: DEFAULT_SETTINGS.background.strandsColors.length },
       uStrandCount: { value: DEFAULT_SETTINGS.background.strandsCount },
       uSpeed:       { value: DEFAULT_SETTINGS.background.strandsSpeed },
@@ -290,7 +297,6 @@ export function Strands({ className, style }: StrandsProps = {}) {
 
     function update() {
       animId = requestAnimationFrame(update);
-
       const bg = getSettings().background;
 
       if (!(bg.strandsEnabled ?? DEFAULT_SETTINGS.background.strandsEnabled)) {
@@ -315,9 +321,8 @@ export function Strands({ className, style }: StrandsProps = {}) {
 
       // ── Settings → uniforms (every frame for live UI response) ────────
       const colors = bg.strandsColors ?? DEFAULT_SETTINGS.background.strandsColors;
-      buildColorsBuffer(colors, colorsBuf);
-      // colorsBuf is mutated in-place; uniforms.uColors.value still points to it
-      uniforms.uColorCount.value  = Math.min(colors.length, MAX_COLORS);
+      uniforms.uColors.value     = buildPalette(colors);
+      uniforms.uColorCount.value = Math.min(colors.length, MAX_COLORS);
       uniforms.uStrandCount.value = Math.min(
         bg.strandsCount ?? DEFAULT_SETTINGS.background.strandsCount,
         MAX_STRANDS,
