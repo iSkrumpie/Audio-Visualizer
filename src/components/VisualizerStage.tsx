@@ -56,7 +56,7 @@ export function VisualizerStage({
         }
         // Logo is centered in the viewport. Radius in px = half the size
         // setting. Add a small feather (8px) so the cutout edge is soft.
-        const r  = logoSize / 2;
+        const r  = logoSize / 2 + 5;
         const r2 = r + 4; // soft feather edge
         const maskImage = `radial-gradient(circle ${r}px at 50% 50%, transparent ${r}px, white ${r2}px)`;
         return (
