@@ -594,7 +594,7 @@ function LogoInner({ logoUrl }: { logoUrl: string }) {
     }
     // Expose live radius (CSS px) — read by VisualizerStage mask loop.
     // No DOM write here; VisualizerStage has its own rAF that reads this.
-    logoMaskRadiusRef.current = (logoSize * beatScale) / 2;
+    logoMaskRadiusRef.current = (logoSize * beatScale) / 2.015;
     if (logoMatRef.current) {
       logoMatRef.current.opacity = s.opacity;
     }

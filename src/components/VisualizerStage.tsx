@@ -52,7 +52,7 @@ export function VisualizerStage({
       animId = requestAnimationFrame(tick);
       const r = logoMaskRadiusRef.current;
       if (r <= 0) return;
-      const mask = `radial-gradient(circle ${r}px at 50% 50%, transparent ${r}px, white ${r + 12}px)`;
+      const mask = `radial-gradient(circle ${r}px at 50% 50%, transparent ${r}px, white ${r + 1}px)`;
       for (const ref of wrappers) {
         if (!ref.current) continue;
         ref.current.style.maskImage = mask;
