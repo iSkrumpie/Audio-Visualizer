@@ -772,6 +772,23 @@ function BackgroundSection() {
   const [lrBFE,  sLrBFE]  = useF('background', 'lightRaysBeatFreqEnd');
   const [lrBSen, sLrBSen] = useF('background', 'lightRaysBeatSensitivity');
   const [lrBInt, sLrBInt] = useF('background', 'lightRaysBeatIntensity');
+  // Light Pillar
+  const [lpE,      sLpE]      = useF('background', 'lightPillarEnabled');
+  const [lpBL,     sLpBL]     = useF('background', 'lightPillarBehindLogo');
+  const [lpTopCol, sLpTopCol] = useF('background', 'lightPillarTopColor');
+  const [lpBotCol, sLpBotCol] = useF('background', 'lightPillarBottomColor');
+  const [lpInt,    sLpInt]    = useF('background', 'lightPillarIntensity');
+  const [lpRotSpd, sLpRotSpd] = useF('background', 'lightPillarRotationSpeed');
+  const [lpW,      sLpW]      = useF('background', 'lightPillarWidth');
+  const [lpH,      sLpH]      = useF('background', 'lightPillarHeight');
+  const [lpGlow,   sLpGlow]   = useF('background', 'lightPillarGlowAmount');
+  const [lpNoise,  sLpNoise]  = useF('background', 'lightPillarNoiseIntensity');
+  const [lpRot,    sLpRot]    = useF('background', 'lightPillarRotation');
+  const [lpBFS,    sLpBFS]    = useF('background', 'lightPillarBeatFreqStart');
+  const [lpBFE,    sLpBFE]    = useF('background', 'lightPillarBeatFreqEnd');
+  const [lpBSen,   sLpBSen]   = useF('background', 'lightPillarBeatSensitivity');
+  const [lpBInt,   sLpBInt]   = useF('background', 'lightPillarBeatIntensity');
+  const [lpBW,     sLpBW]     = useF('background', 'lightPillarBeatWidthBoost');
   const strandsColors = useSettingsStore((s) => s.settings.background.strandsColors);
   const setStrandsColors = (newColors: string[]) =>
     useSettingsStore.getState().setSettings((prev) => ({
@@ -1229,6 +1246,68 @@ function BackgroundSection() {
                 </FR>
                 <FR label="Beat Intensity" hint={`${(lrBInt as number).toFixed(2)}`} info={hintFor('background.lightRaysBeatIntensity')}>
                   <Sl value={lrBInt as number} min={0} max={2} step={0.1} onChange={sLrBInt} />
+                </FR>
+              </div>
+            </div>
+          </>
+        )}
+      </Acc>
+
+      <Acc label="Light Pillar">
+        <Tg value={lpE as boolean} onChange={sLpE} label="Light Pillar" />
+        {(lpE as boolean) && (
+          <>
+            {/* Position FIRST — mandatory pattern (howto-effects.md §C-8) */}
+            <FR label="Position" info={hintFor('background.lightPillarBehindLogo')}>
+              <CB
+                value={(lpBL as boolean) ? 'behind' : 'front'}
+                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+                onChange={(v) => sLpBL(v === 'behind')}
+              />
+            </FR>
+            <FR label="Top Color" info={hintFor('background.lightPillarTopColor')}>
+              <CP value={lpTopCol as string} onChange={sLpTopCol} />
+            </FR>
+            <FR label="Bottom Color" info={hintFor('background.lightPillarBottomColor')}>
+              <CP value={lpBotCol as string} onChange={sLpBotCol} />
+            </FR>
+            <FR label="Intensity" hint={`${(lpInt as number).toFixed(2)}`} info={hintFor('background.lightPillarIntensity')}>
+              <Sl value={lpInt as number} min={0.1} max={3} step={0.1} onChange={sLpInt} />
+            </FR>
+            <FR label="Rotation Speed" hint={`${(lpRotSpd as number).toFixed(2)}`} info={hintFor('background.lightPillarRotationSpeed')}>
+              <Sl value={lpRotSpd as number} min={0} max={2} step={0.05} onChange={sLpRotSpd} />
+            </FR>
+            <FR label="Pillar Width" hint={`${(lpW as number).toFixed(2)}`} info={hintFor('background.lightPillarWidth')}>
+              <Sl value={lpW as number} min={0.5} max={8} step={0.1} onChange={sLpW} />
+            </FR>
+            <FR label="Pillar Height" hint={`${(lpH as number).toFixed(2)}`} info={hintFor('background.lightPillarHeight')}>
+              <Sl value={lpH as number} min={0.1} max={2} step={0.05} onChange={sLpH} />
+            </FR>
+            <FR label="Glow Amount" hint={`${(lpGlow as number).toFixed(4)}`} info={hintFor('background.lightPillarGlowAmount')}>
+              <Sl value={lpGlow as number} min={0.001} max={0.02} step={0.001} onChange={sLpGlow} />
+            </FR>
+            <FR label="Noise" hint={`${(lpNoise as number).toFixed(2)}`} info={hintFor('background.lightPillarNoiseIntensity')}>
+              <Sl value={lpNoise as number} min={0} max={1} step={0.05} onChange={sLpNoise} />
+            </FR>
+            <FR label="Pillar Rotation" hint={`${Math.round(lpRot as number)}°`} info={hintFor('background.lightPillarRotation')}>
+              <Sl value={lpRot as number} min={0} max={360} step={1} onChange={sLpRot} />
+            </FR>
+            <div className="mt-2">
+              <HzRangePicker
+                startHz={lpBFS as number}
+                endHz={lpBFE as number}
+                onChangeStart={sLpBFS}
+                onChangeEnd={sLpBFE}
+              />
+              <div className="mt-2">
+                <FR label="Beat Sensitivity" hint={`${(lpBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.lightPillarBeatSensitivity')}>
+                  <Sl value={lpBSen as number} min={0} max={5} step={0.1} onChange={sLpBSen} />
+                </FR>
+                <FR label="Beat Intensity" hint={`${(lpBInt as number).toFixed(2)}`} info={hintFor('background.lightPillarBeatIntensity')}>
+                  <Sl value={lpBInt as number} min={0} max={2} step={0.1} onChange={sLpBInt} />
+                </FR>
+                <FR label="Beat Width Boost" hint={`${(lpBW as number).toFixed(2)}`} info={hintFor('background.lightPillarBeatWidthBoost')}>
+                  <Sl value={lpBW as number} min={0} max={1} step={0.05} onChange={sLpBW} />
                 </FR>
               </div>
             </div>

@@ -1,6 +1,10 @@
 /**
  * Settings Store (Zustand + localStorage persist)
  *
+ * v17: Light Pillar effect. Added lightPillar* fields to background.
+ *
+ * v16: Added sparks/embers system. Added lightRays* background fields.
+ *
  * v15: Sparks rework — replaced sparksEnabled + sparksStyle enum with 3 independent
  *       toggle fields: sparksWeldEnabled, sparksVolcanicEnabled, sparksAmbientEnabled.
  *       Removed sparksSpawnMix. Per-style spawn geometry is baked into each pool.
@@ -250,6 +254,23 @@ export type Settings = {
     lightRaysBeatFreqEnd: number;      // Hz
     lightRaysBeatSensitivity: number;  // 0..5
     lightRaysBeatIntensity: number;    // 0..2
+    // ── Light Pillar (v17) — ray-marched volumetric pillar ───────────────
+    lightPillarEnabled: boolean;
+    lightPillarTopColor: string;         // hex, default '#5227FF'
+    lightPillarBottomColor: string;      // hex, default '#FF9FFC'
+    lightPillarIntensity: number;        // 0.1..3.0, default 1.0
+    lightPillarRotationSpeed: number;    // 0..2.0, default 0.3
+    lightPillarWidth: number;            // 0.5..8.0, default 3.0
+    lightPillarHeight: number;           // 0.1..2.0, default 0.4
+    lightPillarGlowAmount: number;       // 0.001..0.02, default 0.005
+    lightPillarNoiseIntensity: number;   // 0..1.0, default 0.5
+    lightPillarRotation: number;         // 0..360 degrees, default 0
+    lightPillarBehindLogo: boolean;      // default true
+    lightPillarBeatFreqStart: number;    // Hz, default 40
+    lightPillarBeatFreqEnd: number;      // Hz, default 120
+    lightPillarBeatSensitivity: number;  // 0..5, default 1.0
+    lightPillarBeatIntensity: number;    // 0..2, default 0.5
+    lightPillarBeatWidthBoost: number;   // 0..1, default 0.3
   };
 
   logo: {
@@ -583,6 +604,23 @@ const DEFAULT_SETTINGS: Settings = {
     lightRaysBeatFreqEnd: 120,
     lightRaysBeatSensitivity: 1.0,
     lightRaysBeatIntensity: 0.5,
+    // ── Light Pillar (v17) ────────────────────────────────────────────────
+    lightPillarEnabled: false,
+    lightPillarTopColor: '#5227FF',
+    lightPillarBottomColor: '#FF9FFC',
+    lightPillarIntensity: 1.0,
+    lightPillarRotationSpeed: 0.3,
+    lightPillarWidth: 3.0,
+    lightPillarHeight: 0.4,
+    lightPillarGlowAmount: 0.005,
+    lightPillarNoiseIntensity: 0.5,
+    lightPillarRotation: 0,
+    lightPillarBehindLogo: true,
+    lightPillarBeatFreqStart: 40,
+    lightPillarBeatFreqEnd: 120,
+    lightPillarBeatSensitivity: 1.0,
+    lightPillarBeatIntensity: 0.5,
+    lightPillarBeatWidthBoost: 0.3,
   },
 
   logo: {
@@ -733,9 +771,9 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v16',
+      name: 'audiovisualizer:settings:v17',
       storage: createJSONStorage(() => localStorage),
-      version: 16,
+      version: 17,
       migrate: (persistedState: unknown, version: number): { settings: Settings } => {
         // Safety: no persisted data → start fresh
         const ps = persistedState as Record<string, unknown> | null | undefined;
@@ -750,6 +788,11 @@ export const useSettingsStore = create<SettingsStore>()(
         }
         if (version < 16) {
           // Deep-merge background: keep old user values, fill in new lightRays* fields
+          const oldBg = (s['background'] as Record<string, unknown>) ?? {};
+          s['background'] = { ...DEFAULT_SETTINGS.background, ...oldBg };
+        }
+        if (version < 17) {
+          // Deep-merge background: keep old user values, fill in new lightPillar* fields
           const oldBg = (s['background'] as Record<string, unknown>) ?? {};
           s['background'] = { ...DEFAULT_SETTINGS.background, ...oldBg };
         }

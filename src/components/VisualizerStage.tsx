@@ -10,6 +10,7 @@ import { useSettingsStore } from '@/lib/settingsStore';
 import { AudioScene } from './three/AudioScene';
 import { Strands } from './three/Strands';
 import { LightRays } from './three/LightRays';
+import { LightPillar } from './three/LightPillar';
 import { TransportBar } from './TransportBar';
 import { SettingsPanel } from './SettingsPanel';
 
@@ -28,8 +29,10 @@ export function VisualizerStage({
 }: VisualizerStageProps) {
   const strandsEnabled      = useSettingsStore((s) => s.settings.background.strandsEnabled);
   const strandsBehindLogo   = useSettingsStore((s) => s.settings.background.strandsBehindLogo);
-  const lightRaysEnabled    = useSettingsStore((s) => s.settings.background.lightRaysEnabled);
-  const lightRaysBehindLogo = useSettingsStore((s) => s.settings.background.lightRaysBehindLogo);
+  const lightRaysEnabled      = useSettingsStore((s) => s.settings.background.lightRaysEnabled);
+  const lightRaysBehindLogo   = useSettingsStore((s) => s.settings.background.lightRaysBehindLogo);
+  const lightPillarEnabled    = useSettingsStore((s) => s.settings.background.lightPillarEnabled);
+  const lightPillarBehindLogo = useSettingsStore((s) => s.settings.background.lightPillarBehindLogo);
   const logoEnabled         = useSettingsStore((s) => s.settings.logo.enabled);
   const logoSize            = useSettingsStore((s) => s.settings.logo.size);
 
@@ -82,6 +85,24 @@ export function VisualizerStage({
         const maskImage = `radial-gradient(circle ${r}px at 50% 50%, transparent ${r}px, white ${r2}px)`;
         return (
           <LightRays
+            style={{
+              maskImage,
+              WebkitMaskImage: maskImage,
+            }}
+          />
+        );
+      })()}
+
+      {/* LightPillar AFTER LightRays in DOM order — same masking pattern */}
+      {lightPillarEnabled && (() => {
+        if (!lightPillarBehindLogo || !logoEnabled) {
+          return <LightPillar />;
+        }
+        const r  = logoSize / 2 + 15;
+        const r2 = r + 4;
+        const maskImage = `radial-gradient(circle ${r}px at 50% 50%, transparent ${r}px, white ${r2}px)`;
+        return (
+          <LightPillar
             style={{
               maskImage,
               WebkitMaskImage: maskImage,

@@ -334,6 +334,40 @@ export const SETTING_HINTS: Record<string, string> = {
   'background.lightRaysBeatIntensity':
     'How much a detected beat boosts ray brightness. 0 = no reaction; 2 = strong flash.',
 
+  // ── Background: Light Pillar ─────────────────────────────────────────────────────
+  'background.lightPillarEnabled':
+    'Toggle the light pillar overlay on or off.',
+  'background.lightPillarBehindLogo':
+    'When set to "Behind logo", the pillar is masked out at the logo position. "In front" lets it cover everything including the logo.',
+  'background.lightPillarTopColor':
+    'Color at the top of the light pillar gradient.',
+  'background.lightPillarBottomColor':
+    'Color at the bottom of the light pillar gradient.',
+  'background.lightPillarIntensity':
+    'Overall brightness of the pillar. Higher = more vivid and blown-out.',
+  'background.lightPillarRotationSpeed':
+    'How fast the pillar spins around its vertical axis.',
+  'background.lightPillarWidth':
+    'Radius of the pillar cylinder. Higher = wider, more spread-out glow.',
+  'background.lightPillarHeight':
+    'Vertical stretching of the internal wave pattern. Lower = thicker bands, higher = finer detail.',
+  'background.lightPillarGlowAmount':
+    'Controls the glow intensity via tone-mapping. Small values give a tight, bright core; larger values spread the glow.',
+  'background.lightPillarNoiseIntensity':
+    'Amount of film-grain noise overlaid on the pillar.',
+  'background.lightPillarRotation':
+    'Tilt angle of the pillar in degrees. 0 = vertical; 90 = horizontal.',
+  'background.lightPillarBeatFreqStart':
+    'Lowest frequency (Hz) that triggers a beat for the pillar intensity boost.',
+  'background.lightPillarBeatFreqEnd':
+    'Highest frequency (Hz) that triggers a beat for the pillar intensity boost.',
+  'background.lightPillarBeatSensitivity':
+    'How easily the beat detection fires. 0 = off; higher = more sensitive.',
+  'background.lightPillarBeatIntensity':
+    'How much a detected beat boosts pillar brightness. 0 = no reaction; 2 = strong flash.',
+  'background.lightPillarBeatWidthBoost':
+    'How much a detected beat widens the pillar. 0 = no reaction; 1 = doubles the width.',
+
   // ── Background: Magic Rings ────────────────────────────────────────────────────────────────────
   'background.magicRingsEnabled':
     'Concentric rings that pulse outward from the center and react to the music.',
