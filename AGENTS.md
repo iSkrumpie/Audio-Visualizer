@@ -1433,7 +1433,7 @@ Storage-Key: `audiovisualizer:settings:v15`.
 | `strandsIntensity` | number | 0.6 | 0..1 | Maximale Helligkeit |
 | `strandsSaturation` | number | 1.5 | 0..3 | Farbsättigung |
 | `strandsOpacity` | number | 1 | 0..1 | Gesamt-Transparenz |
-| `strandsScale` | number | 1.0 | 0.1..5 | Räumliche Skalierung (UV-Divisor). Default 1.0 = Strands reichen exakt von Rand zu Rand; höhere Werte stauchen die Wellen in die Bildmitte. |
+| `strandsScale` | number | 0.3 | 0.1..5 | Räumliche Skalierung (UV-Divisor). Default 0.3 = mehrere Wellen pro Strand sichtbar von Rand zu Rand; 1.0 = ~0.5 Wellen (Strands fließen aus dem Bild raus); >1 = in der Mitte gestaucht. |
 | `strandsBeatFreqStart` | number | 20 | 20..20000 | Hz-Range für Beat-Detection |
 | `strandsBeatFreqEnd` | number | 200 | 20..20000 | |
 | `strandsBeatSensitivity` | number | 0 | 0..5 | 0 = Audio-Reaktivität AUS |
