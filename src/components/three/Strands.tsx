@@ -323,9 +323,10 @@ export function Strands({ className, style }: StrandsProps = {}) {
       const boost       = sensitivity > 0 ? sensitivity * beat : 0;
 
       const baseAmp  = bg.strandsAmplitude ?? DEFAULT_SETTINGS.background.strandsAmplitude;
-      const baseGlow = bg.strandsGlow      ?? DEFAULT_SETTINGS.background.strandsGlow;
+      const baseGlow    = bg.strandsGlow      ?? DEFAULT_SETTINGS.background.strandsGlow;
+      const glowBoost   = bg.strandsGlowBoost ?? DEFAULT_SETTINGS.background.strandsGlowBoost;
       uniforms.uAmplitude.value = baseAmp  * (1 + boost * 0.4);
-      uniforms.uGlow.value      = baseGlow * (1 + boost * 0.3);
+      uniforms.uGlow.value      = baseGlow * (1 + boost * glowBoost);
 
       // ── Settings → uniforms (every frame for live UI response) ────────
       const colors = bg.strandsColors ?? DEFAULT_SETTINGS.background.strandsColors;

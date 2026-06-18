@@ -737,6 +737,7 @@ function BackgroundSection() {
   const [stBFS,   sStBFS]   = useF('background', 'strandsBeatFreqStart');
   const [stBFE,   sStBFE]   = useF('background', 'strandsBeatFreqEnd');
   const [stBSen,  sStBSen]  = useF('background', 'strandsBeatSensitivity');
+  const [stGlwB,  sStGlwB]  = useF('background', 'strandsGlowBoost');
   // Magic Rings
   const [mrE,      sMrE]      = useF('background', 'magicRingsEnabled');
   const [mrC,      sMrC]      = useF('background', 'magicRingsColor');
@@ -756,6 +757,7 @@ function BackgroundSection() {
   const [mrBFE,    sMrBFE]    = useF('background', 'magicRingsBeatFreqEnd');
   const [mrBSen,   sMrBSen]   = useF('background', 'magicRingsBeatSensitivity');
   const [mrBurst,  sMrBurst]  = useF('background', 'magicRingsBurstStrength');
+  const [mrGlwStr, sMrGlwStr] = useF('background', 'magicRingsGlowStrength');
   const strandsColors = useSettingsStore((s) => s.settings.background.strandsColors);
   const setStrandsColors = (newColors: string[]) =>
     useSettingsStore.getState().setSettings((prev) => ({
@@ -1138,6 +1140,9 @@ function BackgroundSection() {
                 <FR label="Beat sensitivity" hint={`${(stBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.strandsBeatSensitivity')}>
                   <Sl value={stBSen as number} min={0} max={5} step={0.1} onChange={sStBSen} />
                 </FR>
+                <FR label="Glow on beat" hint={`${(stGlwB as number).toFixed(2)}`} info={hintFor('background.strandsGlowBoost')}>
+                  <Sl value={stGlwB as number} min={0} max={2} step={0.05} onChange={sStGlwB} />
+                </FR>
               </div>
             </div>
           </>
@@ -1148,39 +1153,39 @@ function BackgroundSection() {
         <Tg value={mrE as boolean} onChange={sMrE} label="Show magic rings" />
         {(mrE as boolean) && (
           <>
-            <FR label="Color 1"><CP value={mrC as string} onChange={sMrC} /></FR>
-            <FR label="Color 2"><CP value={mrC2 as string} onChange={sMrC2} /></FR>
-            <FR label="Speed" hint={`${(mrSp as number).toFixed(2)}`}>
+            <FR label="Color 1" info={hintFor('background.magicRingsColor')}><CP value={mrC as string} onChange={sMrC} /></FR>
+            <FR label="Color 2" info={hintFor('background.magicRingsColorTwo')}><CP value={mrC2 as string} onChange={sMrC2} /></FR>
+            <FR label="Speed" hint={`${(mrSp as number).toFixed(2)}`} info={hintFor('background.magicRingsSpeed')}>
               <Sl value={mrSp as number} min={0.1} max={3.0} step={0.05} onChange={sMrSp} />
             </FR>
-            <FR label="Ring count" hint={`${mrCnt}`}>
+            <FR label="Ring count" hint={`${mrCnt}`} info={hintFor('background.magicRingsCount')}>
               <Sl value={mrCnt as number} min={1} max={10} step={1} onChange={sMrCnt} />
             </FR>
-            <FR label="Opacity" hint={`${Math.round((mrOp as number) * 100)}%`}>
+            <FR label="Opacity" hint={`${Math.round((mrOp as number) * 100)}%`} info={hintFor('background.magicRingsOpacity')}>
               <Sl value={mrOp as number} min={0} max={1} step={0.01} onChange={sMrOp} />
             </FR>
-            <FR label="Thickness" hint={`${(mrThk as number).toFixed(1)}`}>
+            <FR label="Thickness" hint={`${(mrThk as number).toFixed(1)}`} info={hintFor('background.magicRingsThickness')}>
               <Sl value={mrThk as number} min={0.5} max={5} step={0.1} onChange={sMrThk} />
             </FR>
-            <FR label="Attenuation" hint={`${(mrAtt as number).toFixed(1)}`}>
+            <FR label="Attenuation" hint={`${(mrAtt as number).toFixed(1)}`} info={hintFor('background.magicRingsAttenuation')}>
               <Sl value={mrAtt as number} min={2} max={30} step={0.5} onChange={sMrAtt} />
             </FR>
-            <FR label="Base radius" hint={`${(mrBR as number).toFixed(2)}`}>
+            <FR label="Base radius" hint={`${(mrBR as number).toFixed(2)}`} info={hintFor('background.magicRingsBaseRadius')}>
               <Sl value={mrBR as number} min={0.1} max={0.8} step={0.01} onChange={sMrBR} />
             </FR>
-            <FR label="Radius step" hint={`${(mrRS as number).toFixed(2)}`}>
+            <FR label="Radius step" hint={`${(mrRS as number).toFixed(2)}`} info={hintFor('background.magicRingsRadiusStep')}>
               <Sl value={mrRS as number} min={0.02} max={0.3} step={0.01} onChange={sMrRS} />
             </FR>
-            <FR label="Scale rate" hint={`${(mrSR as number).toFixed(2)}`}>
+            <FR label="Scale rate" hint={`${(mrSR as number).toFixed(2)}`} info={hintFor('background.magicRingsScaleRate')}>
               <Sl value={mrSR as number} min={0} max={0.5} step={0.01} onChange={sMrSR} />
             </FR>
-            <FR label="Noise amount" hint={`${(mrNoise as number).toFixed(3)}`}>
+            <FR label="Noise amount" hint={`${(mrNoise as number).toFixed(3)}`} info={hintFor('background.magicRingsNoiseAmount')}>
               <Sl value={mrNoise as number} min={0} max={0.5} step={0.005} onChange={sMrNoise} />
             </FR>
-            <FR label="Rotation" hint={`${Math.round(mrRot as number)}°`}>
+            <FR label="Rotation" hint={`${Math.round(mrRot as number)}°`} info={hintFor('background.magicRingsRotation')}>
               <Sl value={mrRot as number} min={0} max={360} step={1} onChange={sMrRot} />
             </FR>
-            <FR label="Ring gap" hint={`${(mrGap as number).toFixed(2)}`}>
+            <FR label="Ring gap" hint={`${(mrGap as number).toFixed(2)}`} info={hintFor('background.magicRingsRingGap')}>
               <Sl value={mrGap as number} min={1.0} max={3.0} step={0.05} onChange={sMrGap} />
             </FR>
             <div className="mt-2">
@@ -1191,11 +1196,14 @@ function BackgroundSection() {
                 onChangeEnd={sMrBFE}
               />
               <div className="mt-2">
-                <FR label="Beat sensitivity" hint={`${(mrBSen as number).toFixed(2)}×`} sub="Lower = more sensitive">
+                <FR label="Beat sensitivity" hint={`${(mrBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.magicRingsBeatSensitivity')}>
                   <Sl value={mrBSen as number} min={0.1} max={5.0} step={0.05} onChange={sMrBSen} />
                 </FR>
-                <FR label="Burst strength" hint={`${(mrBurst as number).toFixed(2)}`}>
+                <FR label="Burst strength" hint={`${(mrBurst as number).toFixed(2)}`} info={hintFor('background.magicRingsBurstStrength')}>
                   <Sl value={mrBurst as number} min={0} max={2.0} step={0.05} onChange={sMrBurst} />
+                </FR>
+                <FR label="Glow on beat" hint={`${(mrGlwStr as number).toFixed(2)}`} info={hintFor('background.magicRingsGlowStrength')}>
+                  <Sl value={mrGlwStr as number} min={0} max={1.0} step={0.05} onChange={sMrGlwStr} />
                 </FR>
               </div>
             </div>

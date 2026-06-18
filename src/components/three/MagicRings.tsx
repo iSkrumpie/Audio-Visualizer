@@ -40,6 +40,7 @@ uniform float uRingGap;
 uniform float uFadeIn;
 uniform float uFadeOut;
 uniform float uBurst;
+uniform float uGlowBeat;
 uniform vec2  uResolution;
 uniform vec3  uColor;
 uniform vec3  uColorTwo;
@@ -62,7 +63,8 @@ float mr_ring(vec2 mr_p, float mr_ri, float mr_cut, float mr_t0, float mr_px) {
   float mr_th = max(1.0 - mr_a, 0.5) * mr_px * uLineThickness;
   float mr_h  = (1.0 - smoothstep(mr_th, mr_th * 1.5, mr_d)) + 1.0;
   mr_d += pow(mr_cut * mr_a, 3.0) * mr_r;
-  return mr_h * exp(-uAttenuation * mr_d) * mr_fade(mr_t);
+  float mr_eff_atten = uAttenuation * max(0.3, 1.0 - uGlowBeat);
+  return mr_h * exp(-mr_eff_atten * mr_d) * mr_fade(mr_t);
 }
 
 void main() {
@@ -145,6 +147,7 @@ export function MagicRings() {
     uFadeIn:        { value: 0.2 },
     uFadeOut:       { value: 2.0 },
     uBurst:         { value: 0 },
+    uGlowBeat:      { value: 0 },
     uResolution:    { value: new THREE.Vector2(1, 1) },
     uColor:         { value: new THREE.Color('#fc42ff') },
     uColorTwo:      { value: new THREE.Color('#42fcff') },
@@ -192,7 +195,8 @@ export function MagicRings() {
 
     // Beat → burst
     const beat = phaseSrc();
-    u.uBurst.value = beat * (bg.magicRingsBurstStrength ?? DEFAULT_SETTINGS.background.magicRingsBurstStrength);
+    u.uBurst.value    = beat * (bg.magicRingsBurstStrength  ?? DEFAULT_SETTINGS.background.magicRingsBurstStrength);
+    u.uGlowBeat.value = beat * (bg.magicRingsGlowStrength   ?? DEFAULT_SETTINGS.background.magicRingsGlowStrength);
   });
 
   return (

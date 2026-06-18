@@ -303,6 +303,48 @@ export const SETTING_HINTS: Record<string, string> = {
     'How strongly the audio beat pulses through the strands. 0 = no reaction; 5 = strong pulse.',
   'background.strandsBehindLogo':
     'When on, strands render behind the logo and bars. Off = strands float in front of everything.',
+  'background.strandsGlowBoost':
+    'How much a beat boosts the glow of the strands. 0 = no reaction; 2 = strong neon flare on each hit.',
+
+  // ── Background: Magic Rings ────────────────────────────────────────────────────────────────────
+  'background.magicRingsEnabled':
+    'Concentric rings that pulse outward from the center and react to the music.',
+  'background.magicRingsColor':
+    'Color of the innermost rings — the gradient blends from this into Color 2 as rings expand.',
+  'background.magicRingsColorTwo':
+    'Color of the outermost rings — the palette blends from Color 1 to this across all rings.',
+  'background.magicRingsSpeed':
+    'How fast the rings expand outward and cycle. Higher = quicker pulse cycle.',
+  'background.magicRingsCount':
+    'How many rings are drawn at once. 2–4 looks clean; 8–10 creates a dense layered field.',
+  'background.magicRingsAttenuation':
+    'How sharply ring brightness falls off with distance. High = tight crisp lines; low = wide soft glow.',
+  'background.magicRingsThickness':
+    'Base line thickness of each ring. Thin = fine laser lines; thick = bold glowing bands.',
+  'background.magicRingsBaseRadius':
+    'Starting radius of the innermost ring. Smaller = rings spawn near the center.',
+  'background.magicRingsRadiusStep':
+    'Gap between consecutive rings. Large = widely spaced; small = rings bunched close together.',
+  'background.magicRingsScaleRate':
+    'How much each ring grows in radius as it expands. 0 = fixed size rings; higher = rings zoom out.',
+  'background.magicRingsOpacity':
+    'Overall opacity of the Magic Rings layer. Use below 1 to blend subtly with other effects.',
+  'background.magicRingsNoiseAmount':
+    'Adds fine grain shimmer to the ring surface. Keep below 0.1 for a clean look.',
+  'background.magicRingsRotation':
+    'Rotates the ring pattern. Most visible with Ring Gap > 1 which creates crescent arcs.',
+  'background.magicRingsRingGap':
+    'Arc completeness of each ring. 1.0 = full circles; higher = crescent-shaped arcs.',
+  'background.magicRingsBeatFreqStart':
+    'Lowest frequency that triggers the beat burst and glow.',
+  'background.magicRingsBeatFreqEnd':
+    'Highest frequency watched for the beat trigger.',
+  'background.magicRingsBeatSensitivity':
+    'How easily a beat fires. Lower = triggers on soft hits; higher = only loud transients.',
+  'background.magicRingsBurstStrength':
+    'How intensely the rings flash and zoom inward on a beat. 0 = no burst; 2 = dramatic pulse.',
+  'background.magicRingsGlowStrength':
+    'How much a beat widens the ring glow. High values make rings bloom outward on each hit.',
 
   // ── Logo ───────────────────────────────────────────────────────────────────────────────────
   'logo.enabled':

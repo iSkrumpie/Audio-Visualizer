@@ -215,6 +215,7 @@ export type Settings = {
     strandsBeatFreqEnd: number;         // 20..20000 Hz
     strandsBeatSensitivity: number;     // 0..5  (0 = no audio reactivity)
     strandsBehindLogo: boolean;         // true = behind logo, false = over everything
+    strandsGlowBoost: number;           // 0..2, default 0.5
     // ── Magic Rings ─────────────────────────────────────────────────────
     magicRingsEnabled: boolean;
     magicRingsColor: string;
@@ -234,6 +235,7 @@ export type Settings = {
     magicRingsBeatFreqEnd: number;
     magicRingsBeatSensitivity: number;
     magicRingsBurstStrength: number;
+    magicRingsGlowStrength: number;     // 0..1, default 0.6
   };
 
   logo: {
@@ -532,6 +534,7 @@ const DEFAULT_SETTINGS: Settings = {
     strandsBeatFreqEnd: 200,
     strandsBeatSensitivity: 0,
     strandsBehindLogo: true,
+    strandsGlowBoost: 0.5,
     // ── Magic Rings ───────────────────────────────────────────────────
     magicRingsEnabled: false,
     magicRingsColor: '#fc42ff',
@@ -551,6 +554,7 @@ const DEFAULT_SETTINGS: Settings = {
     magicRingsBeatFreqEnd: 120,
     magicRingsBeatSensitivity: 1.5,
     magicRingsBurstStrength: 1.0,
+    magicRingsGlowStrength: 0.6,
   },
 
   logo: {
