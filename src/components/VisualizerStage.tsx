@@ -41,15 +41,17 @@ export function VisualizerStage({
       <AudioScene />
 
       {/* Strands AFTER R3F canvas in DOM order. R3F is opaque (alpha:false),
-          so strands can never appear *behind* it. The `behindLogo` setting
-          controls visual integration via blend mode:
-          - true  (default): mix-blend-mode: screen — strands add bright color
-            to the canvas; the logo and background show through where strands
-            are dark. Looks like strands are 'under' the logo/background.
+          so strands can never appear *behind* it in the strict DOM sense.
+          The `behindLogo` setting controls visual integration via blend mode:
+          - true  (default): mix-blend-mode: soft-light — subtle light/dark
+            overlay that tints the logo without overpowering it. The logo
+            and background remain clearly visible through the strands.
           - false: normal alpha-blend — strands fully cover whatever is
-            underneath them in the visible region. */}
+            underneath them in the visible region (full impact). */}
       {strandsEnabled && (
-        <Strands style={strandsBehindLogo ? { mixBlendMode: 'screen' } : undefined} />
+        <Strands
+          style={strandsBehindLogo ? { mixBlendMode: 'soft-light' } : undefined}
+        />
       )}
 
       {/* HTML overlays on top of the canvas */}

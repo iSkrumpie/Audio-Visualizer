@@ -353,7 +353,7 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 ```
 
 **Wichtig:** `strandsBehindLogo` steuert NICHT die DOM-Order, sondern nur den Blend-Mode:
-- `strandsBehindLogo=true` (default): `mix-blend-mode: screen` — Strands additiv über Logo/Hintergrund (subtiler, Logo scheint durch)
+- `strandsBehindLogo=true` (default): `mix-blend-mode: soft-light` — subtile Licht/Schatten-Überlagerung; Logo und Hintergrund bleiben klar sichtbar durch die Strands
 - `strandsBehindLogo=false`: normaler Alpha-Blend — Strands überdecken das Logo opak (volle Sichtbarkeit)
 
 Beide Varianten werden nach dem R3F-Canvas gerendert, weil R3F opak ist — siehe §17.5.
@@ -1384,7 +1384,7 @@ Andere Strands-Props (Speed, Waviness, Thickness, ...) reagieren NICHT auf Audio
 ### 17.5 z-Index / Layering
 
 Strands wird in `VisualizerStage.tsx` als HTML-Overlay gemounted, **immer NACH** dem `<AudioScene/>` (R3F-Canvas). Der R3F-Canvas hat `gl: { alpha: false }` — also opak — daher ist ein Rendering VOR dem Canvas sinnlos (Strands wären unsichtbar). Die `strandsBehindLogo`-Setting steuert daher nur den **Blend-Mode**:
-- `strandsBehindLogo=true` (default): `mix-blend-mode: screen`, Strands additiv über Logo/BG (Logo scheint durch, wirkt subtiler)
+- `strandsBehindLogo=true` (default): `mix-blend-mode: soft-light`, Strands subtiler Tint über Logo/BG (Logo bleibt klar lesbar)
 - `strandsBehindLogo=false`: normaler Alpha-Blend, Strands überdecken das Logo opak (volle Sichtbarkeit)
 
 **Bugfix Session 20.1:** Die initiale Implementation hatte Strands per DOM-Order gemounted — `<Strands/>` vor R3F wenn `behindLogo=true`. Das war unsichtbar, weil der R3F-Canvas opak ist. Fix: Strands IMMER nach R3F mounten, `strandsBehindLogo` ist nur noch ein Blend-Mode-Toggle.
@@ -1437,7 +1437,7 @@ Storage-Key: `audiovisualizer:settings:v15`.
 | `strandsBeatFreqStart` | number | 20 | 20..20000 | Hz-Range für Beat-Detection |
 | `strandsBeatFreqEnd` | number | 200 | 20..20000 | |
 | `strandsBeatSensitivity` | number | 0 | 0..5 | 0 = Audio-Reaktivität AUS |
-| `strandsBehindLogo` | bool | true | - | true = mix-blend-mode: screen (additiv, wirkt "hinter" Logo), false = normaler Alpha-Blend (volle Sichtbarkeit) |
+| `strandsBehindLogo` | bool | true | - | true = mix-blend-mode: soft-light (subtiler Tint, Logo bleibt lesbar), false = normaler Alpha-Blend (volle Sichtbarkeit) |
 
 ### 17.8 SettingsPanel-Integration
 
