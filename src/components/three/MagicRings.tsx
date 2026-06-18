@@ -154,45 +154,45 @@ export function MagicRings() {
   useFrame((state, delta) => {
     const mat  = matRef.current;
     const mesh = meshRef.current;
-    if (!mat || !mesh) return;
+    if (!mat) return;
 
     const bg = getSettings().background;
 
     if (!bg.magicRingsEnabled) {
-      mesh.visible = false;
+      if (mesh) mesh.visible = false;
       return;
     }
-    mesh.visible = true;
+    if (mesh) mesh.visible = true;
 
-    // Resolution from live state (critical for export pipeline correctness)
+    // Read resolution from useFrame state — NOT from a useThree() closure
     const { width, height } = state.size;
-    const dpr = state.gl.getPixelRatio();
 
     // Scale plane to fill the orthographic viewport (1 world unit = 1 CSS pixel)
-    mesh.scale.set(width, height, 1);
+    if (mesh) mesh.scale.set(width, height, 1);
 
-    // Accumulate time
+    // Accumulate time — driven by delta so export pipeline gets correct timing
     timeRef.current += delta * (bg.magicRingsSpeed ?? DEFAULT_SETTINGS.background.magicRingsSpeed);
-    uniforms.uResolution.value.set(width * dpr, height * dpr);
 
-    // Uniforms
-    uniforms.uTime.value          = timeRef.current;
-    uniforms.uAttenuation.value   = bg.magicRingsAttenuation   ?? DEFAULT_SETTINGS.background.magicRingsAttenuation;
-    uniforms.uLineThickness.value = bg.magicRingsThickness      ?? DEFAULT_SETTINGS.background.magicRingsThickness;
-    uniforms.uBaseRadius.value    = bg.magicRingsBaseRadius     ?? DEFAULT_SETTINGS.background.magicRingsBaseRadius;
-    uniforms.uRadiusStep.value    = bg.magicRingsRadiusStep     ?? DEFAULT_SETTINGS.background.magicRingsRadiusStep;
-    uniforms.uScaleRate.value     = bg.magicRingsScaleRate      ?? DEFAULT_SETTINGS.background.magicRingsScaleRate;
-    uniforms.uOpacity.value       = bg.magicRingsOpacity        ?? DEFAULT_SETTINGS.background.magicRingsOpacity;
-    uniforms.uNoiseAmount.value   = bg.magicRingsNoiseAmount    ?? DEFAULT_SETTINGS.background.magicRingsNoiseAmount;
-    uniforms.uRotation.value      = ((bg.magicRingsRotation     ?? DEFAULT_SETTINGS.background.magicRingsRotation) * Math.PI) / 180;
-    uniforms.uRingGap.value       = bg.magicRingsRingGap        ?? DEFAULT_SETTINGS.background.magicRingsRingGap;
-    uniforms.uRingCount.value     = Math.round(bg.magicRingsCount ?? DEFAULT_SETTINGS.background.magicRingsCount);
-    uniforms.uColor.value.set(bg.magicRingsColor       ?? DEFAULT_SETTINGS.background.magicRingsColor);
-    uniforms.uColorTwo.value.set(bg.magicRingsColorTwo ?? DEFAULT_SETTINGS.background.magicRingsColorTwo);
+    // Update via mat.uniforms (same pattern as BackgroundPlane)
+    const u = mat.uniforms;
+    u.uResolution.value.set(width, height);
+    u.uTime.value          = timeRef.current;
+    u.uAttenuation.value   = bg.magicRingsAttenuation   ?? DEFAULT_SETTINGS.background.magicRingsAttenuation;
+    u.uLineThickness.value = bg.magicRingsThickness      ?? DEFAULT_SETTINGS.background.magicRingsThickness;
+    u.uBaseRadius.value    = bg.magicRingsBaseRadius     ?? DEFAULT_SETTINGS.background.magicRingsBaseRadius;
+    u.uRadiusStep.value    = bg.magicRingsRadiusStep     ?? DEFAULT_SETTINGS.background.magicRingsRadiusStep;
+    u.uScaleRate.value     = bg.magicRingsScaleRate      ?? DEFAULT_SETTINGS.background.magicRingsScaleRate;
+    u.uOpacity.value       = bg.magicRingsOpacity        ?? DEFAULT_SETTINGS.background.magicRingsOpacity;
+    u.uNoiseAmount.value   = bg.magicRingsNoiseAmount    ?? DEFAULT_SETTINGS.background.magicRingsNoiseAmount;
+    u.uRotation.value      = ((bg.magicRingsRotation     ?? DEFAULT_SETTINGS.background.magicRingsRotation) * Math.PI) / 180;
+    u.uRingGap.value       = bg.magicRingsRingGap        ?? DEFAULT_SETTINGS.background.magicRingsRingGap;
+    u.uRingCount.value     = Math.round(bg.magicRingsCount ?? DEFAULT_SETTINGS.background.magicRingsCount);
+    u.uColor.value.set(bg.magicRingsColor       ?? DEFAULT_SETTINGS.background.magicRingsColor);
+    u.uColorTwo.value.set(bg.magicRingsColorTwo ?? DEFAULT_SETTINGS.background.magicRingsColorTwo);
 
-    // Beat burst
+    // Beat → burst
     const beat = phaseSrc();
-    uniforms.uBurst.value = beat * (bg.magicRingsBurstStrength ?? DEFAULT_SETTINGS.background.magicRingsBurstStrength);
+    u.uBurst.value = beat * (bg.magicRingsBurstStrength ?? DEFAULT_SETTINGS.background.magicRingsBurstStrength);
   });
 
   return (
