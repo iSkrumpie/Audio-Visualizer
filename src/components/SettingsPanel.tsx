@@ -737,6 +737,25 @@ function BackgroundSection() {
   const [stBFS,   sStBFS]   = useF('background', 'strandsBeatFreqStart');
   const [stBFE,   sStBFE]   = useF('background', 'strandsBeatFreqEnd');
   const [stBSen,  sStBSen]  = useF('background', 'strandsBeatSensitivity');
+  // Magic Rings
+  const [mrE,      sMrE]      = useF('background', 'magicRingsEnabled');
+  const [mrC,      sMrC]      = useF('background', 'magicRingsColor');
+  const [mrC2,     sMrC2]     = useF('background', 'magicRingsColorTwo');
+  const [mrSp,     sMrSp]     = useF('background', 'magicRingsSpeed');
+  const [mrCnt,    sMrCnt]    = useF('background', 'magicRingsCount');
+  const [mrAtt,    sMrAtt]    = useF('background', 'magicRingsAttenuation');
+  const [mrThk,    sMrThk]    = useF('background', 'magicRingsThickness');
+  const [mrBR,     sMrBR]     = useF('background', 'magicRingsBaseRadius');
+  const [mrRS,     sMrRS]     = useF('background', 'magicRingsRadiusStep');
+  const [mrSR,     sMrSR]     = useF('background', 'magicRingsScaleRate');
+  const [mrOp,     sMrOp]     = useF('background', 'magicRingsOpacity');
+  const [mrNoise,  sMrNoise]  = useF('background', 'magicRingsNoiseAmount');
+  const [mrRot,    sMrRot]    = useF('background', 'magicRingsRotation');
+  const [mrGap,    sMrGap]    = useF('background', 'magicRingsRingGap');
+  const [mrBFS,    sMrBFS]    = useF('background', 'magicRingsBeatFreqStart');
+  const [mrBFE,    sMrBFE]    = useF('background', 'magicRingsBeatFreqEnd');
+  const [mrBSen,   sMrBSen]   = useF('background', 'magicRingsBeatSensitivity');
+  const [mrBurst,  sMrBurst]  = useF('background', 'magicRingsBurstStrength');
   const strandsColors = useSettingsStore((s) => s.settings.background.strandsColors);
   const setStrandsColors = (newColors: string[]) =>
     useSettingsStore.getState().setSettings((prev) => ({
@@ -1118,6 +1137,65 @@ function BackgroundSection() {
               <div className="mt-2">
                 <FR label="Beat sensitivity" hint={`${(stBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.strandsBeatSensitivity')}>
                   <Sl value={stBSen as number} min={0} max={5} step={0.1} onChange={sStBSen} />
+                </FR>
+              </div>
+            </div>
+          </>
+        )}
+      </Acc>
+
+      <Acc label="Magic Rings">
+        <Tg value={mrE as boolean} onChange={sMrE} label="Show magic rings" />
+        {(mrE as boolean) && (
+          <>
+            <FR label="Color 1"><CP value={mrC as string} onChange={sMrC} /></FR>
+            <FR label="Color 2"><CP value={mrC2 as string} onChange={sMrC2} /></FR>
+            <FR label="Speed" hint={`${(mrSp as number).toFixed(2)}`}>
+              <Sl value={mrSp as number} min={0.1} max={3.0} step={0.05} onChange={sMrSp} />
+            </FR>
+            <FR label="Ring count" hint={`${mrCnt}`}>
+              <Sl value={mrCnt as number} min={1} max={10} step={1} onChange={sMrCnt} />
+            </FR>
+            <FR label="Opacity" hint={`${Math.round((mrOp as number) * 100)}%`}>
+              <Sl value={mrOp as number} min={0} max={1} step={0.01} onChange={sMrOp} />
+            </FR>
+            <FR label="Thickness" hint={`${(mrThk as number).toFixed(1)}`}>
+              <Sl value={mrThk as number} min={0.5} max={5} step={0.1} onChange={sMrThk} />
+            </FR>
+            <FR label="Attenuation" hint={`${(mrAtt as number).toFixed(1)}`}>
+              <Sl value={mrAtt as number} min={2} max={30} step={0.5} onChange={sMrAtt} />
+            </FR>
+            <FR label="Base radius" hint={`${(mrBR as number).toFixed(2)}`}>
+              <Sl value={mrBR as number} min={0.1} max={0.8} step={0.01} onChange={sMrBR} />
+            </FR>
+            <FR label="Radius step" hint={`${(mrRS as number).toFixed(2)}`}>
+              <Sl value={mrRS as number} min={0.02} max={0.3} step={0.01} onChange={sMrRS} />
+            </FR>
+            <FR label="Scale rate" hint={`${(mrSR as number).toFixed(2)}`}>
+              <Sl value={mrSR as number} min={0} max={0.5} step={0.01} onChange={sMrSR} />
+            </FR>
+            <FR label="Noise amount" hint={`${(mrNoise as number).toFixed(3)}`}>
+              <Sl value={mrNoise as number} min={0} max={0.5} step={0.005} onChange={sMrNoise} />
+            </FR>
+            <FR label="Rotation" hint={`${Math.round(mrRot as number)}°`}>
+              <Sl value={mrRot as number} min={0} max={360} step={1} onChange={sMrRot} />
+            </FR>
+            <FR label="Ring gap" hint={`${(mrGap as number).toFixed(2)}`}>
+              <Sl value={mrGap as number} min={1.0} max={3.0} step={0.05} onChange={sMrGap} />
+            </FR>
+            <div className="mt-2">
+              <HzRangePicker
+                startHz={mrBFS as number}
+                endHz={mrBFE as number}
+                onChangeStart={sMrBFS}
+                onChangeEnd={sMrBFE}
+              />
+              <div className="mt-2">
+                <FR label="Beat sensitivity" hint={`${(mrBSen as number).toFixed(2)}×`} sub="Lower = more sensitive">
+                  <Sl value={mrBSen as number} min={0.1} max={5.0} step={0.05} onChange={sMrBSen} />
+                </FR>
+                <FR label="Burst strength" hint={`${(mrBurst as number).toFixed(2)}`}>
+                  <Sl value={mrBurst as number} min={0} max={2.0} step={0.05} onChange={sMrBurst} />
                 </FR>
               </div>
             </div>

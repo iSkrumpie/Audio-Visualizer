@@ -215,6 +215,25 @@ export type Settings = {
     strandsBeatFreqEnd: number;         // 20..20000 Hz
     strandsBeatSensitivity: number;     // 0..5  (0 = no audio reactivity)
     strandsBehindLogo: boolean;         // true = behind logo, false = over everything
+    // ── Magic Rings ─────────────────────────────────────────────────────
+    magicRingsEnabled: boolean;
+    magicRingsColor: string;
+    magicRingsColorTwo: string;
+    magicRingsSpeed: number;
+    magicRingsCount: number;
+    magicRingsAttenuation: number;
+    magicRingsThickness: number;
+    magicRingsBaseRadius: number;
+    magicRingsRadiusStep: number;
+    magicRingsScaleRate: number;
+    magicRingsOpacity: number;
+    magicRingsNoiseAmount: number;
+    magicRingsRotation: number;
+    magicRingsRingGap: number;
+    magicRingsBeatFreqStart: number;
+    magicRingsBeatFreqEnd: number;
+    magicRingsBeatSensitivity: number;
+    magicRingsBurstStrength: number;
   };
 
   logo: {
@@ -513,6 +532,25 @@ const DEFAULT_SETTINGS: Settings = {
     strandsBeatFreqEnd: 200,
     strandsBeatSensitivity: 0,
     strandsBehindLogo: true,
+    // ── Magic Rings ───────────────────────────────────────────────────
+    magicRingsEnabled: false,
+    magicRingsColor: '#fc42ff',
+    magicRingsColorTwo: '#42fcff',
+    magicRingsSpeed: 1.0,
+    magicRingsCount: 6,
+    magicRingsAttenuation: 10,
+    magicRingsThickness: 2.0,
+    magicRingsBaseRadius: 0.35,
+    magicRingsRadiusStep: 0.1,
+    magicRingsScaleRate: 0.1,
+    magicRingsOpacity: 1.0,
+    magicRingsNoiseAmount: 0.08,
+    magicRingsRotation: 0,
+    magicRingsRingGap: 1.5,
+    magicRingsBeatFreqStart: 40,
+    magicRingsBeatFreqEnd: 120,
+    magicRingsBeatSensitivity: 1.5,
+    magicRingsBurstStrength: 1.0,
   },
 
   logo: {

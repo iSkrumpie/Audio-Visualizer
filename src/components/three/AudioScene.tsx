@@ -12,6 +12,7 @@ import { Canvas, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { BackgroundPlane } from './BackgroundPlane';
 import { BackgroundFx } from './BackgroundFx';
+import { MagicRings } from './MagicRings';
 import { NebulaPlane } from './NebulaPlane';
 import { InstancedBars } from './InstancedBars';
 import { GPUParticles } from './GPUParticles';
@@ -123,6 +124,7 @@ export function AudioScene({ className, style }: AudioSceneProps) {
       <SceneCapture />
       <BackgroundPlane />
       <BackgroundFx />
+      <MagicRings />
       <NebulaPlane />
       <InstancedBars />
       <GPUParticles />
