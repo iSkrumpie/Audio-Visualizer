@@ -74,7 +74,7 @@ void main() {
   float mr_sr  = sin(uRotation);
   mr_p = mat2(mr_cr, -mr_sr, mr_sr, mr_cr) * mr_p;
 
-  float mr_sc = 1.0 + uBurst * 0.3;
+  float mr_sc = 1.0 + uBurst * 0.12;
   mr_p /= mr_sc;
 
   vec3  mr_c   = vec3(0.0);
@@ -92,7 +92,7 @@ void main() {
     ));
   }
 
-  mr_c *= 1.0 + uBurst * 2.0;
+  mr_c *= 1.0 + uBurst * 0.7;
 
   float mr_n = fract(
     sin(dot(gl_FragCoord.xy + uTime * 100.0, vec2(12.9898, 78.233))) * 43758.5453

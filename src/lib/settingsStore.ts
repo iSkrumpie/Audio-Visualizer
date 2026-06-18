@@ -553,7 +553,7 @@ const DEFAULT_SETTINGS: Settings = {
     magicRingsBeatFreqStart: 40,
     magicRingsBeatFreqEnd: 120,
     magicRingsBeatSensitivity: 1.5,
-    magicRingsBurstStrength: 1.0,
+    magicRingsBurstStrength: 0.5,
     magicRingsGlowStrength: 0.6,
   },
 
