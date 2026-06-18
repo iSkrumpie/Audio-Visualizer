@@ -1321,156 +1321,141 @@ Happy-Path bleibt still (Browser nimmt 384k+). Fallback ist sichtbar.
 
 ---
 
+
 ## 17. Session 20 — Strands Background Effect
 
-*2-commit Session: ogl-basierter "Strands"-Effekt (Aurora/Lichtbänder) von https://reactbits.dev portiert. settingsStore v14 → v15 mit deep-merge migrate (alte User-Settings bleiben erhalten).*
+*ogl-basierter "Strands"-Effekt (Aurora/Lichtbänder) von https://reactbits.dev portiert. settingsStore v14 → v15 mit deep-merge migrate. Zahlreiche Bugfix-Iterationen bis zum finalen Stand — alle Root-Causes konserviert.*
 
-### 17.1 Die Commits
+### 17.1 Commits (chronologisch)
 
-| # | Commit | Datei | Was |
-|---|---|---|---|
-| (Phase 1) | `d04b225` | `package.json` + `package-lock.json` + `src/components/three/Strands.tsx` (NEU, 270 Zeilen) + `src/lib/settingsStore.ts` + `src/lib/hints.ts` | Foundation: ogl@^1.0.11 installiert, Strands.tsx portiert (GLSL mit `str_` Prefix für ANGLE-Sicherheit, Audio-Reaktivität via usePhaseSource), settingsStore v15 mit 19 neuen `strands*` Feldern + deep-merge migrate, 19 neue Hint-Texte |
-| (Phase 2) | `5b35348` | `src/components/VisualizerStage.tsx` + `src/components/SettingsPanel.tsx` | UI-Integration: `<Strands/>` in VisualizerStage (DOM-Order z-index), neues "Strands"-Accordion im Background-Tab mit 18 Settings (Color-Editor für strandsColors, 13 Slider, HzRangePicker + Sensitivity) |
+| Commit | Was |
+|---|---|
+| `d04b225` | Foundation: ogl@^1.0.11 + Strands.tsx (NEU) + settingsStore v15 + hints.ts |
+| `5b35348` | UI: VisualizerStage + SettingsPanel Accordion |
+| `9a64fb4` | Fix: Strands NACH R3F mounten — R3F `alpha:false` verdeckte alles davor |
+| `7c0e745` | Fix: `transparent:true` am ogl-Program + ResizeObserver |
+| `17af068` | **Root-Fix (Unsichtbarkeit)**: `uColors` als `number[][]` — ogl `flatten()` Bug |
+| `0b48316` | Fix: Aspect-aware Envelope + `strandsTaper` Default 0 |
+| `634bb83` | Fix: Envelope auf raw UV (vor uScale-Division) + dünnere Defaults |
+| `410c223` | Fix: CSS `radial-gradient` Maske für "Behind Logo" |
+| `853a758` | Fix: Masken-Radius `logoSize/2 + 15px` (finaler Stand) |
 
 ### 17.2 Architektur — Standalone ogl-Renderer
 
 Strands nutzt **NICHT** R3F. Es ist eine eigenständige React-Component mit:
-- Eigenem WebGL2-Canvas (ogl `Renderer` mit `alpha: true`, `premultipliedAlpha: false`)
+- Eigenem WebGL2-Canvas (ogl `Renderer` mit `alpha: true`, `premultipliedAlpha: false`, `transparent: true` am Program)
 - Eigenem rAF-Loop im `useEffect` (nicht R3F `useFrame`)
-- Eigenem `ResizeListener` (`window.addEventListener('resize')`)
+- ResizeObserver + `window.addEventListener('resize')` für Größen-Anpassung
 - Eigener Cleanup (`cancelAnimationFrame` + `WEBGL_lose_context` + `canvas.remove()`)
 
-**Warum nicht R3F?**
-- Original reactbits-Code nutzt ogl direkt (1:1 portiert = kein Three.js-Rewrite nötig)
-- Strands braucht nur Fullscreen-Triangle + Custom-Shader — kein 3D-Transform, keine Camera, keine Beleuchtung
-- Eigenständiger Canvas = keine Interferenz mit R3F-Render-Pipeline
-- **Trade-off:** Strands wird NICHT in den MP4-Export aufgenommen (exportEngine capture'd nur R3F's gl). Wenn der User Strands auch im Export will, müsste man den ogl-Canvas pro Frame screenshotten und in die R3F-Szene composen — signifikanter Aufwand, **TODO für später**.
+**Warum nicht R3F?** Original reactbits-Code nutzt ogl direkt (1:1 portiert). Strands braucht nur Fullscreen-Triangle + Custom-Shader — kein 3D-Transform, keine Camera, keine Beleuchtung. Eigenständiger Canvas = keine Interferenz mit R3F-Render-Pipeline.
+
+**Trade-off:** Strands wird NICHT in den MP4-Export aufgenommen (exportEngine capture'd nur R3F's gl) — TODO für später.
 
 ### 17.3 ANGLE-Sicherheit (KRITISCH)
 
-Alle lokalen GLSL-Variablen im Strands-Fragment-Shader haben das `str_` Prefix (45 Vorkommen). `uTime`, `uResolution`, `uColors`, `uColorCount`, `uStrandCount`, `uSpeed`, `uAmplitude`, etc. bleiben unverändert (Uniforms).
+Alle lokalen GLSL-Variablen im Fragment-Shader haben das `str_` Prefix (45 Vorkommen). Uniforms (`uTime`, `uResolution`, `uColors`, etc.) behalten ihre plain Names.
 
-Beispiel:
 ```glsl
-// Original reactbits:
-float h = fi / float(uStrandCount) + uv.x * 0.30 + uTime * 0.04 + uHueShift;
-col += strandColor(h) * g * env;
-
-// Portiert:
+// Portiert — ALLE lokalen Vars mit str_ Prefix:
 float str_h = str_fi / float(uStrandCount) + str_uv.x * 0.30 + uTime * 0.04 + uHueShift;
 str_col += str_strandColor(str_h) * str_g * str_env;
 ```
 
-Gilt für JEDEN zukünftigen ogl/Three.js-Shader in dieser App. Siehe §6.
+### 17.4 ogl-spezifische Stolpersteine (Root-Causes aus Session 20)
 
-### 17.4 Audio-Reaktivität
+**🔴 Bug 1: R3F `alpha:false` verdeckt vorangehende HTML-Overlays (Commit `9a64fb4`)**
+R3F-Canvas mit `gl: { alpha: false }` ist opak. `<Strands/>` VOR dem Canvas in DOM-Order ist immer unsichtbar. Fix: Strands IMMER nach `<AudioScene/>` mounten.
 
-Strands nutzt exakt das gleiche Pattern wie BackgroundFx:
-- `useMemo(() => new FreqBeatDetector(48000), [])` (registriert für Export-Reset)
+**🔴 Bug 2: ogl-Program ohne `transparent: true` (Commit `7c0e745`)**
+ogl Default-BlendFunc = `gl.ONE, gl.ZERO` (opak). Ohne `transparent: true` ignoriert ogl den Alpha-Channel → Strands opak-schwarz oder unsichtbar. Fix: `new Program(gl, { ..., transparent: true })`.
+
+**🔴 Bug 3: `uColors` als `Float32Array` statt `number[][]` (Commit `17af068`)**
+ogl `setUniform → flatten()` prüft `a[0].length`. Bei `Float32Array` ist `a[0]` eine Number → `a[0].length === undefined` → flatten() gibt Array unverändert zurück → `gl.uniform3fv()` bekommt falschen Buffer → ogl warnt 100x/s `"Active uniform uColors[0] has not been supplied"` → Shader samplet schwarz → Strands unsichtbar. Fix: `buildPalette()` gibt `number[][]` zurück (jedes innere Array = ein vec3 Triple), mit ogl's `Color`-Helper.
+
+**🔴 Bug 4: Envelope auf post-scale UV (Commit `634bb83`)**
+Envelope-Funktion `pow(cos(...), uTaper)` wurde NACH `str_uv /= uScale` berechnet. Bei `uScale < 1` wächst `str_uv.x` über den normalen Wertebereich → Envelope inkorrekt. Fix: Envelope auf **raw UV** (vor Division) berechnen:
+```glsl
+vec2  str_uvRaw = (gl_FragCoord.xy - 0.5 * uResolution) / uResolution.y;
+float str_envArg = (str_uvRaw.x / max(str_aspect * 0.5, 0.001)) * (str_PI * 0.5);
+float str_env    = pow(max(cos(str_envArg), 0.0), max(uTaper, 0.0));
+```
+
+### 17.5 Audio-Reaktivität
+
+Gleiches Pattern wie BackgroundFx:
+- `useMemo(() => new FreqBeatDetector(48000), [])` + `useBeatDetectorRegistration`
 - `usePhaseSource({ detector, getPrecomputedRange, liveFn })`
-- Hz-Range: `settings.background.strandsBeatFreqStart/End` (default 20-200 Hz)
-- Sensitivity: `settings.background.strandsBeatSensitivity` (default 0 = aus)
+- Beat skaliert: `uAmplitude * (1 + boost * 0.4)` und `uGlow * (1 + boost * 0.3)`
+- Default: `strandsBeatSensitivity = 0` (aus)
 
-**Beat-Effekt auf den Shader:**
+### 17.6 z-Index / Layering + "Behind Logo" Maske
+
+Strands wird IMMER nach `<AudioScene/>` gemounted. `strandsBehindLogo` nutzt eine **CSS `mask-image`**:
+
+- `strandsBehindLogo=true` (default): `radial-gradient` schneidet Logo-Kreis aus → Strands voll sichtbar über Background, unsichtbar im Logo-Bereich
+- `strandsBehindLogo=false`: keine Maske → Strands über allem
+
 ```typescript
-const beat = phaseSrcRef.current();
-const boost = sensitivity * beat;  // 0..5 * 0..1
-uniforms.uAmplitude.value = baseAmp  * (1 + boost * 0.4);  // bis zu +200% Amplitude bei Sens=5
-uniforms.uGlow.value      = baseGlow * (1 + boost * 0.3);  // bis zu +150% Glow bei Sens=5
+// VisualizerStage.tsx — finaler Stand:
+const r  = logoSize / 2 + 15;   // +15px weil Outer Glow das Logo visuell vergrößert
+const r2 = r + 4;                // weicher Übergang
+const maskImage = `radial-gradient(circle ${r}px at 50% 50%, transparent ${r}px, white ${r2}px)`;
 ```
 
-Andere Strands-Props (Speed, Waviness, Thickness, ...) reagieren NICHT auf Audio — das würde "flickrig" wirken. Amplitude + Glow sind die visuell stabilsten Pulse-Props.
+`logoSize` und `logoEnabled` sind React-Subscriptions → Maske reagiert live auf Slider-Änderungen.
 
-### 17.5 z-Index / Layering
+**Fehlgeschlagene Ansätze (für Nachwelt dokumentiert):**
+- `mix-blend-mode: screen` → überstrahlt Logo (zu additiv)
+- `mix-blend-mode: soft-light` → Strands fast unsichtbar
+- SVG-`<mask>` mit `objectBoundingBox` → Koordinaten-System-Problem, Strands komplett ausgeblendet
 
-Strands wird in `VisualizerStage.tsx` als HTML-Overlay gemounted, **immer NACH** dem `<AudioScene/>` (R3F-Canvas). Der R3F-Canvas hat `gl: { alpha: false }` — also opak — daher ist ein Rendering VOR dem Canvas sinnlos (Strands wären unsichtbar). Die `strandsBehindLogo`-Setting nutzt eine **SVG-Maske** um einen kreisförmigen Bereich in der Mitte des Overlays (Größe = `settings.logo.size`) aus dem Strands-Rendering auszuschneiden:
-- `strandsBehindLogo=true` (default): SVG-Maske schneidet das Logo aus den Strands aus; Strands sind voll sichtbar über dem Background-Bild, aber nicht über dem Logo
-- `strandsBehindLogo=false`: keine Maske, Strands überdecken alles
+### 17.7 19 Settings (`background.strands*`) — finale Defaults
 
-Mask-Berechnung: `radiusPct = (logoSize / 2) / Math.min(innerWidth, innerHeight)` → wird bei Mount einmal berechnet. Bei Window-Resize muss die Seite neu geladen werden, sonst ist die Maske evtl. falsch positioniert.
-
-**Bugfix Session 20.1:** Die initiale Implementation hatte Strands per DOM-Order gemounted — `<Strands/>` vor R3F wenn `behindLogo=true`. Das war unsichtbar, weil der R3F-Canvas opak ist. Fix: Strands IMMER nach R3F mounten, `strandsBehindLogo` ist nur noch ein Blend-Mode-Toggle.
-
-DOM-Order (1 = unten):
-1. Backdrop (CSS-Hintergrund)
-2. `<AudioScene/>` R3F Canvas (opak)
-3. `<Strands/>`  (immer nach R3F)
-4. HTML-Overlays (TransportBar, ExportOverlay, etc.)
-
-### 17.6 Schema-Bump v14 → v15 (deep-merge, kein Reset)
-
-**Wichtig:** Im Gegensatz zu v13→v14 (Fire+Sparks) wird bei v15 **kein** hard-reset der User-Settings gemacht. Der User behält seine v14-Einstellungen, nur die 19 neuen `strands*` Felder werden mit Defaults gefüllt.
-
-Migration-Code (in `settingsStore.ts`):
-```typescript
-migrate: (persistedState: any, version: number) => {
-  if (!persistedState?.settings) return { settings: DEFAULT_SETTINGS };
-  if (version < 15) {
-    persistedState.settings.background = {
-      ...DEFAULT_SETTINGS.background,
-      ...persistedState.settings.background,  // alte v14-Settings überschreiben Defaults
-    };
-  }
-  return persistedState;
-}
-```
-
-Storage-Key: `audiovisualizer:settings:v15`.
-
-### 17.7 19 neue Settings (`background.strands*`)
-
-| Field | Type | Default | Range | Was |
-|---|---|---|---|---|
-| `strandsEnabled` | bool | false | - | Master-Toggle |
-| `strandsColors` | string[] | ['#FF4242', '#7C3AED', '#06B6D4', '#EAB308'] | 1..8 | Palette (max 8 wie Shader MAX_COLORS) |
-| `strandsCount` | number | 3 | 1..12 | Anzahl Stränge (Shader MAX_STRANDS) |
-| `strandsSpeed` | number | 0.5 | 0..3 | Animationsgeschwindigkeit |
-| `strandsAmplitude` | number | 1.0 | 0..3 | Höhe der Waves |
-| `strandsWaviness` | number | 1.0 | 0..3 | Frequenz der Wellen |
-| `strandsThickness` | number | 0.7 | 0..3 | Strich-Dicke |
-| `strandsGlow` | number | 2.6 | 0..6 | Glow/Helligkeit |
-| `strandsTaper` | number | 3 | 0..10 | Fade an Screen-Edges (Envelope-Funktion) |
-| `strandsSpread` | number | 1 | 0..3 | Phasenversatz zwischen Strängen |
-| `strandsHueShift` | number | 0 | 0..2 | Hue-Shift über Zeit |
-| `strandsIntensity` | number | 0.6 | 0..1 | Maximale Helligkeit |
-| `strandsSaturation` | number | 1.5 | 0..3 | Farbsättigung |
-| `strandsOpacity` | number | 1 | 0..1 | Gesamt-Transparenz |
-| `strandsScale` | number | 0.3 | 0.1..5 | Räumliche Skalierung (UV-Divisor). Default 0.3 = mehrere Wellen pro Strand sichtbar von Rand zu Rand; 1.0 = ~0.5 Wellen (Strands fließen aus dem Bild raus); >1 = in der Mitte gestaucht. |
-| `strandsBeatFreqStart` | number | 20 | 20..20000 | Hz-Range für Beat-Detection |
-| `strandsBeatFreqEnd` | number | 200 | 20..20000 | |
-| `strandsBeatSensitivity` | number | 0 | 0..5 | 0 = Audio-Reaktivität AUS |
-| `strandsBehindLogo` | bool | true | - | true = SVG-Maske schneidet Logo-Kreis aus den Strands aus (Strands hinter Logo aber vor BG), false = keine Maske (Strands über allem) |
+| Field | Default | Range | Was |
+|---|---|---|---|
+| `strandsEnabled` | `false` | bool | Master-Toggle |
+| `strandsColors` | `['#FF4242','#7C3AED','#06B6D4','#EAB308']` | 1..8 | Farb-Palette |
+| `strandsCount` | `3` | 1..12 | Anzahl Stränge |
+| `strandsSpeed` | `0.5` | 0..3 | Animations-Speed |
+| `strandsAmplitude` | `1.5` | 0..3 | Wellen-Höhe |
+| `strandsWaviness` | `1.0` | 0..3 | Wellen-Frequenz |
+| `strandsThickness` | `0.35` | 0..3 | Strich-Dicke |
+| `strandsGlow` | `3.0` | 0..6 | Glow-Helligkeit |
+| `strandsTaper` | `0` | 0..10 | Edge-Fade (0 = Rand-zu-Rand ohne Fade) |
+| `strandsSpread` | `1.0` | 0..3 | Phasenversatz zwischen Strängen |
+| `strandsHueShift` | `0` | 0..2 | Hue-Shift über Zeit |
+| `strandsIntensity` | `0.6` | 0..1 | Maximale Helligkeit |
+| `strandsSaturation` | `1.5` | 0..3 | Farbsättigung |
+| `strandsOpacity` | `1.0` | 0..1 | Gesamt-Transparenz |
+| `strandsScale` | `1.0` | 0.1..5 | UV-Divisor: 1.0 = ~1 Welle/Breite, <1 = mehr Wellen, >1 = gestaucht |
+| `strandsBeatFreqStart` | `20` | 20..20000 Hz | Beat-Range |
+| `strandsBeatFreqEnd` | `200` | 20..20000 Hz | Beat-Range |
+| `strandsBeatSensitivity` | `0` | 0..5 | 0 = aus |
+| `strandsBehindLogo` | `true` | bool | CSS-Masken-Modus |
 
 ### 17.8 SettingsPanel-Integration
 
-Neues Accordion "Strands" im Background-Tab (zwischen "Effects" und "Weather FX"):
-- Master-Toggle ohne Hint (analog zu `logo.enabled`)
-- Position-CB (behind/front) — nur sichtbar wenn enabled
-- Color-Editor (add/remove) — max 8 Farben, nutzt `useSettingsStore.getState().setSettings` Pattern (analog zu `CustomColorEditor`)
-- 13 Sliders mit Hint via `hintFor('background.strandsXxx')`
-- HzRangePicker für Beat-Frequenz
-- Sensitivity-Slider für Beat-Reaktion
+Accordion "Strands" im Background-Tab zwischen "Effects" und "Weather FX":
+- Master-Toggle ohne Hint (§16.3), Position-CB (behind/in front)
+- Color-Array-Editor (Add/Remove, max 8), 13 Sliders, HzRangePicker + Sensitivity
+- Accordion startet geschlossen (kein `defaultOpen`, §16.4)
 
-Accordion startet IMMER geschlossen (kein `defaultOpen`, §16.4). `strandsEnabled`-Toggle hat kein Hint (Master-Toggle-Regel, §16.3).
+### 17.9 Performance
 
-### 17.9 Performance-Budget
-
-| Layer | Draw Calls | Geschätzte GPU-Kosten (60fps) |
+| Layer | Draw Calls | GPU @60fps |
 |---|---|---|
-| Strands (ogl, fullscreen triangle) | 1 | ~0.3-0.5ms (zwei Sinus + Sample-Palette + Tone-Mapping) |
+| Strands (ogl, fullscreen triangle) | 1 | ~0.3–0.5ms |
 
-Läuft parallel zum R3F-Render (separater WebGL-Kontext) → kein direkter Overhead in R3F-Frame.
+Separater WebGL2-Kontext → kein R3F-Overhead.
 
 ### 17.10 Bekannte Einschränkungen
 
-- **Export-Pipeline:** Strands ist NICHT im MP4-Export enthalten (exportEngine capture'd nur R3F's gl). TODO für später: ogl-Canvas screenshotten und in R3F-Szene composen. Aktuelle Lösung: User sieht Strands nur im Live-Preview.
-- **Color-Picker-Color-Editor:** Die +/− Buttons funktionieren, aber es gibt keine Color-Palette-Vorschau (anders als der Custom-Color-Editor in Bars/Particles). Falls das gewünscht ist: einfach ein Swatch-Row-Pattern nachrüsten.
-- **`uTaper=0`** führt zu flat-line Envelope (kein Edge-Fade) → Strands fließen über den ganzen Screen ohne Fade. Visuell oft erwünscht, aber falls "zu hart an den Rändern": uTaper erhöhen.
-- **`strandsCount=12`** + **`strandsSpeed=3`** + **`strandsGlow=6`** = maximale GPU-Last. Auf low-end Laptops könnten einzelne Frames >16ms brauchen. Default-Werte sind konservativ.
+- **Export:** Strands nicht im MP4 (exportEngine capture'd nur R3F gl). TODO: ogl-Canvas per Frame screenshotten + in R3F composen.
+- **Beat-Scale-Maske:** Maske ist statisch (logoSize/2 + 15px). Bei starkem Beat-Scale-Burst können Strands kurzzeitig am Logo-Rand sichtbar sein.
+- **Color-Editor:** keine Farb-Swatch-Vorschau (nur hex-Text + Color-Picker).
 
 ### 17.11 House-keeping
 
-- `nul` Datei im Working Tree (Artefakt aus Windows-cmd-Echo) — kann jederzeit gelöscht werden
-- settingsStore v15 bleibt, bis ein neuer Schema-Bump nötig wird
-- Bei Bug-Rollback: `git revert 5b35348 d04b225` macht alle Strands-Änderungen rückgängig, v15-Migration-Code bleibt erhalten (User-Settings auf v15 mit `strandsEnabled=false` als Default)
-- **Commit-Hashes in §17.1**: Orchestrator muss `<PENDING>` durch echte Hashes aus `git log --oneline -n 5` ersetzen, nachdem die Commits gemacht wurden.
+- settingsStore v15, Storage-Key `audiovisualizer:settings:v15`
+- Bei vollständigem Rollback: `git revert 853a758 410c223 634bb83 0b48316 17af068 7c0e745 9a64fb4 5b35348 d04b225`
