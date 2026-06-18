@@ -235,6 +235,7 @@ useFrame((state, delta) => {
 1. **Was reagiert auf den Beat?** — Mindestens eine visuelle Eigenschaft benennen (siehe Tabelle unten)
 2. **Wie reagiert es?** — Kurze Formel: `effektiver Wert = Basiswert * (1 + beat * stärke)`
 3. **Eigener Regler im UI?** — Jede Beat-Reaktion bekommt einen eigenen Slider (`*GlowBoost`, `*BurstStrength`, etc.) damit der User sie unabhängig steuern kann
+4. **Hints geplant?** — Für jedes Setting-Feld sofort einen Hint-Text formulieren (→ Hints-Regeln weiter unten)
 
 Diesen Block **immer in den Worker-Brief aufnehmen** — der Worker soll diese Entscheidungen NICHT selbst treffen.
 
@@ -283,9 +284,14 @@ Für neue Effekte die den gesamten Hintergrund betreffen (Blur, Tint, Bloom, Gli
    - `useF('background', 'fieldName')` für jeden Wert
    - Accordion-Sektion mit `description={ACCORDION_DESCRIPTIONS['...']}` 
    - Kein `defaultOpen` (§16.4 — alle Accordions starten geschlossen)
+   - **🔴 Jedes `<FR>` MUSS `info={hintFor('group.field')}` haben** — kein FR ohne Hint-Eintrag
 
-5. **Hints** in `src/lib/hints.ts`
-   - `'background.fieldName': '60-150 Zeichen, kein Jargon, Effekt beschreiben'`
+5. **Hints** in `src/lib/hints.ts` — **Vollständig und Pflicht**
+   - **Jedes** Settings-Feld bekommt einen eigenen Eintrag (keine Ausnahmen, auch nicht `*Enabled`)
+   - Format: `'background.fieldName': 'Klartext, 60–150 Zeichen, was der Effekt visuell tut'`
+   - Kein Jargon (nicht "FFT-Bin" oder "Uniform"), immer aus User-Perspektive
+   - Beat-Settings-Template: `'Lowest/Highest frequency that triggers X'` / `'How strongly a beat affects X. 0 = no reaction; 2 = strong Y.'`
+   - **Verifikation**: `grep -c 'hintFor' src/components/SettingsPanel.tsx` ≈ Anzahl der neuen FR-Elemente
 
 6. **Verifikation**: `npm run typecheck && npm run build`
 
@@ -316,7 +322,9 @@ Für neue eigenständige Three.js-Komponenten im R3F-Scene-Graph:
 3. **Z-Layering** in `AudioScene.tsx` eintragen (korrekte Reihenfolge!)
    - Referenz: `docs/architecture.md` §4.10
 
-4. **Settings, SettingsPanel, Hints** wie in A) oben
+4. **Settings + SettingsPanel + Hints** — wie in A) oben, alle drei Punkte vollständig:
+   - Jedes `<FR>` bekommt `info={hintFor('group.field')}`
+   - Jedes Settings-Feld bekommt einen Hint-Eintrag in `hints.ts`
 
 5. **AGENTS.md** `docs/architecture.md` Tabellen aktualisieren:
    - §4.9 Komponenten-Tabelle
@@ -355,5 +363,6 @@ Für Effekte die NICHT in R3F integriert sind (eigene WebGL-Canvas, eigener rAF)
    - mix-blend-mode (screen/soft-light) funktioniert NICHT zuverlässig für "hinter Logo aber vor BG"
    - SVG-Mask mit objectBoundingBox hat Koordinaten-Probleme
 
-7. **Settings + SettingsPanel + Hints + AGENTS.md** wie in A/B, plus:
+7. **Settings + SettingsPanel + Hints + AGENTS.md** — wie in A) vollständig, plus:
    - `docs/architecture.md` §4.10 HTML-Overlay-Layer-Tabelle
+   - Jedes `<FR>` bekommt `info={hintFor(...)}`, jedes Feld einen Hint in `hints.ts`
