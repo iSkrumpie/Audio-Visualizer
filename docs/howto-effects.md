@@ -96,7 +96,68 @@ export const sceneRegistry = {
 
 ---
 
-### Pattern 6: `useFrame` state.size (R3F-Resize-Safety)
+### Pattern 6: Uniform-Updates via `mat.uniforms` (ShaderMaterial) — KRITISCH
+
+```typescript
+// ✅ RICHTIG — direkt über matRef.current.uniforms:
+const matRef = useRef<THREE.ShaderMaterial>(null);
+
+useFrame((state, delta) => {
+  const mat = matRef.current;
+  if (!mat) return;
+  mat.uniforms.uTime.value += delta;
+  mat.uniforms.uColor.value.set('#ff0000');
+});
+
+// Initiale Werte in useMemo([]) setzen:
+const uniforms = useMemo(() => ({
+  uTime:  { value: 0 },
+  uColor: { value: new THREE.Color('#ff0000') },
+}), []);
+
+// JSX:
+<shaderMaterial ref={matRef} uniforms={uniforms} ... />
+```
+
+**🔴 NICHT so — stilles Bug:**
+```typescript
+// ❌ FALSCH — mutiert useMemo-Objekt direkt:
+uniforms.uTime.value += delta;  // wirkt NICHT zuverlässig auf den Shader
+```
+
+**Warum:** R3F/Three.js kann beim Konstruieren eines `ShaderMaterial` intern eine eigene Kopie der Uniforms anlegen (über `setValues()` + `Object.assign()`). Die entstehenden Shallow-Copy-Strukturen sind nicht identisch mit dem originalen `useMemo`-Objekt. Mutationen am Original kommen ggf. nie beim Shader an.
+
+**Sicheres Pattern:** Immer `matRef.current.uniforms.X.value = ...` verwenden — dann arbeitet man mit dem Objekt, das die GPU tatsächlich liest. Genau so macht es `BackgroundPlane.tsx`.
+
+**Symptom bei Fehler:** Effekt ist sichtbar (initiale Uniform-Werte werden gerendert), aber reagiert nicht auf `useFrame`-Updates und nicht auf Settings-Änderungen. Sieht aus wie ein eingefrorener/statischer Effekt.
+
+---
+
+### Pattern 7: Full-Screen-Quad in orthografischer Kamera
+
+```typescript
+// Die Kamera in AudioScene ist orthographic mit zoom=1:
+// → 1 world unit = 1 CSS pixel
+// → PlaneGeometry(2, 2) ist buchstäblich 2×2 Pixel groß!
+
+// ✅ RICHTIG — in useFrame skalieren:
+useFrame((state, delta) => {
+  const { width, height } = state.size;  // aus state-Callback, nicht Closure
+  if (meshRef.current) meshRef.current.scale.set(width, height, 1);
+  // ... rest der Uniform-Updates
+});
+
+// ❌ FALSCH — statische Größe:
+<mesh scale={[1920, 1080, 1]} ... />  // nur bei DIESER einen Auflösung korrekt
+```
+
+**Warum:** `BackgroundPlane` skaliert sich auf `width * 1.16 × height * 1.16` (mit Oversize-Margin für beat-scale). Neue Full-Screen-Komponenten müssen das gleiche tun.
+
+**Symptom bei Fehler:** Effekt erscheint als winziges Rechteck in der Mitte, oder ist gar nicht sichtbar.
+
+---
+
+### Pattern 8: `useFrame` state.size (R3F-Resize-Safety)
 
 ```typescript
 useFrame((state, delta) => {
@@ -125,7 +186,7 @@ useFrame((state, delta) => {
 ### 5.3 Shaders
 - Nebula-Shader: GLSL via `vite-plugin-glsl` aus `.vert`/`.frag`
 - BackgroundPlane + GPUParticles: Inline Template-Literals
-- Uniforms einmalig in `useMemo([])`, per-Frame via `.value = ...` mutiert (nie neu erstellen!)
+- Uniforms einmalig in `useMemo([])` **initialisieren**, per-Frame via `matRef.current.uniforms.X.value = ...` mutieren (nie das useMemo-Objekt direkt mutieren — → Pattern 6)
 
 ---
 
@@ -205,6 +266,8 @@ Für neue eigenständige Three.js-Komponenten im R3F-Scene-Graph:
 1. **Datei** `src/components/three/MeineKomponente.tsx`
    - Settings per Frame via `getSettings()` lesen (NICHT `useSettingsStore` in Three.js!)
    - `useFrame((state, delta) => { const { width, height } = state.size; ... })` — state.size aus Callback, nicht aus Closure!
+   - **ShaderMaterial-Uniforms** IMMER via `mat.uniforms.X.value` updaten, NIE via `useMemo`-Objekt direkt (→ Pattern 6)
+   - **Full-Screen-Quad** muss in `useFrame` auf `width × height` skaliert werden (→ Pattern 7)
 
 2. **FreqBeatDetector** (wenn Audio-reaktiv):
    ```ts
