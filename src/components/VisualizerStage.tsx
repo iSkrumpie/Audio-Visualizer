@@ -28,7 +28,9 @@ export function VisualizerStage({
   const strandsEnabled    = useSettingsStore((s) => s.settings.background.strandsEnabled);
   const strandsBehindLogo = useSettingsStore((s) => s.settings.background.strandsBehindLogo);
   const logoEnabled       = useSettingsStore((s) => s.settings.logo.enabled);
-  const logoSize          = useSettingsStore((s) => s.settings.logo.size);  // px, default 240
+  const logoSize          = useSettingsStore((s) => s.settings.logo.size);
+  const outerGlowEnabled  = useSettingsStore((s) => s.settings.logo.outerGlowEnabled);
+  const outerGlowSize     = useSettingsStore((s) => s.settings.logo.outerGlowSize);  // multiplier, default 1.15
 
   return (
     <motion.div
@@ -55,8 +57,12 @@ export function VisualizerStage({
         }
         // Logo is centered in the viewport. Radius in px = half the size
         // setting. Add a small feather (8px) so the cutout edge is soft.
-        const r  = logoSize / 2;
-        const r2 = r + 8;
+        // Use outer-glow extent as the cutout radius when glow is enabled,
+        // since the glow plane extends beyond the raw logo circle and would
+        // otherwise be clipped through the Strands layer.
+        const baseR = logoSize / 2;
+        const r     = (outerGlowEnabled ? baseR * outerGlowSize : baseR) + 4;
+        const r2    = r + 12; // soft feather edge
         const maskImage = `radial-gradient(circle ${r}px at 50% 50%, transparent ${r}px, white ${r2}px)`;
         return (
           <Strands
