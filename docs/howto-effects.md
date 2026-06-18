@@ -227,9 +227,43 @@ useFrame((state, delta) => {
 
 ## Checkliste: Neuer Background-Effekt
 
+---
+
+### ⚡ Schritt 0 — Beat-Reaktivität klären (PFLICHT vor jeder Implementierung)
+
+**Vor dem ersten Commit muss feststehen:**
+1. **Was reagiert auf den Beat?** — Mindestens eine visuelle Eigenschaft benennen (siehe Tabelle unten)
+2. **Wie reagiert es?** — Kurze Formel: `effektiver Wert = Basiswert * (1 + beat * stärke)`
+3. **Eigener Regler im UI?** — Jede Beat-Reaktion bekommt einen eigenen Slider (`*GlowBoost`, `*BurstStrength`, etc.) damit der User sie unabhängig steuern kann
+
+Diesen Block **immer in den Worker-Brief aufnehmen** — der Worker soll diese Entscheidungen NICHT selbst treffen.
+
+#### Beat-Reaktivitäts-Referenz: Was kann für welchen Effekttyp reagieren?
+
+| Effekttyp | Typische Beat-Targets | Beispiel aus dem Projekt |
+|---|---|---|
+| **Shader-Ringe / Kreise** | Attenuation ↓ (= Ring breiter/glühender), Helligkeit ↑, Koordinaten-Scale (Zoom), Radius | MagicRings: `uGlowBeat` → Attenuation × `(1 - beat·strength)`, `uBurst` → Zoom + Helligkeit |
+| **Ribbon / Strands** | Amplitude ↑ (Ausschlag), Glow ↑ (Leuchten), Thickness, Speed | Strands: `uAmplitude * (1 + boost*0.4)`, `uGlow * (1 + boost*glowBoost)` |
+| **Partikel** | Spawn-Burst (neue Partikel), Size ↑, Speed ↑, Orbit-Radius ↑ | GPUParticles: `kickBurstStrength` → schiesst neue Partikel aus |
+| **Logo / Mesh** | Scale ↑ (Punch), Glow-Intensität ↑, Rotation-Burst | CenterLogo: `beatScaleStrength`, Fire-Ring: `fireReactivity` |
+| **Hintergrund-Plane** | Vignette ↑, Blur ↑/↓, Helligkeit ↑, Color-Shift | BackgroundPlane: `scaleOnBeat` (leichtes Zoom), `beatFxSensitivity` |
+| **Bars / FFT-Visual** | Bar-Höhe ↑, Peak-Amplitude, Rotation-Speed | InstancedBars: `beatFreq*` + `beatSensitivity` → `barH += beat * 25 * scale` |
+| **Fog / Nebula** | Pulsierend aufleuchten, Drift-Speed ↑ | NebulaPlane: `nebulaBeatMode` → `uAudioPulse` |
+| **Partikel-Linien** | Connection-Opacity ↑, Line-Thickness ↑ | GPUParticles connectionLines |
+
+**Merkhilfe — jeder Effekt hat mindestens 2 Beat-Targets:**
+- Ein **primäres**: das Offensichtliche (Größe, Helligkeit, Ausschlag)
+- Ein **sekundäres**: etwas Atmosphärisches (Glow, Unschärfe-Halo, Color-Shift)
+
+Beispiel MagicRings: primär = Burst (Zoom + Helligkeit), sekundär = Glow (Attenuation-Reduktion → Ringe blühen breiter).
+
+---
+
 ### A) R3F-Shader-Effekt (in BackgroundPlane.tsx)
 
 Für neue Effekte die den gesamten Hintergrund betreffen (Blur, Tint, Bloom, Glitch, etc.):
+
+> **⚡ Schritt 0 zuerst:** Beat-Reaktivität mit Skrumpie klären (primäres + sekundäres Target), dann erst umsetzen.
 
 1. **Settings** in `settingsStore.ts` hinzufügen
    - Felder unter `background.*` (Type-Block + DEFAULT_SETTINGS)
@@ -263,6 +297,8 @@ Für neue Effekte die den gesamten Hintergrund betreffen (Blur, Tint, Bloom, Gli
 
 Für neue eigenständige Three.js-Komponenten im R3F-Scene-Graph:
 
+> **⚡ Schritt 0 zuerst:** Beat-Reaktivität mit Skrumpie klären (primäres + sekundäres Target), dann erst umsetzen.
+
 1. **Datei** `src/components/three/MeineKomponente.tsx`
    - Settings per Frame via `getSettings()` lesen (NICHT `useSettingsStore` in Three.js!)
    - `useFrame((state, delta) => { const { width, height } = state.size; ... })` — state.size aus Callback, nicht aus Closure!
@@ -292,6 +328,8 @@ Für neue eigenständige Three.js-Komponenten im R3F-Scene-Graph:
 ### C) Standalone HTML-Overlay-Effekt (ogl / non-R3F, wie Strands)
 
 Für Effekte die NICHT in R3F integriert sind (eigene WebGL-Canvas, eigener rAF):
+
+> **⚡ Schritt 0 zuerst:** Beat-Reaktivität mit Skrumpie klären (primäres + sekundäres Target), dann erst umsetzen.
 
 **🔴 Kritische Stolpersteine aus Session 20 (alle waren aktive Bugs):**
 
