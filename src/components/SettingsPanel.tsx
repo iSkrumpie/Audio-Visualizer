@@ -758,6 +758,20 @@ function BackgroundSection() {
   const [mrBSen,   sMrBSen]   = useF('background', 'magicRingsBeatSensitivity');
   const [mrBurst,  sMrBurst]  = useF('background', 'magicRingsBurstStrength');
   const [mrGlwStr, sMrGlwStr] = useF('background', 'magicRingsGlowStrength');
+  // Light Rays
+  const [lrE,    sLrE]    = useF('background', 'lightRaysEnabled');
+  const [lrOr,   sLrOr]   = useF('background', 'lightRaysOrigin');
+  const [lrCol,  sLrCol]  = useF('background', 'lightRaysColor');
+  const [lrSp,   sLrSp]   = useF('background', 'lightRaysSpeed');
+  const [lrSpr,  sLrSpr]  = useF('background', 'lightRaysSpread');
+  const [lrLen,  sLrLen]  = useF('background', 'lightRaysLength');
+  const [lrOp,   sLrOp]   = useF('background', 'lightRaysOpacity');
+  const [lrFd,   sLrFd]   = useF('background', 'lightRaysFadeDistance');
+  const [lrBL,   sLrBL]   = useF('background', 'lightRaysBehindLogo');
+  const [lrBFS,  sLrBFS]  = useF('background', 'lightRaysBeatFreqStart');
+  const [lrBFE,  sLrBFE]  = useF('background', 'lightRaysBeatFreqEnd');
+  const [lrBSen, sLrBSen] = useF('background', 'lightRaysBeatSensitivity');
+  const [lrBInt, sLrBInt] = useF('background', 'lightRaysBeatIntensity');
   const strandsColors = useSettingsStore((s) => s.settings.background.strandsColors);
   const setStrandsColors = (newColors: string[]) =>
     useSettingsStore.getState().setSettings((prev) => ({
@@ -1142,6 +1156,79 @@ function BackgroundSection() {
                 </FR>
                 <FR label="Glow on beat" hint={`${(stGlwB as number).toFixed(2)}`} info={hintFor('background.strandsGlowBoost')}>
                   <Sl value={stGlwB as number} min={0} max={2} step={0.05} onChange={sStGlwB} />
+                </FR>
+              </div>
+            </div>
+          </>
+        )}
+      </Acc>
+
+      <Acc label="Light Rays">
+        <Tg value={lrE as boolean} onChange={sLrE} label="Light Rays" />
+        {(lrE as boolean) && (
+          <>
+            <FR label="Origin" info={hintFor('background.lightRaysOrigin')}>
+              <select
+                value={lrOr as string}
+                onChange={(e) => sLrOr(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: 'var(--bg-elev-2)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  padding: '4px 6px',
+                  fontSize: '0.85rem',
+                }}
+              >
+                <option value="top-center">Top Center</option>
+                <option value="top-left">Top Left</option>
+                <option value="top-right">Top Right</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+                <option value="bottom-center">Bottom Center</option>
+                <option value="bottom-left">Bottom Left</option>
+                <option value="bottom-right">Bottom Right</option>
+              </select>
+            </FR>
+            <FR label="Color" info={hintFor('background.lightRaysColor')}>
+              <CP value={lrCol as string} onChange={sLrCol} />
+            </FR>
+            <FR label="Speed" hint={`${(lrSp as number).toFixed(2)}`} info={hintFor('background.lightRaysSpeed')}>
+              <Sl value={lrSp as number} min={0.1} max={3} step={0.1} onChange={sLrSp} />
+            </FR>
+            <FR label="Spread" hint={`${(lrSpr as number).toFixed(2)}`} info={hintFor('background.lightRaysSpread')}>
+              <Sl value={lrSpr as number} min={0.1} max={3} step={0.1} onChange={sLrSpr} />
+            </FR>
+            <FR label="Length" hint={`${(lrLen as number).toFixed(2)}`} info={hintFor('background.lightRaysLength')}>
+              <Sl value={lrLen as number} min={0.5} max={3} step={0.1} onChange={sLrLen} />
+            </FR>
+            <FR label="Opacity" hint={`${Math.round((lrOp as number) * 100)}%`} info={hintFor('background.lightRaysOpacity')}>
+              <Sl value={lrOp as number} min={0} max={1} step={0.05} onChange={sLrOp} />
+            </FR>
+            <FR label="Fade Distance" hint={`${(lrFd as number).toFixed(2)}`} info={hintFor('background.lightRaysFadeDistance')}>
+              <Sl value={lrFd as number} min={0.1} max={2} step={0.1} onChange={sLrFd} />
+            </FR>
+            <FR label="Behind Logo" info={hintFor('background.lightRaysBehindLogo')}>
+              <CB
+                value={(lrBL as boolean) ? 'behind' : 'front'}
+                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+                onChange={(v) => sLrBL(v === 'behind')}
+              />
+            </FR>
+            <div className="mt-2">
+              <HzRangePicker
+                startHz={lrBFS as number}
+                endHz={lrBFE as number}
+                onChangeStart={sLrBFS}
+                onChangeEnd={sLrBFE}
+              />
+              <div className="mt-2">
+                <FR label="Beat Sensitivity" hint={`${(lrBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.lightRaysBeatSensitivity')}>
+                  <Sl value={lrBSen as number} min={0} max={5} step={0.1} onChange={sLrBSen} />
+                </FR>
+                <FR label="Beat Intensity" hint={`${(lrBInt as number).toFixed(2)}`} info={hintFor('background.lightRaysBeatIntensity')}>
+                  <Sl value={lrBInt as number} min={0} max={2} step={0.1} onChange={sLrBInt} />
                 </FR>
               </div>
             </div>

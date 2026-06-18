@@ -306,6 +306,34 @@ export const SETTING_HINTS: Record<string, string> = {
   'background.strandsGlowBoost':
     'How much a beat boosts the glow of the strands. 0 = no reaction; 2 = strong neon flare on each hit.',
 
+  // ── Background: Light Rays ─────────────────────────────────────────────────────────
+  'background.lightRaysEnabled':
+    'Toggle the light rays overlay on or off.',
+  'background.lightRaysOrigin':
+    'Direction the light rays shoot from (top, sides, or bottom of the screen).',
+  'background.lightRaysColor':
+    'Tint color of the light rays.',
+  'background.lightRaysSpeed':
+    'Animation speed of the ray shimmer. Higher = faster flickering.',
+  'background.lightRaysSpread':
+    'How wide the rays fan out from the source. Higher = broader cone.',
+  'background.lightRaysLength':
+    'How far the rays reach across the screen. Higher = longer beams.',
+  'background.lightRaysOpacity':
+    'Overall transparency of the light ray overlay.',
+  'background.lightRaysFadeDistance':
+    'Distance over which rays fade out. Lower = tighter, brighter core.',
+  'background.lightRaysBehindLogo':
+    'When on, rays are masked behind the logo circle.',
+  'background.lightRaysBeatFreqStart':
+    'Lowest frequency (Hz) that triggers a beat for Light Rays intensity boost.',
+  'background.lightRaysBeatFreqEnd':
+    'Highest frequency (Hz) that triggers a beat for Light Rays intensity boost.',
+  'background.lightRaysBeatSensitivity':
+    'How easily the beat detection fires. 0 = off; higher = more sensitive.',
+  'background.lightRaysBeatIntensity':
+    'How much a detected beat boosts ray brightness. 0 = no reaction; 2 = strong flash.',
+
   // ── Background: Magic Rings ────────────────────────────────────────────────────────────────────
   'background.magicRingsEnabled':
     'Concentric rings that pulse outward from the center and react to the music.',

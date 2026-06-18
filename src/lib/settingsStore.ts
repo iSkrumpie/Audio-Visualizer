@@ -236,6 +236,20 @@ export type Settings = {
     magicRingsBeatSensitivity: number;
     magicRingsBurstStrength: number;
     magicRingsGlowStrength: number;     // 0..1, default 0.6
+    // ── Light Rays (v16) — god rays / crepuscular rays ──────────────────
+    lightRaysEnabled: boolean;
+    lightRaysOrigin: 'top-center' | 'top-left' | 'top-right' | 'left' | 'right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+    lightRaysColor: string;            // hex color
+    lightRaysSpeed: number;            // 0.1..3.0
+    lightRaysSpread: number;           // 0.1..3.0
+    lightRaysLength: number;           // 0.5..3.0
+    lightRaysOpacity: number;          // 0..1
+    lightRaysFadeDistance: number;     // 0.1..2.0
+    lightRaysBehindLogo: boolean;
+    lightRaysBeatFreqStart: number;    // Hz
+    lightRaysBeatFreqEnd: number;      // Hz
+    lightRaysBeatSensitivity: number;  // 0..5
+    lightRaysBeatIntensity: number;    // 0..2
   };
 
   logo: {
@@ -555,6 +569,20 @@ const DEFAULT_SETTINGS: Settings = {
     magicRingsBeatSensitivity: 1.5,
     magicRingsBurstStrength: 0.5,
     magicRingsGlowStrength: 0.6,
+    // ── Light Rays (v16) ─────────────────────────────────────────────────
+    lightRaysEnabled: false,
+    lightRaysOrigin: 'top-center',
+    lightRaysColor: '#ffffff',
+    lightRaysSpeed: 1.0,
+    lightRaysSpread: 1.0,
+    lightRaysLength: 1.5,
+    lightRaysOpacity: 0.8,
+    lightRaysFadeDistance: 1.0,
+    lightRaysBehindLogo: true,
+    lightRaysBeatFreqStart: 40,
+    lightRaysBeatFreqEnd: 120,
+    lightRaysBeatSensitivity: 1.0,
+    lightRaysBeatIntensity: 0.5,
   },
 
   logo: {
@@ -705,9 +733,9 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v15',
+      name: 'audiovisualizer:settings:v16',
       storage: createJSONStorage(() => localStorage),
-      version: 15,
+      version: 16,
       migrate: (persistedState: unknown, version: number): { settings: Settings } => {
         // Safety: no persisted data → start fresh
         const ps = persistedState as Record<string, unknown> | null | undefined;
@@ -717,6 +745,11 @@ export const useSettingsStore = create<SettingsStore>()(
         const s = ps['settings'] as Record<string, unknown>;
         if (version < 15) {
           // Deep-merge background: keep old user values, fill in new strands* fields
+          const oldBg = (s['background'] as Record<string, unknown>) ?? {};
+          s['background'] = { ...DEFAULT_SETTINGS.background, ...oldBg };
+        }
+        if (version < 16) {
+          // Deep-merge background: keep old user values, fill in new lightRays* fields
           const oldBg = (s['background'] as Record<string, unknown>) ?? {};
           s['background'] = { ...DEFAULT_SETTINGS.background, ...oldBg };
         }

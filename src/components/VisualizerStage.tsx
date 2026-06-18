@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 import { useSettingsStore } from '@/lib/settingsStore';
 import { AudioScene } from './three/AudioScene';
 import { Strands } from './three/Strands';
+import { LightRays } from './three/LightRays';
 import { TransportBar } from './TransportBar';
 import { SettingsPanel } from './SettingsPanel';
 
@@ -25,10 +26,12 @@ export function VisualizerStage({
   onBack,
   onExport,
 }: VisualizerStageProps) {
-  const strandsEnabled    = useSettingsStore((s) => s.settings.background.strandsEnabled);
-  const strandsBehindLogo = useSettingsStore((s) => s.settings.background.strandsBehindLogo);
-  const logoEnabled       = useSettingsStore((s) => s.settings.logo.enabled);
-  const logoSize          = useSettingsStore((s) => s.settings.logo.size);
+  const strandsEnabled      = useSettingsStore((s) => s.settings.background.strandsEnabled);
+  const strandsBehindLogo   = useSettingsStore((s) => s.settings.background.strandsBehindLogo);
+  const lightRaysEnabled    = useSettingsStore((s) => s.settings.background.lightRaysEnabled);
+  const lightRaysBehindLogo = useSettingsStore((s) => s.settings.background.lightRaysBehindLogo);
+  const logoEnabled         = useSettingsStore((s) => s.settings.logo.enabled);
+  const logoSize            = useSettingsStore((s) => s.settings.logo.size);
 
 
   return (
@@ -61,6 +64,24 @@ export function VisualizerStage({
         const maskImage = `radial-gradient(circle ${r}px at 50% 50%, transparent ${r}px, white ${r2}px)`;
         return (
           <Strands
+            style={{
+              maskImage,
+              WebkitMaskImage: maskImage,
+            }}
+          />
+        );
+      })()}
+
+      {/* LightRays AFTER Strands in DOM order — same masking pattern as Strands */}
+      {lightRaysEnabled && (() => {
+        if (!lightRaysBehindLogo || !logoEnabled) {
+          return <LightRays />;
+        }
+        const r  = logoSize / 2 + 15;
+        const r2 = r + 4;
+        const maskImage = `radial-gradient(circle ${r}px at 50% 50%, transparent ${r}px, white ${r2}px)`;
+        return (
+          <LightRays
             style={{
               maskImage,
               WebkitMaskImage: maskImage,
