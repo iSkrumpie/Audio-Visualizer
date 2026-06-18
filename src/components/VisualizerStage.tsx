@@ -28,7 +28,7 @@ export function VisualizerStage({
   const strandsEnabled    = useSettingsStore((s) => s.settings.background.strandsEnabled);
   const strandsBehindLogo = useSettingsStore((s) => s.settings.background.strandsBehindLogo);
   const logoEnabled       = useSettingsStore((s) => s.settings.logo.enabled);
-  const logoSize          = useSettingsStore((s) => s.settings.logo.size);
+  const logoSize          = useSettingsStore((s) => s.settings.logo.size);  // px, default 240
 
   return (
     <motion.div
@@ -44,50 +44,27 @@ export function VisualizerStage({
 
       {/* Strands AFTER R3F canvas in DOM order. R3F is opaque (alpha:false),
           so strands can never appear *behind* it in the strict DOM sense.
-          The `behindLogo` setting uses an SVG mask to punch a hole where
-          the logo sits — strands render fully visible everywhere else
-          but are hidden behind the logo circle, mimicking a true
-          background-layer effect.
-          - true  (default): masked-out logo circle; strands look like
-            they're behind the logo but visible over the background image.
-          - false: full coverage — strands float in front of everything. */}
+          'Behind logo' uses a CSS radial-gradient mask: transparent circle
+          at center (= logo position) hides strands there, opaque outside
+          leaves strands fully visible over the background image.
+          - true  (default): CSS mask with circular cutout at logo position
+          - false: no mask, strands float in front of everything */}
       {strandsEnabled && (() => {
-        // Compute mask: full white = visible, full black = hidden.
-        // We want strands visible EVERYWHERE except inside the logo disc.
-        // The logo sits at center with diameter = logoSize (px), so radius
-        // = logoSize/2 in normalized space (50% = half the smaller axis).
         if (!strandsBehindLogo || !logoEnabled) {
           return <Strands />;
         }
-        // Logo radius as % of half the smaller viewport axis (since the
-        // SVG mask uses objectBoundingBox which is a 0..1 box).
-        const radiusPct = (logoSize / 2) / Math.min(window.innerWidth, window.innerHeight);
-        const maskId = 'strands-logo-mask';
+        // Logo is centered in the viewport. Radius in px = half the size
+        // setting. Add a small feather (8px) so the cutout edge is soft.
+        const r  = logoSize / 2;
+        const r2 = r + 8;
+        const maskImage = `radial-gradient(circle ${r}px at 50% 50%, transparent ${r}px, white ${r2}px)`;
         return (
-          <>
-            <svg
-              width="0"
-              height="0"
-              style={{ position: 'absolute', pointerEvents: 'none' }}
-              aria-hidden
-            >
-              <defs>
-                <mask id={maskId} maskUnits="objectBoundingBox" x="0" y="0" width="1" height="1">
-                  {/* White = visible, black = hidden. The mask covers the
-                      full area (white) but with a black circle cut out
-                      where the logo is, centered. */}
-                  <rect x="0" y="0" width="1" height="1" fill="white" />
-                  <circle
-                    cx="0.5"
-                    cy="0.5"
-                    r={Math.min(radiusPct, 0.5)}
-                    fill="black"
-                  />
-                </mask>
-              </defs>
-            </svg>
-            <Strands style={{ mask: `url(#${maskId})`, WebkitMask: `url(#${maskId})` }} />
-          </>
+          <Strands
+            style={{
+              maskImage,
+              WebkitMaskImage: maskImage,
+            }}
+          />
         );
       })()}
 
