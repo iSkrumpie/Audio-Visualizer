@@ -164,12 +164,15 @@ export function MagicRings() {
     }
     mesh.visible = true;
 
-    // Accumulate time
-    timeRef.current += delta * (bg.magicRingsSpeed ?? DEFAULT_SETTINGS.background.magicRingsSpeed);
-
     // Resolution from live state (critical for export pipeline correctness)
     const { width, height } = state.size;
     const dpr = state.gl.getPixelRatio();
+
+    // Scale plane to fill the orthographic viewport (1 world unit = 1 CSS pixel)
+    mesh.scale.set(width, height, 1);
+
+    // Accumulate time
+    timeRef.current += delta * (bg.magicRingsSpeed ?? DEFAULT_SETTINGS.background.magicRingsSpeed);
     uniforms.uResolution.value.set(width * dpr, height * dpr);
 
     // Uniforms
