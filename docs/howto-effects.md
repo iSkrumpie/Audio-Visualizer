@@ -354,15 +354,10 @@ Für Effekte die NICHT in R3F integriert sind (eigene WebGL-Canvas, eigener rAF)
 
 5. **Envelope/UV-Reihenfolge**: Falls Fade-Effekte auf Basis der Fragment-Koordinaten berechnet werden — VOR UV-Skalierung berechnen, sonst stimmt der Wertebereich nicht
 
-6. **"Behind Logo" Maske**: CSS `radial-gradient` als `mask-image` nutzen
-   ```tsx
-   const r  = logoSize / 2 + 15;
-   const r2 = r + 4;
-   const maskImage = `radial-gradient(circle ${r}px at 50% 50%, transparent ${r}px, white ${r2}px)`;
-   // style={{ maskImage, WebkitMaskImage: maskImage }}
-   ```
+6. **"Behind Logo" Maske**: Wird zentral über einen gemeinsamen rAF-Loop in `VisualizerStage.tsx` gesteuert — **KEIN** `style`-Prop mehr auf den Overlay-Komponenten direkt setzen.
    - mix-blend-mode (screen/soft-light) funktioniert NICHT zuverlässig für "hinter Logo aber vor BG"
    - SVG-Mask mit objectBoundingBox hat Koordinaten-Probleme
+   - **Nie** `document.documentElement.style.setProperty` in `useFrame` aufrufen — das stört die Logo-Audio-Reaktivität
 
 7. **Settings + SettingsPanel + Hints + AGENTS.md** — wie in A) vollständig, plus:
    - `docs/architecture.md` §4.10 HTML-Overlay-Layer-Tabelle
@@ -377,25 +372,53 @@ Für Effekte die NICHT in R3F integriert sind (eigene WebGL-Canvas, eigener rAF)
    myEffectBehindLogo: true,
    ```
 
-   **b) VisualizerStage.tsx** — gleiche Masken-Logik wie Strands, NACH dem Strands-Block:
+   **b) VisualizerStage.tsx** — Wrapper-Div mit Ref, kein `style`-Prop auf der Komponente:
+
+   **Schritt 1:** Neuen Ref hinzufügen (neben den bestehenden):
+   ```tsx
+   const myEffectMaskRef = useRef<HTMLDivElement>(null);
+   ```
+
+   **Schritt 2:** Ref in die `wrappers`-Liste im bestehenden rAF-Loop eintragen:
+   ```tsx
+   const wrappers = [strandsMaskRef, lightRaysMaskRef, lightPillarMaskRef, myEffectMaskRef];
+   ```
+
+   **Schritt 3:** Render-Block (NACH dem letzten bestehenden Effekt-Block):
    ```tsx
    const myEffectEnabled    = useSettingsStore((s) => s.settings.background.myEffectEnabled);
    const myEffectBehindLogo = useSettingsStore((s) => s.settings.background.myEffectBehindLogo);
 
-   {myEffectEnabled && (() => {
-     if (!myEffectBehindLogo || !logoEnabled) {
-       return <MyEffect />;
-     }
-     const r  = logoSize / 2 + 15;
-     const r2 = r + 4;
-     const maskImage = `radial-gradient(circle ${r}px at 50% 50%, transparent ${r}px, white ${r2}px)`;
-     return (
-       <MyEffect
-         style={{ maskImage, WebkitMaskImage: maskImage }}
-       />
-     );
-   })()}
+   {myEffectEnabled && (
+     myEffectBehindLogo && logoEnabled
+       ? (
+         <div ref={myEffectMaskRef} style={{ position: 'absolute', inset: 0 }}>
+           <MyEffect />
+         </div>
+       ) : <MyEffect />
+   )}
    ```
+
+   **Mask-Formel** (in VisualizerStage.tsx, rAF-Loop, Zeile mit `const mask = ...`):
+   ```tsx
+   const mask = `radial-gradient(circle ${r}px at 50% 50%, transparent ${r}px, white ${r + 1}px)`;
+   //                                                                                      ^^^
+   //                                                       Feather: 1px = scharfe Kante
+   ```
+   `r` kommt aus `logoMaskRadiusRef.current` (siehe unten).
+
+   **Radius-Formel** (in `CenterLogo.tsx`, useFrame, exportierter Ref):
+   ```tsx
+   // src/components/three/CenterLogo.tsx
+   logoMaskRadiusRef.current = (logoSize * beatScale) / 2.015;
+   //                                                    ^^^^^
+   //   2.015 statt 2.0: Maske sitzt minimal innerhalb der Logo-Kante.
+   //   logoSize = s.size * scale  (echter CSS-Pixel-Wert, DPI-korrekt)
+   //   beatScale = live beat-pulse
+   //   Divisor NICHT ändern ohne visuellen Test — sitzt exakt am Rand.
+   ```
+
+   ⚠️ **Nie** `document.documentElement.style.setProperty` o.ä. in `useFrame` aufrufen — das DOM-Write im Three.js-Renderloop stört die Logo-Audio-Reaktivität.
 
    **c) SettingsPanel.tsx** — "Position"-Row als **erstes Setting** nach dem Master-Toggle (exakt wie Strands):
    ```tsx
