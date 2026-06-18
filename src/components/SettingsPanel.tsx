@@ -1167,6 +1167,13 @@ function BackgroundSection() {
         <Tg value={lrE as boolean} onChange={sLrE} label="Light Rays" />
         {(lrE as boolean) && (
           <>
+            <FR label="Position" info={hintFor('background.lightRaysBehindLogo')}>
+              <CB
+                value={(lrBL as boolean) ? 'behind' : 'front'}
+                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+                onChange={(v) => sLrBL(v === 'behind')}
+              />
+            </FR>
             <FR label="Origin" info={hintFor('background.lightRaysOrigin')}>
               <select
                 value={lrOr as string}
@@ -1208,13 +1215,6 @@ function BackgroundSection() {
             </FR>
             <FR label="Fade Distance" hint={`${(lrFd as number).toFixed(2)}`} info={hintFor('background.lightRaysFadeDistance')}>
               <Sl value={lrFd as number} min={0.1} max={2} step={0.1} onChange={sLrFd} />
-            </FR>
-            <FR label="Behind Logo" info={hintFor('background.lightRaysBehindLogo')}>
-              <CB
-                value={(lrBL as boolean) ? 'behind' : 'front'}
-                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
-                onChange={(v) => sLrBL(v === 'behind')}
-              />
             </FR>
             <div className="mt-2">
               <HzRangePicker

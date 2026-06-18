@@ -236,6 +236,7 @@ useFrame((state, delta) => {
 2. **Wie reagiert es?** — Kurze Formel: `effektiver Wert = Basiswert * (1 + beat * stärke)`
 3. **Eigener Regler im UI?** — Jede Beat-Reaktion bekommt einen eigenen Slider (`*GlowBoost`, `*BurstStrength`, etc.) damit der User sie unabhängig steuern kann
 4. **Hints geplant?** — Für jedes Setting-Feld sofort einen Hint-Text formulieren (→ Hints-Regeln weiter unten)
+5. **"Position" (Behind Logo / In front)?** — Bei jedem neuen Standalone-HTML-Overlay-Effekt (Typ C) **PFLICHT**: Skrumpie fragen ob ein `*BehindLogo`-Setting eingebaut werden soll (Default: ja). Siehe §C-Punkt 8 für das exakte Implementierungs-Muster.
 
 Diesen Block **immer in den Worker-Brief aufnehmen** — der Worker soll diese Entscheidungen NICHT selbst treffen.
 
@@ -366,3 +367,62 @@ Für Effekte die NICHT in R3F integriert sind (eigene WebGL-Canvas, eigener rAF)
 7. **Settings + SettingsPanel + Hints + AGENTS.md** — wie in A) vollständig, plus:
    - `docs/architecture.md` §4.10 HTML-Overlay-Layer-Tabelle
    - Jedes `<FR>` bekommt `info={hintFor(...)}`, jedes Feld einen Hint in `hints.ts`
+
+8. **"Position" (Behind Logo / In front) — Pflicht-Muster** (wenn vom User bestätigt, Default: ja):
+
+   **a) settingsStore.ts** — neues Boolean-Feld `*BehindLogo: boolean` (Default: `true`):
+   ```typescript
+   myEffectBehindLogo: boolean;   // default true
+   // DEFAULT_SETTINGS:
+   myEffectBehindLogo: true,
+   ```
+
+   **b) VisualizerStage.tsx** — gleiche Masken-Logik wie Strands, NACH dem Strands-Block:
+   ```tsx
+   const myEffectEnabled    = useSettingsStore((s) => s.settings.background.myEffectEnabled);
+   const myEffectBehindLogo = useSettingsStore((s) => s.settings.background.myEffectBehindLogo);
+
+   {myEffectEnabled && (() => {
+     if (!myEffectBehindLogo || !logoEnabled) {
+       return <MyEffect />;
+     }
+     const r  = logoSize / 2 + 15;
+     const r2 = r + 4;
+     const maskImage = `radial-gradient(circle ${r}px at 50% 50%, transparent ${r}px, white ${r2}px)`;
+     return (
+       <MyEffect
+         style={{ maskImage, WebkitMaskImage: maskImage }}
+       />
+     );
+   })()}
+   ```
+
+   **c) SettingsPanel.tsx** — "Position"-Row als **erstes Setting** nach dem Master-Toggle (exakt wie Strands):
+   ```tsx
+   <Tg value={myEffectEnabled} onChange={setMyEffectEnabled} label="Show My Effect" />
+   {myEffectEnabled && (
+     <>
+       {/* ← HIER als ERSTES — wie bei Strands */}
+       <FR label="Position" info={hintFor('background.myEffectBehindLogo')}>
+         <CB
+           value={(myEffectBehindLogo as boolean) ? 'behind' : 'front'}
+           options={[
+             { value: 'behind', label: 'Behind logo' },
+             { value: 'front',  label: 'In front'    },
+           ]}
+           onChange={(v) => setMyEffectBehindLogo(v === 'behind')}
+         />
+       </FR>
+       {/* ... rest der Settings */}
+     </>
+   )}
+   ```
+
+   **d) hints.ts** — Hint-Text nach dem Strands-Muster:
+   ```typescript
+   'background.myEffectBehindLogo':
+     'When set to "Behind logo", the effect is masked out at the logo position. "In front" lets it cover everything including the logo.',
+   ```
+
+   **Wichtig:** FR-Label ist immer **"Position"** (nicht "Behind Logo" oder ähnliches) — identisch zu Strands.
+   **Wichtig:** Der "Position"-Block kommt immer **als erstes Setting** nach dem Master-Toggle — identisch zu Strands.

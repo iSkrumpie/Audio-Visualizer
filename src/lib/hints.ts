@@ -324,7 +324,7 @@ export const SETTING_HINTS: Record<string, string> = {
   'background.lightRaysFadeDistance':
     'Distance over which rays fade out. Lower = tighter, brighter core.',
   'background.lightRaysBehindLogo':
-    'When on, rays are masked behind the logo circle.',
+    'When set to "Behind logo", the effect is masked out at the logo position. "In front" lets rays cover everything including the logo.',
   'background.lightRaysBeatFreqStart':
     'Lowest frequency (Hz) that triggers a beat for Light Rays intensity boost.',
   'background.lightRaysBeatFreqEnd':
