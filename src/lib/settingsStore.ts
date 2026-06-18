@@ -502,7 +502,7 @@ const DEFAULT_SETTINGS: Settings = {
     strandsWaviness: 1,
     strandsThickness: 0.7,
     strandsGlow: 2.6,
-    strandsTaper: 3,
+    strandsTaper: 0,
     strandsSpread: 1,
     strandsHueShift: 0,
     strandsIntensity: 0.6,

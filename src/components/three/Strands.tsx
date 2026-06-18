@@ -93,8 +93,14 @@ void main() {
   str_uv /= max(uScale, 0.0001);
 
   float str_e   = 0.06 + uIntensity * 0.94;
-  // Envelope: cos taper along X so strands fade at the edges
-  float str_env = pow(max(cos(str_uv.x * str_PI * 1.3), 0.0), uTaper);
+
+  // Aspect-ratio-aware edge envelope. The fade zone is placed exactly at
+  // the screen edges (str_uv.x = ±aspect/2). With uTaper=0 the envelope
+  // is 1.0 across the entire screen (no fade — strands go edge to edge).
+  // Higher uTaper values sharpen the fade into a hard edge at the rim.
+  float str_aspect  = uResolution.x / max(uResolution.y, 1.0);
+  float str_envArg  = (str_uv.x / max(str_aspect * 0.5, 0.001)) * (str_PI * 0.5);
+  float str_env     = pow(max(cos(str_envArg), 0.0), max(uTaper, 0.0));
 
   vec3 str_col = vec3(0.0);
 
