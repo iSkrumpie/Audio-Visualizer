@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+dist-ssr/
+*.local
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# OS
+Thumbs.db
+
+# Vite
+*.tsbuildinfo
+.vite/
+
+# Local agent context (not for public repo)
+AGENTS.md
+
+# Local-only docs (architecture, hot-spots, session log — kept private)
+docs/
+
+# Local test artifacts, generated audio, debug screenshots
+tmp/
+
+# Local-only debug / verification scripts (kept on disk, not in public repo)
+scripts/

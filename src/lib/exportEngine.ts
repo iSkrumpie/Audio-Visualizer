@@ -1,0 +1,440 @@
+/**
+ * Export Engine - renders the Three.js scene frame-by-frame and encodes to MP4
+ *
+ * Uses Mediabunny (WebCodecs wrapper) for H.264/AAC encoding.
+ * YouTube-spec: 1080p60, 12 Mbps, AAC-LC 384kbps Stereo 48kHz, BT.709.
+ *
+ * Flow:
+ * 1. Decode audio file to AudioBuffer
+ * 2. Pre-compute FFT data for every frame
+ * 3. For each frame: set audioAnalysis, render scene, capture canvas
+ * 4. Encode video + audio via Mediabunny
+ * 5. Finalize + download
+ */
+
+import {
+  Output,
+  Mp4OutputFormat,
+  CanvasSource,
+  AudioBufferSource,
+  BufferTarget,
+} from 'mediabunny';
+import * as THREE from 'three';
+import { precomputeFFT, type PrecomputedFrame } from './fft';
+import { audioAnalysis } from '@/hooks/useAudioReactive';
+import { sceneRegistry } from '@/components/three/AudioScene';
+import { FreqBeatDetector } from './audioUtils';
+import { getSettings } from './settingsStore';
+import { useAudioStore } from './audioStore';
+
+export type ExportProgress = {
+  phase: 'decoding' | 'analyzing' | 'rendering' | 'finalizing' | 'done' | 'error';
+  progress: number; // 0..1
+  message: string;
+};
+
+export type ExportOptions = {
+  width?: number;
+  height?: number;
+  fps?: number;
+  videoBitrate?: number;
+  audioBitrate?: number;
+  onProgress: (progress: ExportProgress) => void;
+};
+
+/**
+ * Find the highest AAC bitrate supported by the current browser's WebCodecs AudioEncoder.
+ * Tries candidates in descending order and returns the first supported one.
+ */
+async function findSupportedAacBitrate(
+  candidates: number[],
+  sampleRate: number,
+  numberOfChannels: number,
+): Promise<number> {
+  for (const bitrate of candidates) {
+    try {
+      const result = await AudioEncoder.isConfigSupported({
+        codec: 'mp4a.40.2',
+        bitrate,
+        sampleRate,
+        numberOfChannels,
+      });
+      if (result.supported) return bitrate;
+    } catch {
+      // isConfigSupported not available or threw - skip
+    }
+  }
+  // Last resort: return smallest candidate and let the encoder fail naturally
+  return candidates[candidates.length - 1];
+}
+
+export async function exportMP4(
+  audioFile: File,
+  options: ExportOptions,
+): Promise<Blob> {
+  const {
+    width = 1920,
+    height = 1080,
+    fps = 60,
+    videoBitrate = 12_000_000,
+    audioBitrate = 384_000,
+    onProgress,
+  } = options;
+
+  // Capture real performance.now before the try block so it is accessible
+  // in both try and catch for the THREE.Clock override restore.
+  const origPerfNow = performance.now.bind(performance);
+
+  try {
+    // Phase 1: Decode audio
+    onProgress({ phase: 'decoding', progress: 0, message: 'Decoding audio...' });
+    const arrayBuffer = await audioFile.arrayBuffer();
+
+    const audioCtx = new AudioContext({ sampleRate: 48000 });
+
+    // Ensure AudioContext is running - a suspended context may fail to decode
+    // correctly on some Chrome versions (autoplay-policy timing).
+    if (audioCtx.state === 'suspended') {
+      try { await audioCtx.resume(); } catch { /* ignore - decode usually still works */ }
+    }
+
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    audioCtx.close();
+
+    onProgress({ phase: 'decoding', progress: 1, message: 'Audio decoded.' });
+
+    // Phase 2: Pre-compute FFT (now async — uses OfflineAudioContext + AnalyserNode
+    // for byte-identical output to the live preview).
+    onProgress({ phase: 'analyzing', progress: 0, message: 'Analyzing audio...' });
+    // v13: if a pre-analysis bundle was produced by the live preview
+    // (window.__analysisBundle), reuse it. Otherwise run a fresh
+    // precomputeFFT (the export-only path that doesn't have a live
+    // preview yet). Same frame data either way — guarantees
+    // byte-identical preview/export matching.
+    const liveBundle = (window as any).__analysisBundle as
+      | { frames: PrecomputedFrame[] }
+      | undefined;
+    const fftFrames = liveBundle?.frames ?? await precomputeFFT(audioBuffer, fps);
+    onProgress({ phase: 'analyzing', progress: 1, message: `${fftFrames.length} frames analyzed.` });
+
+    // Phase 3: Render frames
+    const { gl, scene, camera } = sceneRegistry;
+    if (!gl || !scene || !camera) {
+      throw new Error('Three.js scene not ready. Please start playback first.');
+    }
+
+    // Save original renderer state
+    const origSize = gl.getSize(new THREE.Vector2());
+    const origPixelRatio = gl.getPixelRatio();
+
+    // Resize renderer + R3F's internal state.size for export.
+    // CRITICAL: must use sceneRegistry.setSize (not just gl.setSize) so
+    // components that read width/height from useThree(s => s.size) - like
+    // the background plane scale, shader uResolution, and bars/particle
+    // scaling - see the export resolution and not the preview-window size.
+    if (sceneRegistry.setSize) {
+      sceneRegistry.setSize(width, height);
+    } else {
+      gl.setSize(width, height, false);
+    }
+    gl.setPixelRatio(1);
+
+    // Update camera for new aspect ratio
+    const cam = camera as any;
+    if (cam.isOrthographicCamera) {
+      cam.left = -width / 2;
+      cam.right = width / 2;
+      cam.top = height / 2;
+      cam.bottom = -height / 2;
+      cam.updateProjectionMatrix();
+    }
+
+    const canvas = gl.domElement;
+
+    // Pin the canvas CSS size to the export resolution so that
+    // react-use-measure's ResizeObserver reports the export size back
+    // to R3F's state.size - not the preview's container-clipped size.
+    // Without this, the canvas backing buffer is the right size but the
+    // CSS box (and therefore all mesh scales that derive from state.size
+    // in useFrame) is still the preview size, producing a stretched /
+    // squashed image (the camera frustum is 1920x1080 but the logo mesh
+    // is sized for the preview's smaller viewport).
+    canvas.style.width  = `${width}px`;
+    canvas.style.height = `${height}px`;
+
+    // Create Mediabunny output
+    const target = new BufferTarget();
+    const videoSource = new CanvasSource(canvas, {
+      codec: 'avc',
+      bitrate: videoBitrate,
+      keyFrameInterval: 2,
+    });
+    // Probe for supported AAC bitrate. Try 512k first (some browsers allow it;
+    // gives YouTube's re-encode a better source), then preset-bitrate, then
+    // fall through the standard ladder. The dedup filter prevents probing
+    // the same value twice (e.g. if audioBitrate === 384000).
+    const aacCandidates = [512_000, audioBitrate, 384_000, 320_000, 256_000, 192_000, 128_000]
+      .filter((v, i, a) => a.indexOf(v) === i); // deduplicate
+    const resolvedAudioBitrate = await findSupportedAacBitrate(
+      aacCandidates,
+      audioBuffer.sampleRate,
+      audioBuffer.numberOfChannels,
+    );
+    if (resolvedAudioBitrate < audioBitrate) {
+      console.info(
+        `[export] AAC bitrate fallback: requested ${audioBitrate} bps, ` +
+        `browser accepted ${resolvedAudioBitrate} bps. ` +
+        `YouTube recommends 384000 bps for stereo AAC.`
+      );
+    }
+
+    const audioSource = new AudioBufferSource({
+      codec: 'aac',
+      bitrate: resolvedAudioBitrate,
+    });
+
+    const output = new Output({
+      format: new Mp4OutputFormat({ fastStart: 'in-memory' }),
+      target,
+    });
+    output.addVideoTrack(videoSource);
+    output.addAudioTrack(audioSource);
+
+    // Start the output - required before any frames can be added
+    await output.start();
+
+    // Global beat detector — reuse the shared singleton from the live preview
+    // (exposed on window.__detectors by useAudioReactive.ts). Using the same
+    // instance means both paths accumulate identical flux history when replayed
+    // from frame 0, producing matching beatPhase at every timestamp.
+    // Fall back to a fresh instance only in SSR / test environments.
+    const globalBeatDetector: FreqBeatDetector =
+      (window as any).__detectors?.global ?? new FreqBeatDetector(48000);
+
+    onProgress({ phase: 'rendering', progress: 0, message: `Rendering 0/${fftFrames.length} frames...` });
+
+    const frameDuration = 1 / fps;
+    const totalFrames = fftFrames.length;
+    const audioSettings = getSettings().audio;
+
+    // ── performance.now() override for correct THREE.Clock delta ────────────────
+    // R3F / THREE.Clock internally calls performance.now() to compute delta
+    // (the timestamp argument to advance() is NOT used for clock calculation).
+    // In the export render loop each frame renders in ~1-5 ms of wall time,
+    // so without the override delta ≈ 0.001 s instead of 1/fps ≈ 0.01667 s.
+    // That makes ALL time-based shader animations (uTime, noise scroll, grid wave,
+    // scanline speed, glitch timing, particle orbit, etc.) run ~16× too slowly
+    // and appear frozen in the exported video.
+    //
+    // Fix: patch performance.now() so THREE.Clock sees exactly frameDuration per
+    // frame. Restore immediately after advance() in every loop iteration so that
+    // Mediabunny's own timing (videoSource.add timestamps) is unaffected.
+    const exportPerfBase = origPerfNow();
+    let exportFrameNow = exportPerfBase; // will be advanced per frame
+    (performance as unknown as { now: () => number }).now = () => exportFrameNow;
+
+    // ── Deterministic detector reset + fps calibration ────────────────────────────────────────
+    // Full reset so both the global and all component detectors start from the
+    // same clean state as the live preview did at t=0. The export render loop
+    // then feeds frames from index 0 so each detector re-accumulates exactly
+    // the flux history the live preview saw, producing matching beatPhase at
+    // every frame index.
+    //
+    // setFrameDuration scales the per-frame decay and history-window length so
+    // the REAL-TIME decay rate stays constant regardless of export fps. Without
+    // this, a 30 fps export decays phase at 1.2/s while the 60 fps live preview
+    // decays at 2.4/s — causing the exported video to show permanently higher
+    // beatPhase values (glows too bright, bars too tall, fire too large).
+    const frameDt = 1 / fps;
+    globalBeatDetector.reset();
+    globalBeatDetector.setFrameDuration(frameDt);
+    for (const detector of sceneRegistry.beatDetectors) {
+      detector.reset();
+      detector.setFrameDuration?.(frameDt);
+    }
+
+        for (let i = 0; i < totalFrames; i++) {
+      const frame = fftFrames[i];
+
+      // Set audioAnalysis to pre-computed values
+      audioAnalysis.freqData.set(frame.freqData.subarray(0, 128));
+      audioAnalysis.rawFreqData.set(frame.rawFreqData.subarray(0, 1024));
+      audioAnalysis.bass = frame.bass;
+      audioAnalysis.loudness = frame.loudness;
+      audioAnalysis.highs = frame.highs;
+      audioAnalysis.energy = frame.energy;
+
+      // v13: per-band onset phases (kick/snare/vocal/hihat) from
+      // the precomputed frame, scaled by bandSensitivity.
+      const bandSens = audioSettings.bandSensitivity ?? {
+        kick: 1, snare: 1, vocal: 1, hihat: 1,
+      };
+      audioAnalysis.kickPhase  = frame.kickPhase  * (bandSens.kick  ?? 1);
+      audioAnalysis.snarePhase = frame.snarePhase * (bandSens.snare ?? 1);
+      audioAnalysis.vocalPhase = frame.vocalPhase * (bandSens.vocal ?? 1);
+      audioAnalysis.hihatPhase = frame.hihatPhase * (bandSens.hihat ?? 1);
+
+      // v13: beat phase — precomputed from essentia ticks (preferred)
+      // or legacy spectral-flux fallback. We use the bundle's ticks
+      // when available so export and preview produce identical
+      // beat phases.
+      let beatPhase: number;
+      if (liveBundle && (liveBundle as any).essentia?.ticks?.length > 1) {
+        const ticks = (liveBundle as any).essentia.ticks as number[];
+        const t = i * frameDuration;
+        // Find the tick that brackets time t
+        let lo = 0, hi = 1;
+        if (t < ticks[0]) {
+          beatPhase = 0;
+        } else if (t >= ticks[ticks.length - 1]) {
+          beatPhase = 0;
+        } else {
+          for (let j = 0; j < ticks.length - 1; j++) {
+            if (t >= ticks[j] && t < ticks[j + 1]) { lo = j; hi = j + 1; break; }
+          }
+          const dt = ticks[hi] - ticks[lo];
+          beatPhase = dt > 0 ? Math.max(0, 1 - (t - ticks[lo]) / dt) : 1.0;
+        }
+      } else {
+        // Fallback: legacy spectral-flux detector
+        globalBeatDetector.setSensitivity(audioSettings.globalBeatSensitivity ?? 1.0);
+        beatPhase = globalBeatDetector.update(
+          frame.rawFreqData,
+          audioSettings.globalBeatFreqStart ?? 40,
+          audioSettings.globalBeatFreqEnd ?? 120,
+        );
+      }
+      audioAnalysis.beatPhase = beatPhase;
+      useAudioStore.getState().beatPhase = beatPhase;
+
+      // Advance R3F frame - runs all useFrame callbacks (bars, particles, etc.) then renders
+      const timestamp = i * frameDuration;
+
+      // Re-pin R3F's state.size + canvas backing buffer to the export target
+      // BEFORE running useFrame callbacks. R3F's react-use-measure
+      // ResizeObserver fires async and can write a clipped size (parent's
+      // overflow-hidden / scrollbar) back into state.size - which would
+      // then be picked up by all useFrame callbacks that derive mesh
+      // scale from state.size, producing a stretched/squashed render
+      // (camera frustum = export size, mesh scale = preview size).
+      if (sceneRegistry.setSize) {
+        sceneRegistry.setSize(width, height);
+      }
+      if (canvas.width !== width || canvas.height !== height) {
+        gl.setSize(width, height, false);
+      }
+
+      // Advance the fake clock so THREE.Clock.getDelta() returns exactly frameDuration.
+      exportFrameNow = exportPerfBase + (i + 1) * frameDuration * 1000;
+      (performance as unknown as { now: () => number }).now = () => exportFrameNow;
+
+      if (sceneRegistry.advance) {
+        sceneRegistry.advance(timestamp);
+      } else {
+        gl.render(scene, camera);
+      }
+
+      // Restore real performance.now so Mediabunny timing is unaffected.
+      (performance as unknown as { now: () => number }).now = origPerfNow;
+
+      // Re-pin AGAIN after advance(): gl.render() reads canvas.width/height
+      // to set the viewport, and if anything (e.g. the subscribe block, a
+      // re-fired ResizeObserver between advance() and now) shrank the
+      // backing buffer, the captured frame would be the wrong size and
+      // Mediabunny would abort with 'Video sample size must remain
+      // constant'. updateStyle=false keeps the CSS box stable so the
+      // observer does not immediately undo this.
+      if (canvas.width !== width || canvas.height !== height) {
+        gl.setSize(width, height, false);
+      }
+
+      // Capture frame
+      await videoSource.add(timestamp, frameDuration);
+
+      // Progress update every 10 frames
+      if (i % 10 === 0 || i === totalFrames - 1) {
+        onProgress({
+          phase: 'rendering',
+          progress: (i + 1) / totalFrames,
+          message: `Rendering ${i + 1}/${totalFrames} frames...`,
+        });
+      }
+
+      // Yield to event loop periodically
+      if (i % 30 === 0) {
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+
+    // Ensure performance.now is always restored even on error.
+    (performance as unknown as { now: () => number }).now = origPerfNow;
+
+    // Close video source
+    videoSource.close();
+
+    // Add audio
+    onProgress({ phase: 'finalizing', progress: 0.5, message: 'Encoding audio...' });
+    await audioSource.add(audioBuffer);
+    audioSource.close();
+
+    // Finalize
+    onProgress({ phase: 'finalizing', progress: 0.8, message: 'Finalizing MP4...' });
+    await output.finalize();
+
+    // Restore renderer state
+    if (sceneRegistry.setSize) {
+      sceneRegistry.setSize(origSize.x, origSize.y);
+    } else {
+      gl.setSize(origSize.x, origSize.y, false);
+    }
+    gl.setPixelRatio(origPixelRatio);
+    if (cam.isOrthographicCamera) {
+      cam.left = -origSize.x / 2;
+      cam.right = origSize.x / 2;
+      cam.top = origSize.y / 2;
+      cam.bottom = -origSize.y / 2;
+      cam.updateProjectionMatrix();
+    }
+
+    // Restore detectors to nominal 60 fps behaviour so the live preview
+    // resumes with the correct decay rate after export.
+    globalBeatDetector.setFrameDuration(1 / 60);
+    for (const detector of sceneRegistry.beatDetectors) {
+      detector.setFrameDuration?.(1 / 60);
+    }
+
+    const buffer = target.buffer;
+    if (!buffer) throw new Error('Export failed: no output buffer');
+
+    onProgress({ phase: 'done', progress: 1, message: 'Export complete!' });
+    return new Blob([buffer], { type: 'video/mp4' });
+  } catch (error) {
+    // Always restore performance.now if it was patched during the render loop.
+    (performance as unknown as { now: () => number }).now = origPerfNow;
+    // Restore detectors to nominal 60 fps in the error path too.
+    try {
+      ((window as any).__detectors?.global as FreqBeatDetector | undefined)?.setFrameDuration(1 / 60);
+      for (const detector of sceneRegistry.beatDetectors) {
+        detector.setFrameDuration?.(1 / 60);
+      }
+    } catch { /* ignore restoration errors */ }
+    onProgress({
+      phase: 'error',
+      progress: 0,
+      message: `Export failed: ${(error as Error).message}`,
+    });
+    throw error;
+  }
+}
+
+/** Trigger a browser download of a Blob */
+export function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
