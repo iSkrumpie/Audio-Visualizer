@@ -16,6 +16,7 @@ import { MagicRings } from './MagicRings';
 import { LightPillar } from './LightPillar';
 import { LightRays } from './LightRays';
 import { Strands } from './Strands';
+import { LightningEffect } from './LightningEffect';
 import { NebulaPlane } from './NebulaPlane';
 import { InstancedBars } from './InstancedBars';
 import { GPUParticles } from './GPUParticles';
@@ -128,6 +129,7 @@ export function AudioScene({ className, style }: AudioSceneProps) {
       <BackgroundPlane />
       <BackgroundFx />
       <Strands />
+      <LightningEffect />
       <LightRays />
       <LightPillar />
       <MagicRings />

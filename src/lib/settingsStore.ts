@@ -272,6 +272,20 @@ export type Settings = {
     lightPillarBeatIntensity: number;    // 0..2, default 0.5
     lightPillarBeatWidthBoost: number;   // 0..1, default 0.3
     lightPillarBlendMode: 'normal' | 'multiply' | 'overlay' | 'soft-light' | 'screen'; // default 'normal'
+    // ── Lightning (v18) ──────────────────────────────────────────────
+    lightningEnabled: boolean;
+    lightningBehindLogo: boolean;     // default true
+    lightningHue: number;             // 0..360, default 230 (blue/purple)
+    lightningXOffset: number;         // -1..1, default 0
+    lightningSpeed: number;           // 0.1..3.0, default 1.0
+    lightningIntensity: number;       // 0.1..3.0, default 1.0
+    lightningSize: number;            // 0.1..3.0, default 1.0
+    lightningOpacity: number;         // 0..1, default 0.9
+    lightningBeatFreqStart: number;   // 20..20000, default 40
+    lightningBeatFreqEnd: number;     // 20..20000, default 120
+    lightningBeatSensitivity: number; // 0..5, default 1.0
+    lightningBeatIntensity: number;   // 0..2, default 0.6
+    lightningBeatScale: number;       // 0..1, default 0.3
   };
 
   logo: {
@@ -623,6 +637,20 @@ const DEFAULT_SETTINGS: Settings = {
     lightPillarBeatIntensity: 0.5,
     lightPillarBeatWidthBoost: 0.3,
     lightPillarBlendMode: 'normal' as const,
+    // ── Lightning (v18) ──────────────────────────────────────────────
+    lightningEnabled: false,
+    lightningBehindLogo: true,
+    lightningHue: 230,
+    lightningXOffset: 0,
+    lightningSpeed: 1.0,
+    lightningIntensity: 1.0,
+    lightningSize: 1.0,
+    lightningOpacity: 0.9,
+    lightningBeatFreqStart: 40,
+    lightningBeatFreqEnd: 120,
+    lightningBeatSensitivity: 1.0,
+    lightningBeatIntensity: 0.6,
+    lightningBeatScale: 0.3,
   },
 
   logo: {
@@ -773,9 +801,9 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v17',
+      name: 'audiovisualizer:settings:v18',
       storage: createJSONStorage(() => localStorage),
-      version: 17,
+      version: 18,
       migrate: (persistedState: unknown, version: number): { settings: Settings } => {
         // Safety: no persisted data → start fresh
         const ps = persistedState as Record<string, unknown> | null | undefined;
@@ -795,6 +823,11 @@ export const useSettingsStore = create<SettingsStore>()(
         }
         if (version < 17) {
           // Deep-merge background: keep old user values, fill in new lightPillar* fields
+          const oldBg = (s['background'] as Record<string, unknown>) ?? {};
+          s['background'] = { ...DEFAULT_SETTINGS.background, ...oldBg };
+        }
+        if (version < 18) {
+          // Deep-merge background: keep old user values, fill in new lightning* fields
           const oldBg = (s['background'] as Record<string, unknown>) ?? {};
           s['background'] = { ...DEFAULT_SETTINGS.background, ...oldBg };
         }

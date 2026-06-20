@@ -790,6 +790,20 @@ function BackgroundSection() {
   const [lpBInt,   sLpBInt]   = useF('background', 'lightPillarBeatIntensity');
   const [lpBW,     sLpBW]     = useF('background', 'lightPillarBeatWidthBoost');
   const [lpBM,     sLpBM]     = useF('background', 'lightPillarBlendMode');
+  // Lightning
+  const [ltnE,    sLtnE]    = useF('background', 'lightningEnabled');
+  const [ltnBL,   sLtnBL]   = useF('background', 'lightningBehindLogo');
+  const [ltnHue,  sLtnHue]  = useF('background', 'lightningHue');
+  const [ltnXOff, sLtnXOff] = useF('background', 'lightningXOffset');
+  const [ltnSp,   sLtnSp]   = useF('background', 'lightningSpeed');
+  const [ltnInt,  sLtnInt]  = useF('background', 'lightningIntensity');
+  const [ltnSz,   sLtnSz]   = useF('background', 'lightningSize');
+  const [ltnOp,   sLtnOp]   = useF('background', 'lightningOpacity');
+  const [ltnBFS,  sLtnBFS]  = useF('background', 'lightningBeatFreqStart');
+  const [ltnBFE,  sLtnBFE]  = useF('background', 'lightningBeatFreqEnd');
+  const [ltnBSen, sLtnBSen] = useF('background', 'lightningBeatSensitivity');
+  const [ltnBInt, sLtnBInt] = useF('background', 'lightningBeatIntensity');
+  const [ltnBScl, sLtnBScl] = useF('background', 'lightningBeatScale');
   const strandsColors = useSettingsStore((s) => s.settings.background.strandsColors);
   const setStrandsColors = (newColors: string[]) =>
     useSettingsStore.getState().setSettings((prev) => ({
@@ -1325,6 +1339,58 @@ function BackgroundSection() {
                 onChange={sLpBM as (v: string) => void}
               />
             </FR>
+          </>
+        )}
+      </Acc>
+
+      <Acc label="Lightning">
+        <Tg value={ltnE as boolean} onChange={sLtnE} label="Show Lightning" />
+        {(ltnE as boolean) && (
+          <>
+            <FR label="Position" info={hintFor('background.lightningBehindLogo')}>
+              <CB
+                value={(ltnBL as boolean) ? 'behind' : 'front'}
+                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+                onChange={(v) => sLtnBL(v === 'behind')}
+              />
+            </FR>
+            <FR label="Hue" hint={`${Math.round(ltnHue as number)}°`} info={hintFor('background.lightningHue')}>
+              <Sl value={ltnHue as number} min={0} max={360} step={1} onChange={sLtnHue} />
+            </FR>
+            <FR label="X Offset" hint={`${(ltnXOff as number).toFixed(2)}`} info={hintFor('background.lightningXOffset')}>
+              <Sl value={ltnXOff as number} min={-1} max={1} step={0.01} onChange={sLtnXOff} />
+            </FR>
+            <FR label="Speed" hint={`${(ltnSp as number).toFixed(1)}`} info={hintFor('background.lightningSpeed')}>
+              <Sl value={ltnSp as number} min={0.1} max={3} step={0.1} onChange={sLtnSp} />
+            </FR>
+            <FR label="Intensity" hint={`${(ltnInt as number).toFixed(1)}`} info={hintFor('background.lightningIntensity')}>
+              <Sl value={ltnInt as number} min={0.1} max={3} step={0.1} onChange={sLtnInt} />
+            </FR>
+            <FR label="Size" hint={`${(ltnSz as number).toFixed(1)}`} info={hintFor('background.lightningSize')}>
+              <Sl value={ltnSz as number} min={0.1} max={3} step={0.1} onChange={sLtnSz} />
+            </FR>
+            <FR label="Opacity" hint={`${(ltnOp as number).toFixed(2)}`} info={hintFor('background.lightningOpacity')}>
+              <Sl value={ltnOp as number} min={0} max={1} step={0.01} onChange={sLtnOp} />
+            </FR>
+            <div className="mt-2">
+              <HzRangePicker
+                startHz={ltnBFS as number}
+                endHz={ltnBFE as number}
+                onChangeStart={sLtnBFS}
+                onChangeEnd={sLtnBFE}
+              />
+              <div className="mt-2">
+                <FR label="Beat Sensitivity" hint={`${(ltnBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.lightningBeatSensitivity')}>
+                  <Sl value={ltnBSen as number} min={0} max={5} step={0.1} onChange={sLtnBSen} />
+                </FR>
+                <FR label="Beat Intensity Boost" hint={`${(ltnBInt as number).toFixed(1)}`} info={hintFor('background.lightningBeatIntensity')}>
+                  <Sl value={ltnBInt as number} min={0} max={2} step={0.1} onChange={sLtnBInt} />
+                </FR>
+                <FR label="Beat Scale Boost" hint={`${(ltnBScl as number).toFixed(2)}`} info={hintFor('background.lightningBeatScale')}>
+                  <Sl value={ltnBScl as number} min={0} max={1} step={0.05} onChange={sLtnBScl} />
+                </FR>
+              </div>
+            </div>
           </>
         )}
       </Acc>

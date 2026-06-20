@@ -368,6 +368,34 @@ export const SETTING_HINTS: Record<string, string> = {
   'background.lightPillarBeatWidthBoost':
     'How much a detected beat widens the pillar. 0 = no reaction; 1 = doubles the width.',
 
+  // ── Background: Lightning ─────────────────────────────────────────────────────────────────────
+  'background.lightningEnabled':
+    'Renders a procedural electric lightning bolt across the background using FBM noise distortion.',
+  'background.lightningBehindLogo':
+    'When "Behind logo", the lightning is masked at the logo position. "In front" lets it cover everything including the logo.',
+  'background.lightningHue':
+    'Base color of the lightning bolt as a hue value (0 = red, 120 = green, 230 = blue/purple, 300 = magenta).',
+  'background.lightningXOffset':
+    'Shifts the lightning bolt horizontally. 0 = centered, negative = left, positive = right.',
+  'background.lightningSpeed':
+    'How fast the lightning animates. Higher values = more frantic flickering.',
+  'background.lightningIntensity':
+    'Brightness of the lightning bolt. Higher values make it glow more intensely.',
+  'background.lightningSize':
+    'Controls the scale of the underlying noise pattern. Smaller = thinner bolt, larger = broader distortion.',
+  'background.lightningOpacity':
+    'Overall opacity of the lightning layer.',
+  'background.lightningBeatFreqStart':
+    'Lowest frequency (Hz) that triggers a lightning beat reaction.',
+  'background.lightningBeatFreqEnd':
+    'Highest frequency (Hz) that triggers a lightning beat reaction.',
+  'background.lightningBeatSensitivity':
+    'How sensitive the beat detector is for lightning. 0 = no reaction; 5 = very reactive.',
+  'background.lightningBeatIntensity':
+    'How much brighter the lightning gets on a beat. 0 = no reaction; 2 = very strong burst.',
+  'background.lightningBeatScale':
+    'How much the lightning scales up on a beat. 0 = no size change; 1 = strong pulse.',
+
   // ── Background: Magic Rings ────────────────────────────────────────────────────────────────────
   'background.magicRingsEnabled':
     'Concentric rings that pulse outward from the center and react to the music.',
