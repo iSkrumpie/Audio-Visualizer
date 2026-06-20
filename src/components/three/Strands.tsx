@@ -198,7 +198,8 @@ export function Strands() {
     mesh.scale.set(width, height, 1);
 
     const behindLogo = bg.strandsBehindLogo ?? DEFAULT_SETTINGS.background.strandsBehindLogo;
-    mesh.position.z = behindLogo ? -0.5 : 1.5;
+    mesh.renderOrder = behindLogo ? 4 : 9;
+    mesh.position.z = 0;
 
     if (!(bg.strandsEnabled ?? DEFAULT_SETTINGS.background.strandsEnabled)) {
       mat.visible = false;

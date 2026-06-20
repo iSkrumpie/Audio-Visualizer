@@ -159,7 +159,8 @@ export function LightRays() {
     mesh.scale.set(width, height, 1);
 
     const behindLogo = bg.lightRaysBehindLogo ?? DEFAULT_SETTINGS.background.lightRaysBehindLogo;
-    mesh.position.z = behindLogo ? -0.5 : 1.5;
+    mesh.renderOrder = behindLogo ? 4 : 9;
+    mesh.position.z = 0;
 
     if (!(bg.lightRaysEnabled ?? DEFAULT_SETTINGS.background.lightRaysEnabled)) {
       mat.visible = false;

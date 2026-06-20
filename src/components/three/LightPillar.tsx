@@ -172,7 +172,8 @@ export function LightPillar() {
     mesh.scale.set(width, height, 1);
 
     const behindLogo = bg.lightPillarBehindLogo ?? DEFAULT_SETTINGS.background.lightPillarBehindLogo;
-    mesh.position.z = behindLogo ? -0.5 : 1.5;
+    mesh.renderOrder = behindLogo ? 4 : 9;
+    mesh.position.z = 0;
 
     if (!(bg.lightPillarEnabled ?? DEFAULT_SETTINGS.background.lightPillarEnabled)) {
       mat.visible = false;
