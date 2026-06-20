@@ -1,12 +1,7 @@
 # Audio Visualizer
 
 Client-only web app that turns an uploaded audio file into a real-time Three.js visualization and exports the result as an MP4 — ready for YouTube or TikTok.
-
 No backend, no login, no tracking. Everything runs in the browser.
-
-![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
-![Stack: React 19 + Three.js + WebCodecs](https://img.shields.io/badge/stack-React%2019%20%2B%20Three.js%20%2B%20WebCodecs-111)
-![Browser: Chrome / Edge](https://img.shields.io/badge/browser-Chrome%20%2F%20Edge-blue)
 
 ## Features
 
@@ -36,15 +31,6 @@ Then open <http://localhost:5173> in your browser, drop in an audio file, and st
   - The MP4 export relies on the [WebCodecs API](https://developer.mozilla.org/en-US/docs/Web/API/WebCodecs_API), which is **not available in Firefox** at the time of writing
 - **Operating systems:** Windows, macOS, Linux — anything that runs a modern Chromium browser
 
-## Available Scripts
-
-| Command            | What it does                                              |
-| ------------------ | --------------------------------------------------------- |
-| `npm run dev`      | Start the Vite dev server with hot reload on port 5173   |
-| `npm run build`    | Type-check and produce a production build in `dist/`      |
-| `npm run preview`  | Preview the production build locally                      |
-| `npm run typecheck`| Run the TypeScript compiler in `--noEmit` mode            |
-
 ## Tech Stack
 
 | Layer        | Library                                                       |
@@ -61,21 +47,22 @@ Then open <http://localhost:5173> in your browser, drop in an audio file, and st
 ## Project Layout
 
 ```
+public/                static assets (logo.png for favicon)
 src/
 ├── components/        React UI (uploader, settings panel, overlays)
 │   └── three/         R3F scene + effect components (audio-reactive shaders)
 ├── hooks/             useAudioReactive, useFileUpload, useExport, …
 ├── lib/               FFT pipeline, export engine, zustand stores, utilities
 ├── workers/           essentia.js Web Worker
-└── main.tsx           entry point
-
-public/                static assets (logo.png for favicon)
+└── main.tsx           entry point           
 ```
 
 ## Contributing
 
-Issues and pull requests are welcome. If you plan a larger change, please open an issue first so we can discuss the approach. The project uses Conventional Commits for commit messages.
+Issues and pull requests are welcome. 
+If you plan a larger change or you have an feature request, please open an issue first so we can discuss the approach. 
+The project uses Conventional Commits for commit messages.
 
 ## License
 
-[MIT](./LICENSE) — Copyright (c) 2026 iSkrumpie
+[MIT](./LICENSE) — Copyright (c) 2026 Skrumpie
