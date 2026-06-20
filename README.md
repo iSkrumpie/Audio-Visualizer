@@ -2,6 +2,21 @@
 
 Client-only web app that turns an uploaded audio file into a real-time Three.js visualization and exports the result as an MP4 — ready for YouTube or TikTok.
 No backend, no login, no tracking. Everything runs in the browser.
+                                                                                                                       
+                                                                                                                                       
+![Audio Visualizer 1](./assets/screenshots/1.png)
+
+![Audio Visualizer 2](./assets/screenshots/2.png)
+
+![Audio Visualizer 3](./assets/screenshots/3.png)
+
+![Audio Visualizer 4](./assets/screenshots/4.png)
+
+## Demos
+
+[![Demo video 1 on YouTube](https://img.youtube.com/vi/ksfSVNRBrJY/maxresdefault.jpg)](https://www.youtube.com/watch?v=ksfSVNRBrJY)
+
+[![Demo video 2 on YouTube](https://img.youtube.com/vi/nOnmXuzDtiI/maxresdefault.jpg)](https://www.youtube.com/watch?v=nOnmXuzDtiI)
 
 ## Features
 
