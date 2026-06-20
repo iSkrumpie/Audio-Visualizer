@@ -214,7 +214,7 @@ export function MagicRings() {
   });
 
   return (
-    <mesh ref={meshRef} renderOrder={2} position={[0, 0, -9.0]}>
+    <mesh ref={meshRef} position={[0, 0, -9.0]}>
       <planeGeometry args={[2, 2]} />
       <shaderMaterial
         ref={matRef}
@@ -223,6 +223,7 @@ export function MagicRings() {
         uniforms={uniforms}
         transparent
         depthWrite={false}
+        depthTest={false}
         blending={THREE.AdditiveBlending}
       />
     </mesh>
