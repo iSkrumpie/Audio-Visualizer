@@ -46,3 +46,6 @@ docs/
 
 # Local test artifacts, generated audio, debug screenshots
 tmp/
+
+# Local-only debug / verification scripts (kept on disk, not in public repo)
+scripts/

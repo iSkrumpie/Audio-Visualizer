@@ -69,7 +69,6 @@ src/
 ├── workers/           essentia.js Web Worker
 └── main.tsx           entry point
 
-scripts/               Node smoke / verification scripts (Playwright + native)
 public/                static assets (logo.png for favicon)
 ```
 
