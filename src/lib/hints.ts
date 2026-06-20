@@ -462,6 +462,49 @@ export const SETTING_HINTS: Record<string, string> = {
   'background.snowBlendMode':
     'How snowflakes blend with the scene. Add = glowing sparkle snow; Normal = natural-looking flakes; Screen = bright shimmer.',
 
+  // ── Background: Hyperspeed ──────────────────────────────────────────────────────────────
+  'background.hyperspeedEnabled':
+    'Renders a 3D night highway with streaking car lights.',
+  'background.hyperspeedBehindLogo':
+    'When set to "Behind logo", the highway is masked at the logo position. "In front" lets it cover everything.',
+  'background.hyperspeedOpacity':
+    'Overall opacity of the hyperspeed highway effect. 1 = fully visible.',
+  'background.hyperspeedDistortion':
+    'Distortion mode: changes how the road curves and bends in 3D space.',
+  'background.hyperspeedSpeed':
+    'Speed of the traffic — how fast cars and road markings move.',
+  'background.hyperspeedLanesPerRoad':
+    'Number of traffic lanes per road side. More lanes = wider roads with more cars.',
+  'background.hyperspeedRoadWidth':
+    'Width of each road side. Wider roads fit more lanes.',
+  'background.hyperspeedFov':
+    'Camera field of view. Higher = more dramatic perspective.',
+  'background.hyperspeedLeftCarColor1':
+    'First color for oncoming cars (left lane).',
+  'background.hyperspeedLeftCarColor2':
+    'Second color for oncoming cars (left lane).',
+  'background.hyperspeedLeftCarColor3':
+    'Third color for oncoming cars (left lane).',
+  'background.hyperspeedRightCarColor1':
+    'First color for receding cars (right lane).',
+  'background.hyperspeedRightCarColor2':
+    'Second color for receding cars (right lane).',
+  'background.hyperspeedRightCarColor3':
+    'Third color for receding cars (right lane).',
+  'background.hyperspeedSticksColor':
+    'Color of the roadside light sticks.',
+  'background.hyperspeedBeatBrightness':
+    'How much brighter all lights flash on a beat. 0 = no reaction; 3 = very bright burst.',
+  'background.hyperspeedBeatFreqStart':
+    'Lowest frequency that triggers a brightness flash.',
+  'background.hyperspeedBeatFreqEnd':
+    'Highest frequency that triggers a brightness flash.',
+  'background.hyperspeedBeatSensitivity':
+    'How sensitive the beat detection is. Lower = fires more often; higher = only on strong beats.',
+  'background.hyperspeedBlendMode':
+    'How the hyperspeed layer blends with layers below it.',
+
+
   // ── Logo ───────────────────────────────────────────────────────────────────────────────────
   'logo.enabled':
     'Show or hide the circular logo at the center of the visualizer.',

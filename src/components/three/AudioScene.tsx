@@ -17,6 +17,7 @@ import { LightPillar } from './LightPillar';
 import { LightRays } from './LightRays';
 import { Strands } from './Strands';
 import { LightningEffect } from './LightningEffect';
+import { HyperspeedEffect } from './HyperspeedEffect';
 import { NebulaPlane } from './NebulaPlane';
 import { InstancedBars } from './InstancedBars';
 import { GPUParticles } from './GPUParticles';
@@ -133,6 +134,7 @@ export function AudioScene({ className, style }: AudioSceneProps) {
       <LightRays />
       <LightPillar />
       <MagicRings />
+      <HyperspeedEffect />
       <NebulaPlane />
       <InstancedBars />
       <GPUParticles />

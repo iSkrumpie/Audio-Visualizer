@@ -299,6 +299,27 @@ export type Settings = {
     rainBlendMode: BlendMode;          // default 'add'
     snowBehindLogo: boolean;           // default true
     snowBlendMode: BlendMode;          // default 'add'
+    // ── Hyperspeed ──────────────────────────────────────────────────────
+    hyperspeedEnabled: boolean;
+    hyperspeedBehindLogo: boolean;
+    hyperspeedOpacity: number;
+    hyperspeedDistortion: string;
+    hyperspeedSpeed: number;
+    hyperspeedLanesPerRoad: number;
+    hyperspeedRoadWidth: number;
+    hyperspeedFov: number;
+    hyperspeedLeftCarColor1: string;
+    hyperspeedLeftCarColor2: string;
+    hyperspeedLeftCarColor3: string;
+    hyperspeedRightCarColor1: string;
+    hyperspeedRightCarColor2: string;
+    hyperspeedRightCarColor3: string;
+    hyperspeedSticksColor: string;
+    hyperspeedBeatBrightness: number;
+    hyperspeedBeatFreqStart: number;
+    hyperspeedBeatFreqEnd: number;
+    hyperspeedBeatSensitivity: number;
+    hyperspeedBlendMode: BlendMode;
   };
 
   logo: {
@@ -675,6 +696,27 @@ const DEFAULT_SETTINGS: Settings = {
     rainBlendMode: 'add' as BlendMode,
     snowBehindLogo: true,
     snowBlendMode: 'add' as BlendMode,
+    // ── Hyperspeed ──────────────────────────────────────────────────────
+    hyperspeedEnabled: false,
+    hyperspeedBehindLogo: true,
+    hyperspeedOpacity: 1.0,
+    hyperspeedDistortion: 'turbulentDistortion',
+    hyperspeedSpeed: 1.0,
+    hyperspeedLanesPerRoad: 3,
+    hyperspeedRoadWidth: 10,
+    hyperspeedFov: 90,
+    hyperspeedLeftCarColor1: '#d856bf',
+    hyperspeedLeftCarColor2: '#6750a2',
+    hyperspeedLeftCarColor3: '#c247ac',
+    hyperspeedRightCarColor1: '#03b3c3',
+    hyperspeedRightCarColor2: '#0e5ea5',
+    hyperspeedRightCarColor3: '#324555',
+    hyperspeedSticksColor: '#03b3c3',
+    hyperspeedBeatBrightness: 1.5,
+    hyperspeedBeatFreqStart: 40,
+    hyperspeedBeatFreqEnd: 120,
+    hyperspeedBeatSensitivity: 1.0,
+    hyperspeedBlendMode: 'normal' as BlendMode,
   },
 
   logo: {

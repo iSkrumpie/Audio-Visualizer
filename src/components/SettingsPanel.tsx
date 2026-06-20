@@ -887,6 +887,27 @@ function BackgroundSection() {
   const [rnBM,    sRnBM]    = useF('background', 'rainBlendMode');
   const [snBL,    sSnBL]    = useF('background', 'snowBehindLogo');
   const [snBM,    sSnBM]    = useF('background', 'snowBlendMode');
+  // Hyperspeed
+  const [hspE,    sHspE]    = useF('background', 'hyperspeedEnabled');
+  const [hspBL,   sHspBL]   = useF('background', 'hyperspeedBehindLogo');
+  const [hspOp,   sHspOp]   = useF('background', 'hyperspeedOpacity');
+  const [hspDist, sHspDist] = useF('background', 'hyperspeedDistortion');
+  const [hspSpd,  sHspSpd]  = useF('background', 'hyperspeedSpeed');
+  const [hspLanes,sHspLanes]= useF('background', 'hyperspeedLanesPerRoad');
+  const [hspRW,   sHspRW]   = useF('background', 'hyperspeedRoadWidth');
+  const [hspFov,  sHspFov]  = useF('background', 'hyperspeedFov');
+  const [hspLC1,  sHspLC1]  = useF('background', 'hyperspeedLeftCarColor1');
+  const [hspLC2,  sHspLC2]  = useF('background', 'hyperspeedLeftCarColor2');
+  const [hspLC3,  sHspLC3]  = useF('background', 'hyperspeedLeftCarColor3');
+  const [hspRC1,  sHspRC1]  = useF('background', 'hyperspeedRightCarColor1');
+  const [hspRC2,  sHspRC2]  = useF('background', 'hyperspeedRightCarColor2');
+  const [hspRC3,  sHspRC3]  = useF('background', 'hyperspeedRightCarColor3');
+  const [hspSC,   sHspSC]   = useF('background', 'hyperspeedSticksColor');
+  const [hspBB,   sHspBB]   = useF('background', 'hyperspeedBeatBrightness');
+  const [hspBFS,  sHspBFS]  = useF('background', 'hyperspeedBeatFreqStart');
+  const [hspBFE,  sHspBFE]  = useF('background', 'hyperspeedBeatFreqEnd');
+  const [hspBSen, sHspBSen] = useF('background', 'hyperspeedBeatSensitivity');
+  const [hspBM,   sHspBM]   = useF('background', 'hyperspeedBlendMode');
 
   return (
     <div>
@@ -1631,6 +1652,96 @@ function BackgroundSection() {
             <BlendSel value={snBM as string} onChange={sSnBM as (v: string) => void} />
           </FR>
         </EffectCard>
+      </Acc>
+
+      <Acc label="Hyperspeed">
+        <Tg value={hspE as boolean} onChange={sHspE} label="Show Hyperspeed" />
+        {(hspE as boolean) && (
+          <>
+            <FR label="Position" info={hintFor('background.hyperspeedBehindLogo')}>
+              <CB
+                value={(hspBL as boolean) ? 'behind' : 'front'}
+                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+                onChange={(v) => sHspBL(v === 'behind')}
+              />
+            </FR>
+            <FR label="Blend Mode" info={hintFor('background.hyperspeedBlendMode')}>
+              <BlendSel value={hspBM as string} onChange={sHspBM as (v: string) => void} />
+            </FR>
+            <FR label="Opacity" info={hintFor('background.hyperspeedOpacity')}>
+              <Sl value={hspOp as number} min={0} max={1} step={0.01} onChange={sHspOp} />
+            </FR>
+            <FR label="Distortion" info={hintFor('background.hyperspeedDistortion')}>
+              <select
+                value={hspDist as string}
+                onChange={(e) => sHspDist(e.target.value)}
+                style={{
+                  background: 'var(--bg-elev-2)',
+                  color: 'var(--text)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  padding: '4px 8px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  width: '100%',
+                }}
+              >
+                <option value="turbulentDistortion">Turbulent</option>
+                <option value="mountainDistortion">Mountain</option>
+                <option value="xyDistortion">XY Wave</option>
+                <option value="LongRaceDistortion">Long Race</option>
+                <option value="deepDistortion">Deep</option>
+                <option value="turbulentDistortionStill">Turbulent Still</option>
+                <option value="deepDistortionStill">Deep Still</option>
+              </select>
+            </FR>
+            <FR label="Speed" info={hintFor('background.hyperspeedSpeed')}>
+              <Sl value={hspSpd as number} min={0.1} max={5} step={0.1} onChange={sHspSpd} />
+            </FR>
+            <FR label="Lanes" info={hintFor('background.hyperspeedLanesPerRoad')}>
+              <Sl value={hspLanes as number} min={1} max={5} step={1} onChange={sHspLanes} />
+            </FR>
+            <FR label="Road Width" info={hintFor('background.hyperspeedRoadWidth')}>
+              <Sl value={hspRW as number} min={5} max={25} step={1} onChange={sHspRW} />
+            </FR>
+            <FR label="FOV" info={hintFor('background.hyperspeedFov')}>
+              <Sl value={hspFov as number} min={60} max={150} step={1} onChange={sHspFov} />
+            </FR>
+            <FR label="Left Cars" info={hintFor('background.hyperspeedLeftCarColor1')}>
+              <div className="flex gap-1">
+                <CP value={hspLC1 as string} onChange={sHspLC1 as (v: string) => void} />
+                <CP value={hspLC2 as string} onChange={sHspLC2 as (v: string) => void} />
+                <CP value={hspLC3 as string} onChange={sHspLC3 as (v: string) => void} />
+              </div>
+            </FR>
+            <FR label="Right Cars" info={hintFor('background.hyperspeedRightCarColor1')}>
+              <div className="flex gap-1">
+                <CP value={hspRC1 as string} onChange={sHspRC1 as (v: string) => void} />
+                <CP value={hspRC2 as string} onChange={sHspRC2 as (v: string) => void} />
+                <CP value={hspRC3 as string} onChange={sHspRC3 as (v: string) => void} />
+              </div>
+            </FR>
+            <FR label="Side Sticks" info={hintFor('background.hyperspeedSticksColor')}>
+              <CP value={hspSC as string} onChange={sHspSC as (v: string) => void} />
+            </FR>
+            <div className="mt-2">
+              <HzRangePicker
+                startHz={hspBFS as number}
+                endHz={hspBFE as number}
+                onChangeStart={sHspBFS}
+                onChangeEnd={sHspBFE}
+              />
+              <div className="mt-2">
+                <FR label="Beat Sensitivity" hint={`${(hspBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.hyperspeedBeatSensitivity')}>
+                  <Sl value={hspBSen as number} min={0.1} max={5} step={0.1} onChange={sHspBSen} />
+                </FR>
+                <FR label="Beat Brightness" hint={`${(hspBB as number).toFixed(1)}`} info={hintFor('background.hyperspeedBeatBrightness')}>
+                  <Sl value={hspBB as number} min={0} max={3} step={0.1} onChange={sHspBB} />
+                </FR>
+              </div>
+            </div>
+          </>
+        )}
       </Acc>
     </div>
   );
