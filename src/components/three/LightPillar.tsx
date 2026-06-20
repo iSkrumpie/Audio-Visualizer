@@ -223,7 +223,7 @@ export function LightPillar() {
   });
 
   return (
-    <mesh ref={meshRef} renderOrder={9}>
+    <mesh ref={meshRef}>
       <planeGeometry args={[2, 2]} />
       <shaderMaterial
         ref={matRef}

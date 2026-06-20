@@ -215,7 +215,7 @@ export function LightningEffect() {
   });
 
   return (
-    <mesh ref={meshRef} renderOrder={9}>
+    <mesh ref={meshRef}>
       <planeGeometry args={[1, 1]} />
       <shaderMaterial
         ref={matRef}
