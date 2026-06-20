@@ -223,6 +223,7 @@ export function BackgroundFx() {
     uniforms:       bgParticlesUniforms,
     transparent:    true,
     depthWrite:     false,
+    depthTest:      false,
     blending:       THREE.AdditiveBlending,
     toneMapped:     false,
   }), [bgParticlesUniforms]);
@@ -246,6 +247,7 @@ export function BackgroundFx() {
     uniforms:       rainUniforms,
     transparent:    true,
     depthWrite:     false,
+    depthTest:      false,
     blending:       THREE.AdditiveBlending,
     toneMapped:     false,
   }), [rainUniforms]);
@@ -268,6 +270,7 @@ export function BackgroundFx() {
     uniforms:       snowUniforms,
     transparent:    true,
     depthWrite:     false,
+    depthTest:      false,
     blending:       THREE.AdditiveBlending,
     toneMapped:     false,
   }), [snowUniforms]);
