@@ -11,6 +11,8 @@ import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { getSettings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
+import type { BlendMode } from '@/lib/settingsStore';
+import { applyBlendMode } from '@/lib/blendMode';
 import { FreqBeatDetector } from '@/lib/audioUtils';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { useBeatDetectorRegistration } from './AudioScene';
@@ -109,6 +111,7 @@ export function MagicRings() {
   const matRef  = useRef<THREE.ShaderMaterial>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const timeRef = useRef<number>(0);
+  const prevBlendRef = useRef<BlendMode | null>(null);
 
   const detector = useMemo(() => new FreqBeatDetector(48000), []);
   useBeatDetectorRegistration(detector);
@@ -172,6 +175,17 @@ export function MagicRings() {
 
     // Scale plane to fill the orthographic viewport (1 world unit = 1 CSS pixel)
     if (mesh) mesh.scale.set(width, height, 1);
+
+    // behindLogo
+    const behindLogo = bg.magicRingsBehindLogo ?? DEFAULT_SETTINGS.background.magicRingsBehindLogo;
+    if (mesh) mesh.renderOrder = behindLogo ? 4 : 9;
+
+    // blend mode
+    const blendMode = (bg.magicRingsBlendMode ?? DEFAULT_SETTINGS.background.magicRingsBlendMode) as BlendMode;
+    if (blendMode !== prevBlendRef.current) {
+      applyBlendMode(mat, blendMode);
+      prevBlendRef.current = blendMode;
+    }
 
     // Accumulate time — driven by delta so export pipeline gets correct timing
     timeRef.current += delta * (bg.magicRingsSpeed ?? DEFAULT_SETTINGS.background.magicRingsSpeed);

@@ -12,6 +12,7 @@ import { usePresetsStore } from '@/lib/presetsStore';
 import { HzRangePicker } from '@/components/HzRangePicker';
 import { Hint } from '@/components/Hint';
 import { SETTING_HINTS, ACCORDION_DESCRIPTIONS, ENUM_HINTS } from '@/lib/hints';
+import { BLEND_MODE_OPTIONS } from '@/lib/blendMode';
 
 type Section = 'background' | 'logo' | 'bars' | 'particles' | 'audio';
 
@@ -537,6 +538,30 @@ function Tg({
   );
 }
 
+/** Blend mode dropdown — reusable for all effects */
+function BlendSel({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      style={{
+        background: 'var(--bg-elev-2)',
+        color: 'var(--text)',
+        border: '1px solid var(--border)',
+        borderRadius: '6px',
+        padding: '4px 8px',
+        fontSize: '12px',
+        cursor: 'pointer',
+        width: '100%',
+      }}
+    >
+      {BLEND_MODE_OPTIONS.map((opt) => (
+        <option key={opt.value} value={opt.value}>{opt.label}</option>
+      ))}
+    </select>
+  );
+}
+
 function CB<T extends string>({
   value,
   options,
@@ -850,6 +875,18 @@ function BackgroundSection() {
   const [snFS,    sSnFS]    = useF('background', 'snowBeatFreqStart');
   const [snFE,    sSnFE]    = useF('background', 'snowBeatFreqEnd');
   const [snSen,   sSnSen]   = useF('background', 'snowBeatSensitivity');
+  // New blend mode + behindLogo hooks (v19)
+  const [stBM,    sStBM]    = useF('background', 'strandsBlendMode');
+  const [mrBL,    sMrBL]    = useF('background', 'magicRingsBehindLogo');
+  const [mrBM,    sMrBM]    = useF('background', 'magicRingsBlendMode');
+  const [lrBM,    sLrBM]    = useF('background', 'lightRaysBlendMode');
+  const [ltnBM,   sLtnBM]   = useF('background', 'lightningBlendMode');
+  const [bgPBL,   sBgPBL]   = useF('background', 'bgParticlesBehindLogo');
+  const [bgPBM,   sBgPBM]   = useF('background', 'bgParticlesBlendMode');
+  const [rnBL,    sRnBL]    = useF('background', 'rainBehindLogo');
+  const [rnBM,    sRnBM]    = useF('background', 'rainBlendMode');
+  const [snBL,    sSnBL]    = useF('background', 'snowBehindLogo');
+  const [snBM,    sSnBM]    = useF('background', 'snowBlendMode');
 
   return (
     <div>
@@ -1191,6 +1228,9 @@ function BackgroundSection() {
                 </FR>
               </div>
             </div>
+            <FR label="Blend mode" info={hintFor('background.strandsBlendMode')}>
+              <BlendSel value={stBM as string} onChange={sStBM as (v: string) => void} />
+            </FR>
           </>
         )}
       </Acc>
@@ -1264,6 +1304,9 @@ function BackgroundSection() {
                 </FR>
               </div>
             </div>
+            <FR label="Blend mode" info={hintFor('background.lightRaysBlendMode')}>
+              <BlendSel value={lrBM as string} onChange={sLrBM as (v: string) => void} />
+            </FR>
           </>
         )}
       </Acc>
@@ -1326,18 +1369,8 @@ function BackgroundSection() {
                 </FR>
               </div>
             </div>
-            <FR label="Blend mode" info={ENUM_HINTS['background.lightPillarBlendMode']?.[lpBM as string]}>
-              <CB
-                value={lpBM as string}
-                options={[
-                  { value: 'normal',     label: 'Normal'   },
-                  { value: 'multiply',   label: 'Multiply' },
-                  { value: 'overlay',    label: 'Overlay'  },
-                  { value: 'soft-light', label: 'Soft'     },
-                  { value: 'screen',     label: 'Screen'   },
-                ]}
-                onChange={sLpBM as (v: string) => void}
-              />
+            <FR label="Blend mode" info={hintFor('background.lightPillarBlendMode')}>
+              <BlendSel value={lpBM as string} onChange={sLpBM as (v: string) => void} />
             </FR>
           </>
         )}
@@ -1391,6 +1424,9 @@ function BackgroundSection() {
                 </FR>
               </div>
             </div>
+            <FR label="Blend mode" info={hintFor('background.lightningBlendMode')}>
+              <BlendSel value={ltnBM as string} onChange={sLtnBM as (v: string) => void} />
+            </FR>
           </>
         )}
       </Acc>
@@ -1399,6 +1435,13 @@ function BackgroundSection() {
         <Tg value={mrE as boolean} onChange={sMrE} label="Show magic rings" />
         {(mrE as boolean) && (
           <>
+            <FR label="Position" info={hintFor('background.magicRingsBehindLogo')}>
+              <CB
+                value={(mrBL as boolean) ? 'behind' : 'front'}
+                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+                onChange={(v) => sMrBL(v === 'behind')}
+              />
+            </FR>
             <FR label="Color 1" info={hintFor('background.magicRingsColor')}><CP value={mrC as string} onChange={sMrC} /></FR>
             <FR label="Color 2" info={hintFor('background.magicRingsColorTwo')}><CP value={mrC2 as string} onChange={sMrC2} /></FR>
             <FR label="Speed" hint={`${(mrSp as number).toFixed(2)}`} info={hintFor('background.magicRingsSpeed')}>
@@ -1453,6 +1496,9 @@ function BackgroundSection() {
                 </FR>
               </div>
             </div>
+            <FR label="Blend mode" info={hintFor('background.magicRingsBlendMode')}>
+              <BlendSel value={mrBM as string} onChange={sMrBM as (v: string) => void} />
+            </FR>
           </>
         )}
       </Acc>
@@ -1461,6 +1507,13 @@ function BackgroundSection() {
         <p className="mb-2 font-mono text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>Backdrop particles, rain and snow behind all other elements</p>
 
         <EffectCard label="Background particles" enabled={bgPE as boolean} onToggle={sBgPE} info={hintFor('background.bgParticlesEnabled')}>
+          <FR label="Position" info={hintFor('background.bgParticlesBehindLogo')}>
+            <CB
+              value={(bgPBL as boolean) ? 'behind' : 'front'}
+              options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+              onChange={(v) => sBgPBL(v === 'behind')}
+            />
+          </FR>
           <FR label="Count" hint={`${bgPCnt}`} info={hintFor('background.bgParticlesCount')}>
             <Sl value={bgPCnt as number} min={0} max={500} step={10} onChange={sBgPCnt} />
           </FR>
@@ -1487,9 +1540,19 @@ function BackgroundSection() {
               </FR>
             </div>
           </div>
+          <FR label="Blend mode" info={hintFor('background.bgParticlesBlendMode')}>
+            <BlendSel value={bgPBM as string} onChange={sBgPBM as (v: string) => void} />
+          </FR>
         </EffectCard>
 
         <EffectCard label="Rain" enabled={rnE as boolean} onToggle={sRnE} info={hintFor('background.rainEnabled')}>
+          <FR label="Position" info={hintFor('background.rainBehindLogo')}>
+            <CB
+              value={(rnBL as boolean) ? 'behind' : 'front'}
+              options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+              onChange={(v) => sRnBL(v === 'behind')}
+            />
+          </FR>
           <FR label="Count" hint={`${rnCnt}`} info={hintFor('background.rainCount')}>
             <Sl value={rnCnt as number} min={0} max={1000} step={20} onChange={sRnCnt} />
           </FR>
@@ -1522,9 +1585,19 @@ function BackgroundSection() {
               </FR>
             </div>
           </div>
+          <FR label="Blend mode" info={hintFor('background.rainBlendMode')}>
+            <BlendSel value={rnBM as string} onChange={sRnBM as (v: string) => void} />
+          </FR>
         </EffectCard>
 
         <EffectCard label="Snow" enabled={snE as boolean} onToggle={sSnE} info={hintFor('background.snowEnabled')}>
+          <FR label="Position" info={hintFor('background.snowBehindLogo')}>
+            <CB
+              value={(snBL as boolean) ? 'behind' : 'front'}
+              options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+              onChange={(v) => sSnBL(v === 'behind')}
+            />
+          </FR>
           <FR label="Count" hint={`${snCnt}`} info={hintFor('background.snowCount')}>
             <Sl value={snCnt as number} min={0} max={600} step={10} onChange={sSnCnt} />
           </FR>
@@ -1554,6 +1627,9 @@ function BackgroundSection() {
               </FR>
             </div>
           </div>
+          <FR label="Blend mode" info={hintFor('background.snowBlendMode')}>
+            <BlendSel value={snBM as string} onChange={sSnBM as (v: string) => void} />
+          </FR>
         </EffectCard>
       </Acc>
     </div>

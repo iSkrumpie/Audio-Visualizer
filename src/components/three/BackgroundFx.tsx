@@ -22,6 +22,8 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { getSettings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
+import type { BlendMode } from '@/lib/settingsStore';
+import { applyBlendMode } from '@/lib/blendMode';
 import { FreqBeatDetector } from '@/lib/audioUtils';
 import { useBeatDetectorRegistration } from './AudioScene';
 import { usePhaseSource } from '@/hooks/usePhaseSource';
@@ -275,6 +277,11 @@ export function BackgroundFx() {
   const rainRef        = useRef<THREE.Points>(null);
   const snowRef        = useRef<THREE.Points>(null);
 
+  // ── Blend mode tracking refs ────────────────────────────────────────
+  const prevBgBlendRef   = useRef<BlendMode | null>(null);
+  const prevRainBlendRef = useRef<BlendMode | null>(null);
+  const prevSnowBlendRef = useRef<BlendMode | null>(null);
+
   // ── Time accumulator ─────────────────────────────────────────────────────────
   const timeRef = useRef(0);
 
@@ -367,8 +374,15 @@ export function BackgroundFx() {
 
     // ── BG Particles ──────────────────────────────────────────────────────────
     const bgEnabled = bg.bgParticlesEnabled ?? DEFAULT_SETTINGS.background.bgParticlesEnabled;
+    const bgBehindLogo = bg.bgParticlesBehindLogo ?? DEFAULT_SETTINGS.background.bgParticlesBehindLogo;
     if (bgParticlesRef.current) {
       bgParticlesRef.current.visible = bgEnabled;
+      bgParticlesRef.current.renderOrder = bgBehindLogo ? 4 : 9;
+    }
+    const bgBlend = (bg.bgParticlesBlendMode ?? DEFAULT_SETTINGS.background.bgParticlesBlendMode) as BlendMode;
+    if (bgBlend !== prevBgBlendRef.current) {
+      applyBlendMode(bgParticlesMat, bgBlend);
+      prevBgBlendRef.current = bgBlend;
     }
     if (bgEnabled) {
       const bgBeat = bgParticlesPhaseSrc();
@@ -389,8 +403,15 @@ export function BackgroundFx() {
 
     // ── Rain ──────────────────────────────────────────────────────────────────
     const rainEnabled = bg.rainEnabled ?? DEFAULT_SETTINGS.background.rainEnabled;
+    const rainBehindLogo = bg.rainBehindLogo ?? DEFAULT_SETTINGS.background.rainBehindLogo;
     if (rainRef.current) {
       rainRef.current.visible = rainEnabled;
+      rainRef.current.renderOrder = rainBehindLogo ? 4 : 9;
+    }
+    const rainBlend = (bg.rainBlendMode ?? DEFAULT_SETTINGS.background.rainBlendMode) as BlendMode;
+    if (rainBlend !== prevRainBlendRef.current) {
+      applyBlendMode(rainMat, rainBlend);
+      prevRainBlendRef.current = rainBlend;
     }
     if (rainEnabled) {
       const rainBeat = rainPhaseSrc();
@@ -414,8 +435,15 @@ export function BackgroundFx() {
 
     // ── Snow ──────────────────────────────────────────────────────────────────
     const snowEnabled = bg.snowEnabled ?? DEFAULT_SETTINGS.background.snowEnabled;
+    const snowBehindLogo = bg.snowBehindLogo ?? DEFAULT_SETTINGS.background.snowBehindLogo;
     if (snowRef.current) {
       snowRef.current.visible = snowEnabled;
+      snowRef.current.renderOrder = snowBehindLogo ? 4 : 9;
+    }
+    const snowBlend = (bg.snowBlendMode ?? DEFAULT_SETTINGS.background.snowBlendMode) as BlendMode;
+    if (snowBlend !== prevSnowBlendRef.current) {
+      applyBlendMode(snowMat, snowBlend);
+      prevSnowBlendRef.current = snowBlend;
     }
     if (snowEnabled) {
       const snowBeat = snowPhaseSrc();

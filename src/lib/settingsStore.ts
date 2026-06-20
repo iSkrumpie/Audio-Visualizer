@@ -62,6 +62,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 export type ThemeMode = 'dark' | 'light';
+export type BlendMode = 'normal' | 'add' | 'screen' | 'multiply' | 'darken' | 'lighten' | 'subtract';
 
 export type Settings = {
   theme: {
@@ -220,6 +221,7 @@ export type Settings = {
     strandsBeatSensitivity: number;     // 0..5  (0 = no audio reactivity)
     strandsBehindLogo: boolean;         // true = behind logo, false = over everything
     strandsGlowBoost: number;           // 0..2, default 0.5
+    strandsBlendMode: BlendMode;           // default 'add'
     // ── Magic Rings ─────────────────────────────────────────────────────
     magicRingsEnabled: boolean;
     magicRingsColor: string;
@@ -240,6 +242,8 @@ export type Settings = {
     magicRingsBeatSensitivity: number;
     magicRingsBurstStrength: number;
     magicRingsGlowStrength: number;     // 0..1, default 0.6
+    magicRingsBehindLogo: boolean;         // default true
+    magicRingsBlendMode: BlendMode;        // default 'add'
     // ── Light Rays (v16) — god rays / crepuscular rays ──────────────────
     lightRaysEnabled: boolean;
     lightRaysOrigin: 'top-center' | 'top-left' | 'top-right' | 'left' | 'right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
@@ -254,6 +258,7 @@ export type Settings = {
     lightRaysBeatFreqEnd: number;      // Hz
     lightRaysBeatSensitivity: number;  // 0..5
     lightRaysBeatIntensity: number;    // 0..2
+    lightRaysBlendMode: BlendMode;         // default 'add'
     // ── Light Pillar (v17) — ray-marched volumetric pillar ───────────────
     lightPillarEnabled: boolean;
     lightPillarTopColor: string;         // hex, default '#5227FF'
@@ -271,7 +276,7 @@ export type Settings = {
     lightPillarBeatSensitivity: number;  // 0..5, default 1.0
     lightPillarBeatIntensity: number;    // 0..2, default 0.5
     lightPillarBeatWidthBoost: number;   // 0..1, default 0.3
-    lightPillarBlendMode: 'normal' | 'multiply' | 'overlay' | 'soft-light' | 'screen'; // default 'normal'
+    lightPillarBlendMode: BlendMode;      // default 'add'
     // ── Lightning (v18) ──────────────────────────────────────────────
     lightningEnabled: boolean;
     lightningBehindLogo: boolean;     // default true
@@ -286,6 +291,14 @@ export type Settings = {
     lightningBeatSensitivity: number; // 0..5, default 1.0
     lightningBeatIntensity: number;   // 0..2, default 0.6
     lightningBeatScale: number;       // 0..1, default 0.3
+    lightningBlendMode: BlendMode;     // default 'add'
+    // ── WeatherFX behindLogo + blendMode ─────────────────────────────────────
+    bgParticlesBehindLogo: boolean;    // default true
+    bgParticlesBlendMode: BlendMode;   // default 'add'
+    rainBehindLogo: boolean;           // default true
+    rainBlendMode: BlendMode;          // default 'add'
+    snowBehindLogo: boolean;           // default true
+    snowBlendMode: BlendMode;          // default 'add'
   };
 
   logo: {
@@ -585,6 +598,7 @@ const DEFAULT_SETTINGS: Settings = {
     strandsBeatSensitivity: 0,
     strandsBehindLogo: true,
     strandsGlowBoost: 0.5,
+    strandsBlendMode: 'add' as BlendMode,
     // ── Magic Rings ───────────────────────────────────────────────────
     magicRingsEnabled: false,
     magicRingsColor: '#fc42ff',
@@ -605,6 +619,8 @@ const DEFAULT_SETTINGS: Settings = {
     magicRingsBeatSensitivity: 1.5,
     magicRingsBurstStrength: 0.5,
     magicRingsGlowStrength: 0.6,
+    magicRingsBehindLogo: true,
+    magicRingsBlendMode: 'add' as BlendMode,
     // ── Light Rays (v16) ─────────────────────────────────────────────────
     lightRaysEnabled: false,
     lightRaysOrigin: 'top-center',
@@ -619,6 +635,7 @@ const DEFAULT_SETTINGS: Settings = {
     lightRaysBeatFreqEnd: 120,
     lightRaysBeatSensitivity: 1.0,
     lightRaysBeatIntensity: 0.5,
+    lightRaysBlendMode: 'add' as BlendMode,
     // ── Light Pillar (v17) ────────────────────────────────────────────────
     lightPillarEnabled: false,
     lightPillarTopColor: '#5227FF',
@@ -636,7 +653,7 @@ const DEFAULT_SETTINGS: Settings = {
     lightPillarBeatSensitivity: 1.0,
     lightPillarBeatIntensity: 0.5,
     lightPillarBeatWidthBoost: 0.3,
-    lightPillarBlendMode: 'normal' as const,
+    lightPillarBlendMode: 'add' as BlendMode,
     // ── Lightning (v18) ──────────────────────────────────────────────
     lightningEnabled: false,
     lightningBehindLogo: true,
@@ -651,6 +668,13 @@ const DEFAULT_SETTINGS: Settings = {
     lightningBeatSensitivity: 1.0,
     lightningBeatIntensity: 0.6,
     lightningBeatScale: 0.3,
+    lightningBlendMode: 'add' as BlendMode,
+    bgParticlesBehindLogo: true,
+    bgParticlesBlendMode: 'add' as BlendMode,
+    rainBehindLogo: true,
+    rainBlendMode: 'add' as BlendMode,
+    snowBehindLogo: true,
+    snowBlendMode: 'add' as BlendMode,
   },
 
   logo: {
@@ -801,9 +825,9 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v18',
+      name: 'audiovisualizer:settings:v19',
       storage: createJSONStorage(() => localStorage),
-      version: 18,
+      version: 19,
       migrate: (persistedState: unknown, version: number): { settings: Settings } => {
         // Safety: no persisted data → start fresh
         const ps = persistedState as Record<string, unknown> | null | undefined;
@@ -830,6 +854,16 @@ export const useSettingsStore = create<SettingsStore>()(
           // Deep-merge background: keep old user values, fill in new lightning* fields
           const oldBg = (s['background'] as Record<string, unknown>) ?? {};
           s['background'] = { ...DEFAULT_SETTINGS.background, ...oldBg };
+        }
+        if (version < 19) {
+          // Migrate lightPillarBlendMode: old 'overlay'/'soft-light' values are gone
+          const bg = (s['background'] as Record<string, unknown>) ?? {};
+          const oldBM = bg['lightPillarBlendMode'];
+          if (oldBM === 'overlay' || oldBM === 'soft-light') {
+            bg['lightPillarBlendMode'] = 'add';
+          }
+          // Deep-merge to pick up all new fields with defaults
+          s['background'] = { ...DEFAULT_SETTINGS.background, ...bg };
         }
         return ps as { settings: Settings };
       },

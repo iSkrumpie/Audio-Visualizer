@@ -12,6 +12,8 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { getSettings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
+import type { BlendMode } from '@/lib/settingsStore';
+import { applyBlendMode } from '@/lib/blendMode';
 import { FreqBeatDetector } from '@/lib/audioUtils';
 import { useBeatDetectorRegistration } from './AudioScene';
 import { usePhaseSource } from '@/hooks/usePhaseSource';
@@ -123,6 +125,7 @@ void main() {
 export function LightningEffect() {
   const meshRef = useRef<THREE.Mesh>(null!);
   const matRef  = useRef<THREE.ShaderMaterial>(null!);
+  const prevBlendRef = useRef<BlendMode | null>(null);
 
   const lightningBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
   useBeatDetectorRegistration(lightningBeatDetector);
@@ -175,6 +178,12 @@ export function LightningEffect() {
     const behindLogo = bg.lightningBehindLogo ?? DEFAULT_SETTINGS.background.lightningBehindLogo;
     mesh.renderOrder = behindLogo ? 4 : 9;
     mesh.position.z = 0;
+
+    const blendMode = (bg.lightningBlendMode ?? DEFAULT_SETTINGS.background.lightningBlendMode) as BlendMode;
+    if (blendMode !== prevBlendRef.current) {
+      applyBlendMode(mat, blendMode);
+      prevBlendRef.current = blendMode;
+    }
 
     if (!(bg.lightningEnabled ?? DEFAULT_SETTINGS.background.lightningEnabled)) {
       mat.visible = false;

@@ -13,6 +13,8 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { getSettings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
+import type { BlendMode } from '@/lib/settingsStore';
+import { applyBlendMode } from '@/lib/blendMode';
 import { FreqBeatDetector } from '@/lib/audioUtils';
 import { useBeatDetectorRegistration } from './AudioScene';
 import { usePhaseSource } from '@/hooks/usePhaseSource';
@@ -117,6 +119,7 @@ function getLightRaysAnchorAndDir(
 export function LightRays() {
   const meshRef = useRef<THREE.Mesh>(null!);
   const matRef  = useRef<THREE.ShaderMaterial>(null!);
+  const prevBlendRef = useRef<BlendMode | null>(null);
 
   const lightRaysBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
   useBeatDetectorRegistration(lightRaysBeatDetector);
@@ -161,6 +164,12 @@ export function LightRays() {
     const behindLogo = bg.lightRaysBehindLogo ?? DEFAULT_SETTINGS.background.lightRaysBehindLogo;
     mesh.renderOrder = behindLogo ? 4 : 9;
     mesh.position.z = 0;
+
+    const blendMode = (bg.lightRaysBlendMode ?? DEFAULT_SETTINGS.background.lightRaysBlendMode) as BlendMode;
+    if (blendMode !== prevBlendRef.current) {
+      applyBlendMode(mat, blendMode);
+      prevBlendRef.current = blendMode;
+    }
 
     if (!(bg.lightRaysEnabled ?? DEFAULT_SETTINGS.background.lightRaysEnabled)) {
       mat.visible = false;

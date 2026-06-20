@@ -436,6 +436,32 @@ export const SETTING_HINTS: Record<string, string> = {
   'background.magicRingsGlowStrength':
     'How much a beat widens the ring glow. High values make rings bloom outward on each hit.',
 
+  // ── New v19: Blend mode + behindLogo hints ─────────────────────────────────
+  'background.strandsBlendMode':
+    'How the Strands layer blends with layers beneath it. Add = glowing neon; Screen = bright highlights; Multiply = darkens and tints.',
+  'background.magicRingsBehindLogo':
+    'When set to "Behind logo", the rings are hidden at the logo position. "In front" lets them cover everything.',
+  'background.magicRingsBlendMode':
+    'How the Magic Rings layer blends with layers beneath it. Add = glowing neon; Screen = bright highlights; Multiply = darkens and tints.',
+  'background.lightRaysBlendMode':
+    'How the Light Rays layer blends with layers beneath it. Add = classic god rays; Screen = softer highlights; Normal = standard alpha.',
+  'background.lightPillarBlendMode':
+    'How the Light Pillar layer blends with layers beneath it. Add = glowing beam; Screen = bright overlay; Multiply = darkens the scene.',
+  'background.lightningBlendMode':
+    'How the Lightning layer blends with layers beneath it. Add = bright electric glow; Screen = lighter overlay; Normal = standard alpha.',
+  'background.bgParticlesBehindLogo':
+    'When "Behind logo", particles are hidden at the logo area. "In front" lets them drift over everything.',
+  'background.bgParticlesBlendMode':
+    'How the ambient particles blend with the scene. Add = glowing sparks; Normal = standard dots; Screen = bright shimmer.',
+  'background.rainBehindLogo':
+    'When "Behind logo", rain stops at the logo edge. "In front" lets rain fall over everything including the logo.',
+  'background.rainBlendMode':
+    'How rain streaks blend with the scene. Add = bright glowing rain; Normal = realistic-looking drops; Multiply = dark streaks.',
+  'background.snowBehindLogo':
+    'When "Behind logo", snowflakes stop at the logo edge. "In front" lets snow fall over everything.',
+  'background.snowBlendMode':
+    'How snowflakes blend with the scene. Add = glowing sparkle snow; Normal = natural-looking flakes; Screen = bright shimmer.',
+
   // ── Logo ───────────────────────────────────────────────────────────────────────────────────
   'logo.enabled':
     'Show or hide the circular logo at the center of the visualizer.',
@@ -764,12 +790,14 @@ export const ENUM_HINTS: Record<string, Record<string, string>> = {
       'Brightens the image. Use for neon glows and high-energy looks.',
   },
 
-  'background.lightPillarBlendMode': {
-    'normal':     'Standard alpha compositing. The pillar is transparent where dark and opaque at bright peaks.',
-    'multiply':   'Multiplies pillar colors with the scene — darkens and tints where the pillar glows.',
-    'overlay':    'Strong contrast blend — bright pillar areas lighten, dark areas deepen the scene.',
-    'soft-light': 'Gentle, filmic blend. Subtly brightens and saturates the scene under the pillar.',
-    'screen':     'Additive light blend. The pillar adds brightness without darkening anything. Classic glow look.',
+  'blendMode': {
+    'normal':   'Standard alpha compositing. The effect blends naturally over the scene.',
+    'add':      'Colors stack brighter where they overlap — classic neon glow or fire look.',
+    'screen':   'Brightens the scene without ever going darker. Great for light leaks.',
+    'multiply': 'Multiplies colors with the scene — darkens and tints the area beneath.',
+    'darken':   'Only the darkest pixel wins per channel. Useful for shadows and outlines.',
+    'lighten':  'Only the brightest pixel wins per channel. Useful for highlights.',
+    'subtract': 'Subtracts effect colors from the scene — creates cool inversion effects.',
   },
 
   'background.noiseColorMode': {
