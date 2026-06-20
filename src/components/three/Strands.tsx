@@ -1,21 +1,16 @@
 /**
- * Strands — animated ribbon/aurora effect rendered via ogl (standalone WebGL2
- * canvas, separate from the R3F scene graph). Mounted as an HTML overlay div;
- * z-ordering relative to the R3F canvas is controlled by the parent container
- * in VisualizerStage (next worker task).
+ * Strands — R3F fullscreen-quad effect (ported from standalone ogl overlay).
+ *
+ * Animated ribbon/aurora effect. Now part of the R3F scene graph so it
+ * appears in exported MP4s.
  *
  * Shader prefix rule: all local GLSL variables use `str_` prefix.
  * See AGENTS.md §6 (ANGLE/Windows GLSL-Prefix-Regel).
- *
- * Audio reactivity: FreqBeatDetector + usePhaseSource, same pattern as
- * BackgroundFx.tsx. Beat phase scales uAmplitude (+40%) and uGlow (+30%).
- *
- * Glass mode from the original reactbits source is removed intentionally.
  */
 
-import { useEffect, useRef, useMemo, type CSSProperties } from 'react';
-import { Renderer, Program, Mesh, Triangle, Color } from 'ogl';
-import type { OGLRenderingContext } from 'ogl';
+import { useRef, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { getSettings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
 import { FreqBeatDetector } from '@/lib/audioUtils';
@@ -28,20 +23,18 @@ const MAX_STRANDS = 12;
 const MAX_COLORS  = 8;
 
 // ─── Vertex shader ────────────────────────────────────────────────────────────
-// Full-screen triangle via ogl's Triangle geometry.
 
-const VERT = /* glsl */ `#version 300 es
-in vec2 position;
+const VERT = /* glsl */`
 void main() {
-  gl_Position = vec4(position, 0.0, 1.0);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `;
 
 // ─── Fragment shader ──────────────────────────────────────────────────────────
+// Converted from GLSL ES 3.0 to GLSL ES 1.0 for Three.js ShaderMaterial.
 // ALL local variables carry the `str_` prefix (ANGLE Windows rule).
-// Uniforms (uTime, uResolution, uColors, ...) keep their plain names.
 
-const FRAG = /* glsl */ `#version 300 es
+const FRAG = /* glsl */`
 precision highp float;
 
 uniform float uTime;
@@ -61,8 +54,6 @@ uniform float uIntensity;
 uniform float uOpacity;
 uniform float uScale;
 uniform float uSaturation;
-
-out vec4 fragColor;
 
 const float str_PI = 3.14159265;
 
@@ -95,10 +86,6 @@ void main() {
   float str_e   = 0.06 + uIntensity * 0.94;
 
   // Aspect-ratio-aware edge envelope computed on the RAW (un-scaled) UV
-  // so the fade zone lands exactly at the screen edges regardless of
-  // uScale. With uTaper=0 the envelope is 1.0 across the entire screen
-  // (no fade — strands go edge to edge). Higher uTaper values sharpen
-  // the fade into a hard edge at the rim.
   vec2  str_uvRaw = (gl_FragCoord.xy - 0.5 * uResolution) / uResolution.y;
   float str_aspect = uResolution.x / max(uResolution.y, 1.0);
   float str_envArg = (str_uvRaw.x / max(str_aspect * 0.5, 0.001)) * (str_PI * 0.5);
@@ -145,49 +132,31 @@ void main() {
   float str_lum   = max(max(str_col.r, str_col.g), str_col.b);
   float str_alpha = clamp(str_lum, 0.0, 1.0) * uOpacity;
 
-  fragColor = vec4(str_col * uOpacity, str_alpha);
+  gl_FragColor = vec4(str_col * uOpacity, str_alpha);
 }
 `;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Convert an array of CSS hex colors to a padded number[][] for ogl.
- * ogl's setUniform calls flatten() which requires a number[][] for vec3[]
- * arrays (each inner array = one vec3 component triple). A flat Float32Array
- * is treated as a length-only array and the inner dimension is undefined —
- * ogl warns "Active uniform uColors[0] has not been supplied" and the uniform
- * never reaches the shader, leaving uColors as all-zeros (black strands).
+ * Convert an array of CSS hex colors to a padded THREE.Vector3[] for
+ * Three.js ShaderMaterial (uniform vec3[]).
  */
-function buildPalette(colors: string[]): number[][] {
+function buildPalette(colors: string[]): THREE.Vector3[] {
   const filled = colors.length ? colors : ['#ffffff'];
-  const padded: number[][] = [];
-  for (let i = 0; i < MAX_COLORS; i++) {
+  return Array.from({ length: MAX_COLORS }, (_, i) => {
     const hex = filled[i] ?? filled[filled.length - 1];
-    const c = new Color(hex);
-    padded.push([c.r, c.g, c.b]);
-  }
-  return padded;
-}
-
-// ─── Props ────────────────────────────────────────────────────────────────────
-
-export interface StrandsProps {
-  className?: string;
-  style?: CSSProperties;
+    const c = new THREE.Color(hex);
+    return new THREE.Vector3(c.r, c.g, c.b);
+  });
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-/**
- * Strands renders an animated ribbon aurora effect onto its own ogl canvas
- * element. The canvas is positioned `absolute inset-0` inside the container
- * div. The parent (VisualizerStage) controls z-index via `strandsBehindLogo`.
- */
-export function Strands({ className, style }: StrandsProps = {}) {
-  const containerRef = useRef<HTMLDivElement>(null);
+export function Strands() {
+  const meshRef = useRef<THREE.Mesh>(null!);
+  const matRef  = useRef<THREE.ShaderMaterial>(null!);
 
-  // ── Beat detection — same pattern as BackgroundFx ────────────────────────
   const strandsBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
   useBeatDetectorRegistration(strandsBeatDetector);
 
@@ -213,172 +182,99 @@ export function Strands({ className, style }: StrandsProps = {}) {
     },
   });
 
-  // Keep phase source ref current — rAF loop reads it, can't call hooks inside
   const phaseSrcRef = useRef(strandsPhaseSrc);
   phaseSrcRef.current = strandsPhaseSrc;
 
-  // ── ogl lifecycle ────────────────────────────────────────────────────────
-  useEffect(() => {
-    const ctn = containerRef.current;
-    if (!ctn) return;
+  const startTimeRef = useRef(performance.now());
 
-    // Create renderer — alpha: true so the canvas is transparent where no
-    // strands are drawn. premultipliedAlpha: false for correct CSS compositing.
-    const renderer = new Renderer({
-      alpha:             true,
-      premultipliedAlpha: false,
-      antialias:         false,
-      dpr:               Math.min(window.devicePixelRatio, 2),
-    });
-    const gl: OGLRenderingContext = renderer.gl;
-    gl.clearColor(0, 0, 0, 0);
+  useFrame((state) => {
+    const mat  = matRef.current;
+    const mesh = meshRef.current;
+    if (!mat || !mesh) return;
 
-    const canvas = gl.canvas as HTMLCanvasElement;
-    canvas.style.cssText =
-      'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;';
-    ctn.appendChild(canvas);
+    const { width, height } = state.size;
+    const bg = getSettings().background;
 
-    // ── Uniform storage ───────────────────────────────────────────────────
-    // uColors must be number[][] (not Float32Array) for ogl's flatten() to
-    // recognize the inner dimension. See buildPalette() comment.
-    const resBuf = [0, 0] as [number, number];
+    mesh.scale.set(width, height, 1);
 
-    // ogl uniform map — each entry is { value: T }
-    const uniforms: Record<string, { value: number | number[] | number[][] }> = {
-      uTime:        { value: 0 },
-      uResolution:  { value: resBuf },
-      uColors:      { value: buildPalette(DEFAULT_SETTINGS.background.strandsColors) },
-      uColorCount:  { value: DEFAULT_SETTINGS.background.strandsColors.length },
-      uStrandCount: { value: DEFAULT_SETTINGS.background.strandsCount },
-      uSpeed:       { value: DEFAULT_SETTINGS.background.strandsSpeed },
-      uAmplitude:   { value: DEFAULT_SETTINGS.background.strandsAmplitude },
-      uWaviness:    { value: DEFAULT_SETTINGS.background.strandsWaviness },
-      uThickness:   { value: DEFAULT_SETTINGS.background.strandsThickness },
-      uGlow:        { value: DEFAULT_SETTINGS.background.strandsGlow },
-      uTaper:       { value: DEFAULT_SETTINGS.background.strandsTaper },
-      uSpread:      { value: DEFAULT_SETTINGS.background.strandsSpread },
-      uHueShift:    { value: DEFAULT_SETTINGS.background.strandsHueShift },
-      uIntensity:   { value: DEFAULT_SETTINGS.background.strandsIntensity },
-      uOpacity:     { value: DEFAULT_SETTINGS.background.strandsOpacity },
-      uScale:       { value: DEFAULT_SETTINGS.background.strandsScale },
-      uSaturation:  { value: DEFAULT_SETTINGS.background.strandsSaturation },
-    };
+    const behindLogo = bg.strandsBehindLogo ?? DEFAULT_SETTINGS.background.strandsBehindLogo;
+    mesh.position.z = behindLogo ? -0.5 : 1.5;
 
-    const program = new Program(gl, {
-      vertex:   VERT,
-      fragment: FRAG,
-      uniforms,
-      transparent: true, // enables gl.SRC_ALPHA / gl.ONE_MINUS_SRC_ALPHA blend — otherwise strands are invisible (default is gl.ONE / gl.ZERO = opaque, ignores alpha)
-    });
-
-    const mesh = new Mesh(gl, {
-      geometry: new Triangle(gl),
-      program,
-    });
-
-    // ── Resize ────────────────────────────────────────────────────────────
-    function resize() {
-      if (!ctn) return;
-      const w = ctn.offsetWidth;
-      const h = ctn.offsetHeight;
-      if (w === 0 || h === 0) return; // skip 0×0 (initial layout not yet committed)
-      renderer.setSize(w, h);
-      resBuf[0] = w;
-      resBuf[1] = h;
+    if (!(bg.strandsEnabled ?? DEFAULT_SETTINGS.background.strandsEnabled)) {
+      mat.visible = false;
+      return;
     }
-    resize();
-    window.addEventListener('resize', resize);
+    mat.visible = true;
 
-    // ResizeObserver catches cases where the container size changes
-    // without a window resize (e.g. parent layout shifts, sidebar toggle,
-    // or — most importantly — the initial mount where offsetWidth may
-    // briefly be 0 before React commits the layout).
-    let resizeObserver: ResizeObserver | undefined;
-    if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(resize);
-      resizeObserver.observe(ctn);
+    const elapsed = (performance.now() - startTimeRef.current) / 1000;
+    mat.uniforms.uTime.value = elapsed;
+
+    // Resolution in physical pixels
+    const dpr = state.gl.getPixelRatio();
+    mat.uniforms.uResolution.value.set(width * dpr, height * dpr);
+
+    // Beat reactivity
+    const beat        = phaseSrcRef.current();
+    const sensitivity = bg.strandsBeatSensitivity ?? DEFAULT_SETTINGS.background.strandsBeatSensitivity;
+    const boost       = sensitivity > 0 ? sensitivity * beat : 0;
+
+    const baseAmp   = bg.strandsAmplitude ?? DEFAULT_SETTINGS.background.strandsAmplitude;
+    const baseGlow  = bg.strandsGlow      ?? DEFAULT_SETTINGS.background.strandsGlow;
+    const glowBoost = bg.strandsGlowBoost ?? DEFAULT_SETTINGS.background.strandsGlowBoost;
+    mat.uniforms.uAmplitude.value = baseAmp  * (1 + boost * 0.4);
+    mat.uniforms.uGlow.value      = baseGlow * (1 + boost * glowBoost);
+
+    // Colors — mutate existing Vector3 objects, do NOT replace the array
+    const colors = bg.strandsColors ?? DEFAULT_SETTINGS.background.strandsColors;
+    const palette = buildPalette(colors);
+    for (let i = 0; i < MAX_COLORS; i++) {
+      (mat.uniforms.uColors.value as THREE.Vector3[])[i].set(palette[i].x, palette[i].y, palette[i].z);
     }
-
-    // ── rAF loop ──────────────────────────────────────────────────────────
-    let animId: number;
-    const startTime = performance.now();
-
-    function update() {
-      animId = requestAnimationFrame(update);
-      const bg = getSettings().background;
-
-      if (!(bg.strandsEnabled ?? DEFAULT_SETTINGS.background.strandsEnabled)) {
-        // Clear to transparent when hidden — avoids a stale rendered frame
-        const rawGl = gl as WebGL2RenderingContext;
-        rawGl.clear(rawGl.COLOR_BUFFER_BIT);
-        return;
-      }
-
-      const elapsed = (performance.now() - startTime) / 1000;
-      uniforms.uTime.value = elapsed;
-
-      // ── Audio reactivity ───────────────────────────────────────────────
-      const beat        = phaseSrcRef.current();
-      const sensitivity = bg.strandsBeatSensitivity ?? DEFAULT_SETTINGS.background.strandsBeatSensitivity;
-      const boost       = sensitivity > 0 ? sensitivity * beat : 0;
-
-      const baseAmp  = bg.strandsAmplitude ?? DEFAULT_SETTINGS.background.strandsAmplitude;
-      const baseGlow    = bg.strandsGlow      ?? DEFAULT_SETTINGS.background.strandsGlow;
-      const glowBoost   = bg.strandsGlowBoost ?? DEFAULT_SETTINGS.background.strandsGlowBoost;
-      uniforms.uAmplitude.value = baseAmp  * (1 + boost * 0.4);
-      uniforms.uGlow.value      = baseGlow * (1 + boost * glowBoost);
-
-      // ── Settings → uniforms (every frame for live UI response) ────────
-      const colors = bg.strandsColors ?? DEFAULT_SETTINGS.background.strandsColors;
-      uniforms.uColors.value     = buildPalette(colors);
-      uniforms.uColorCount.value = Math.min(colors.length, MAX_COLORS);
-      uniforms.uStrandCount.value = Math.min(
-        bg.strandsCount ?? DEFAULT_SETTINGS.background.strandsCount,
-        MAX_STRANDS,
-      );
-      uniforms.uSpeed.value      = bg.strandsSpeed      ?? DEFAULT_SETTINGS.background.strandsSpeed;
-      uniforms.uWaviness.value   = bg.strandsWaviness   ?? DEFAULT_SETTINGS.background.strandsWaviness;
-      uniforms.uThickness.value  = bg.strandsThickness  ?? DEFAULT_SETTINGS.background.strandsThickness;
-      uniforms.uTaper.value      = bg.strandsTaper      ?? DEFAULT_SETTINGS.background.strandsTaper;
-      uniforms.uSpread.value     = bg.strandsSpread     ?? DEFAULT_SETTINGS.background.strandsSpread;
-      uniforms.uHueShift.value   = bg.strandsHueShift   ?? DEFAULT_SETTINGS.background.strandsHueShift;
-      uniforms.uIntensity.value  = bg.strandsIntensity  ?? DEFAULT_SETTINGS.background.strandsIntensity;
-      uniforms.uOpacity.value    = bg.strandsOpacity    ?? DEFAULT_SETTINGS.background.strandsOpacity;
-      uniforms.uScale.value      = bg.strandsScale      ?? DEFAULT_SETTINGS.background.strandsScale;
-      uniforms.uSaturation.value = bg.strandsSaturation ?? DEFAULT_SETTINGS.background.strandsSaturation;
-
-      renderer.render({ scene: mesh });
-    }
-
-    animId = requestAnimationFrame(update);
-
-    // ── Cleanup ───────────────────────────────────────────────────────────
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener('resize', resize);
-      resizeObserver?.disconnect();
-      try {
-        (gl as WebGL2RenderingContext)
-          .getExtension('WEBGL_lose_context')
-          ?.loseContext();
-      } catch {
-        // best-effort — some browsers throw on lost-context cleanup
-      }
-      canvas.remove();
-    };
-  }, []); // setup once; all settings read via getSettings() on each rAF tick
+    mat.uniforms.uColorCount.value  = Math.min(colors.length, MAX_COLORS);
+    mat.uniforms.uStrandCount.value = Math.min(bg.strandsCount ?? DEFAULT_SETTINGS.background.strandsCount, MAX_STRANDS);
+    mat.uniforms.uSpeed.value       = bg.strandsSpeed      ?? DEFAULT_SETTINGS.background.strandsSpeed;
+    mat.uniforms.uWaviness.value    = bg.strandsWaviness   ?? DEFAULT_SETTINGS.background.strandsWaviness;
+    mat.uniforms.uThickness.value   = bg.strandsThickness  ?? DEFAULT_SETTINGS.background.strandsThickness;
+    mat.uniforms.uTaper.value       = bg.strandsTaper      ?? DEFAULT_SETTINGS.background.strandsTaper;
+    mat.uniforms.uSpread.value      = bg.strandsSpread     ?? DEFAULT_SETTINGS.background.strandsSpread;
+    mat.uniforms.uHueShift.value    = bg.strandsHueShift   ?? DEFAULT_SETTINGS.background.strandsHueShift;
+    mat.uniforms.uIntensity.value   = bg.strandsIntensity  ?? DEFAULT_SETTINGS.background.strandsIntensity;
+    mat.uniforms.uOpacity.value     = bg.strandsOpacity    ?? DEFAULT_SETTINGS.background.strandsOpacity;
+    mat.uniforms.uScale.value       = bg.strandsScale      ?? DEFAULT_SETTINGS.background.strandsScale;
+    mat.uniforms.uSaturation.value  = bg.strandsSaturation ?? DEFAULT_SETTINGS.background.strandsSaturation;
+  });
 
   return (
-    <div
-      ref={containerRef}
-      className={className}
-      style={{
-        position:      'absolute',
-        inset:         0,
-        pointerEvents: 'none',
-        overflow:      'hidden',
-        ...style,
-      }}
-    />
+    <mesh ref={meshRef} renderOrder={9}>
+      <planeGeometry args={[2, 2]} />
+      <shaderMaterial
+        ref={matRef}
+        vertexShader={VERT}
+        fragmentShader={FRAG}
+        transparent
+        depthWrite={false}
+        depthTest={false}
+        blending={THREE.AdditiveBlending}
+        uniforms={{
+          uTime:        { value: 0 },
+          uResolution:  { value: new THREE.Vector2(1, 1) },
+          uColors:      { value: Array.from({ length: MAX_COLORS }, () => new THREE.Vector3(1, 1, 1)) },
+          uColorCount:  { value: DEFAULT_SETTINGS.background.strandsColors.length },
+          uStrandCount: { value: DEFAULT_SETTINGS.background.strandsCount },
+          uSpeed:       { value: DEFAULT_SETTINGS.background.strandsSpeed },
+          uAmplitude:   { value: DEFAULT_SETTINGS.background.strandsAmplitude },
+          uWaviness:    { value: DEFAULT_SETTINGS.background.strandsWaviness },
+          uThickness:   { value: DEFAULT_SETTINGS.background.strandsThickness },
+          uGlow:        { value: DEFAULT_SETTINGS.background.strandsGlow },
+          uTaper:       { value: DEFAULT_SETTINGS.background.strandsTaper },
+          uSpread:      { value: DEFAULT_SETTINGS.background.strandsSpread },
+          uHueShift:    { value: DEFAULT_SETTINGS.background.strandsHueShift },
+          uIntensity:   { value: DEFAULT_SETTINGS.background.strandsIntensity },
+          uOpacity:     { value: DEFAULT_SETTINGS.background.strandsOpacity },
+          uScale:       { value: DEFAULT_SETTINGS.background.strandsScale },
+          uSaturation:  { value: DEFAULT_SETTINGS.background.strandsSaturation },
+        }}
+      />
+    </mesh>
   );
 }

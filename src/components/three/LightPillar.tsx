@@ -1,15 +1,17 @@
 /**
- * LightPillar — standalone Three.js HTML overlay effect.
+ * LightPillar — R3F fullscreen-quad effect (ported from standalone overlay).
  *
  * Renders an animated 3D light pillar using ray marching in GLSL.
- * Mounted as a sibling to the R3F canvas, NOT inside the scene graph.
- * Pattern mirrors LightRays.tsx / Strands.tsx.
+ * Now part of the R3F scene graph so it appears in exported MP4s.
+ *
+ * ANGLE note: all GLSL local variables use `lp_` prefix.
  */
 
-import { useEffect, useRef, useMemo, type CSSProperties } from 'react';
+import { useRef, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
-import { getSettings, DEFAULT_SETTINGS, useSettingsStore } from '@/lib/settingsStore';
+import { getSettings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
 import { FreqBeatDetector } from '@/lib/audioUtils';
 import { useBeatDetectorRegistration } from './AudioScene';
 import { usePhaseSource } from '@/hooks/usePhaseSource';
@@ -22,11 +24,11 @@ const VERT = /* glsl */`
 varying vec2 vUv;
 void main() {
   vUv = uv;
-  gl_Position = vec4(position, 1.0);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `;
 
-// NOTE: No "precision highp float;" here — set via material.precision = 'highp'
+// NOTE: precision set via material's precision="highp" prop.
 const FRAG = /* glsl */`
 uniform float uTime;
 uniform vec2  uResolution;
@@ -124,15 +126,13 @@ function parseColor(hex: string): THREE.Vector3 {
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface LightPillarProps {
-  className?: string;
-  style?: CSSProperties;
-}
+export function LightPillar() {
+  const meshRef = useRef<THREE.Mesh>(null!);
+  const matRef  = useRef<THREE.ShaderMaterial>(null!);
 
-export function LightPillar({ className, style }: LightPillarProps = {}) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const waveSin = useMemo(() => Math.sin(0.4), []);
+  const waveCos = useMemo(() => Math.cos(0.4), []);
 
-  // Beat detection — same pattern as LightRays.tsx
   const lightPillarBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
   useBeatDetectorRegistration(lightPillarBeatDetector);
   const lightPillarPhaseSrc = usePhaseSource({
@@ -159,160 +159,89 @@ export function LightPillar({ className, style }: LightPillarProps = {}) {
   const phaseSrcRef = useRef(lightPillarPhaseSrc);
   phaseSrcRef.current = lightPillarPhaseSrc;
 
-  useEffect(() => {
-    const ctn = containerRef.current;
-    if (!ctn) return;
+  const timeRef = useRef(0);
 
-    // Three.js setup
-    const renderer = new THREE.WebGLRenderer({
-      antialias: false,
-      alpha: true,
-      powerPreference: 'high-performance',
-      depth: false,
-      stencil: false,
-    });
-    renderer.setClearColor(0x000000, 0);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(ctn.clientWidth, ctn.clientHeight);
+  useFrame((state, delta) => {
+    const mat  = matRef.current;
+    const mesh = meshRef.current;
+    if (!mat || !mesh) return;
 
-    const canvas = renderer.domElement;
-    canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;';
-    ctn.appendChild(canvas);
+    const { width, height } = state.size;
+    const bg = getSettings().background;
 
-    const scene  = new THREE.Scene();
-    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    mesh.scale.set(width, height, 1);
 
-    const waveSin = Math.sin(0.4);
-    const waveCos = Math.cos(0.4);
+    const behindLogo = bg.lightPillarBehindLogo ?? DEFAULT_SETTINGS.background.lightPillarBehindLogo;
+    mesh.position.z = behindLogo ? -0.5 : 1.5;
 
-    const uniforms: Record<string, THREE.IUniform> = {
-      uTime:           { value: 0 },
-      uResolution:     { value: new THREE.Vector2(ctn.clientWidth, ctn.clientHeight) },
-      uTopColor:       { value: parseColor(DEFAULT_SETTINGS.background.lightPillarTopColor) },
-      uBottomColor:    { value: parseColor(DEFAULT_SETTINGS.background.lightPillarBottomColor) },
-      uIntensity:      { value: DEFAULT_SETTINGS.background.lightPillarIntensity },
-      uGlowAmount:     { value: DEFAULT_SETTINGS.background.lightPillarGlowAmount },
-      uPillarWidth:    { value: DEFAULT_SETTINGS.background.lightPillarWidth },
-      uPillarHeight:   { value: DEFAULT_SETTINGS.background.lightPillarHeight },
-      uNoiseIntensity: { value: DEFAULT_SETTINGS.background.lightPillarNoiseIntensity },
-      uRotCos:         { value: 1.0 },
-      uRotSin:         { value: 0.0 },
-      uPillarRotCos:   { value: 1.0 },
-      uPillarRotSin:   { value: 0.0 },
-      uWaveSin:        { value: waveSin },
-      uWaveCos:        { value: waveCos },
-    };
-
-    const material = new THREE.ShaderMaterial({
-      vertexShader:   VERT,
-      fragmentShader: FRAG,
-      uniforms,
-      transparent:    true,
-      depthWrite:     false,
-      depthTest:      false,
-    });
-    material.precision = 'highp';
-
-    const geometry = new THREE.PlaneGeometry(2, 2);
-    const mesh     = new THREE.Mesh(geometry, material);
-    scene.add(mesh);
-
-    // Resize
-    function resize() {
-      if (!ctn) return;
-      const w = ctn.offsetWidth;
-      const h = ctn.offsetHeight;
-      if (w === 0 || h === 0) return;
-      renderer.setSize(w, h);
-      (uniforms.uResolution.value as THREE.Vector2).set(w, h);
+    if (!(bg.lightPillarEnabled ?? DEFAULT_SETTINGS.background.lightPillarEnabled)) {
+      mat.visible = false;
+      return;
     }
-    resize();
-    window.addEventListener('resize', resize);
-    let resizeObserver: ResizeObserver | undefined;
-    if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(resize);
-      resizeObserver.observe(ctn);
-    }
+    mat.visible = true;
 
-    // rAF loop
-    let animId: number;
-    let timeAcc = 0;
-    let lastTs  = performance.now();
+    const rotSpeed = bg.lightPillarRotationSpeed ?? DEFAULT_SETTINGS.background.lightPillarRotationSpeed;
+    timeRef.current += delta * rotSpeed;
+    const t = timeRef.current;
 
-    function update() {
-      animId = requestAnimationFrame(update);
-      const bg  = getSettings().background;
-      const now = performance.now();
-      const dt  = Math.min((now - lastTs) / 1000, 0.05);
-      lastTs    = now;
+    mat.uniforms.uTime.value   = t;
+    mat.uniforms.uRotCos.value = Math.cos(t * 0.3);
+    mat.uniforms.uRotSin.value = Math.sin(t * 0.3);
 
-      if (!(bg.lightPillarEnabled ?? DEFAULT_SETTINGS.background.lightPillarEnabled)) {
-        renderer.clear();
-        return;
-      }
+    const pillarRot = ((bg.lightPillarRotation ?? DEFAULT_SETTINGS.background.lightPillarRotation) * Math.PI) / 180;
+    mat.uniforms.uPillarRotCos.value = Math.cos(pillarRot);
+    mat.uniforms.uPillarRotSin.value = Math.sin(pillarRot);
 
-      const rotSpeed = bg.lightPillarRotationSpeed ?? DEFAULT_SETTINGS.background.lightPillarRotationSpeed;
-      timeAcc += dt * rotSpeed;
-      uniforms.uTime.value    = timeAcc;
-      uniforms.uRotCos.value  = Math.cos(timeAcc * 0.3);
-      uniforms.uRotSin.value  = Math.sin(timeAcc * 0.3);
+    const dpr = state.gl.getPixelRatio();
+    mat.uniforms.uResolution.value.set(width * dpr, height * dpr);
 
-      const pillarRot = ((bg.lightPillarRotation ?? DEFAULT_SETTINGS.background.lightPillarRotation) * Math.PI) / 180;
-      uniforms.uPillarRotCos.value = Math.cos(pillarRot);
-      uniforms.uPillarRotSin.value = Math.sin(pillarRot);
+    const beat           = phaseSrcRef.current();
+    const intensityBoost = bg.lightPillarBeatIntensity  ?? DEFAULT_SETTINGS.background.lightPillarBeatIntensity;
+    const widthBoost     = bg.lightPillarBeatWidthBoost ?? DEFAULT_SETTINGS.background.lightPillarBeatWidthBoost;
+    const boost          = beat;
 
-      // Beat reactivity
-      const beat          = phaseSrcRef.current();
-      const sensitivity   = bg.lightPillarBeatSensitivity ?? DEFAULT_SETTINGS.background.lightPillarBeatSensitivity;
-      const intensityBoost = bg.lightPillarBeatIntensity  ?? DEFAULT_SETTINGS.background.lightPillarBeatIntensity;
-      const widthBoost    = bg.lightPillarBeatWidthBoost  ?? DEFAULT_SETTINGS.background.lightPillarBeatWidthBoost;
-      const boost         = sensitivity > 0 ? beat : 0;
+    const baseIntensity = bg.lightPillarIntensity ?? DEFAULT_SETTINGS.background.lightPillarIntensity;
+    const baseWidth     = bg.lightPillarWidth     ?? DEFAULT_SETTINGS.background.lightPillarWidth;
+    mat.uniforms.uIntensity.value   = baseIntensity * (1 + boost * intensityBoost);
+    mat.uniforms.uPillarWidth.value = baseWidth     * (1 + boost * widthBoost);
 
-      const baseIntensity = bg.lightPillarIntensity ?? DEFAULT_SETTINGS.background.lightPillarIntensity;
-      const baseWidth     = bg.lightPillarWidth     ?? DEFAULT_SETTINGS.background.lightPillarWidth;
-      uniforms.uIntensity.value   = baseIntensity * (1 + boost * intensityBoost);
-      uniforms.uPillarWidth.value = baseWidth     * (1 + boost * widthBoost);
-
-      // Other settings
-      (uniforms.uTopColor.value    as THREE.Vector3).copy(parseColor(bg.lightPillarTopColor    ?? DEFAULT_SETTINGS.background.lightPillarTopColor));
-      (uniforms.uBottomColor.value as THREE.Vector3).copy(parseColor(bg.lightPillarBottomColor ?? DEFAULT_SETTINGS.background.lightPillarBottomColor));
-      uniforms.uGlowAmount.value     = bg.lightPillarGlowAmount     ?? DEFAULT_SETTINGS.background.lightPillarGlowAmount;
-      uniforms.uPillarHeight.value   = bg.lightPillarHeight         ?? DEFAULT_SETTINGS.background.lightPillarHeight;
-      uniforms.uNoiseIntensity.value = bg.lightPillarNoiseIntensity ?? DEFAULT_SETTINGS.background.lightPillarNoiseIntensity;
-
-      renderer.render(scene, camera);
-    }
-
-    animId = requestAnimationFrame(update);
-
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener('resize', resize);
-      resizeObserver?.disconnect();
-      renderer.dispose();
-      renderer.forceContextLoss();
-      geometry.dispose();
-      material.dispose();
-      canvas.remove();
-    };
-  }, []);
-
-  const blendMode = useSettingsStore(
-    (s) => s.settings.background.lightPillarBlendMode ?? DEFAULT_SETTINGS.background.lightPillarBlendMode,
-  );
+    (mat.uniforms.uTopColor.value    as THREE.Vector3).copy(parseColor(bg.lightPillarTopColor    ?? DEFAULT_SETTINGS.background.lightPillarTopColor));
+    (mat.uniforms.uBottomColor.value as THREE.Vector3).copy(parseColor(bg.lightPillarBottomColor ?? DEFAULT_SETTINGS.background.lightPillarBottomColor));
+    mat.uniforms.uGlowAmount.value     = bg.lightPillarGlowAmount     ?? DEFAULT_SETTINGS.background.lightPillarGlowAmount;
+    mat.uniforms.uPillarHeight.value   = bg.lightPillarHeight         ?? DEFAULT_SETTINGS.background.lightPillarHeight;
+    mat.uniforms.uNoiseIntensity.value = bg.lightPillarNoiseIntensity ?? DEFAULT_SETTINGS.background.lightPillarNoiseIntensity;
+  });
 
   return (
-    <div
-      ref={containerRef}
-      className={className}
-      style={{
-        position:      'absolute',
-        inset:         0,
-        pointerEvents: 'none',
-        overflow:      'hidden',
-        mixBlendMode:  blendMode !== 'normal' ? (blendMode as CSSProperties['mixBlendMode']) : undefined,
-        ...style,
-      }}
-    />
+    <mesh ref={meshRef} renderOrder={9}>
+      <planeGeometry args={[2, 2]} />
+      <shaderMaterial
+        ref={matRef}
+        precision="highp"
+        vertexShader={VERT}
+        fragmentShader={FRAG}
+        transparent
+        depthWrite={false}
+        depthTest={false}
+        blending={THREE.AdditiveBlending}
+        uniforms={{
+          uTime:           { value: 0 },
+          uResolution:     { value: new THREE.Vector2(1, 1) },
+          uTopColor:       { value: new THREE.Vector3(1, 1, 1) },
+          uBottomColor:    { value: new THREE.Vector3(1, 1, 1) },
+          uIntensity:      { value: DEFAULT_SETTINGS.background.lightPillarIntensity },
+          uGlowAmount:     { value: DEFAULT_SETTINGS.background.lightPillarGlowAmount },
+          uPillarWidth:    { value: DEFAULT_SETTINGS.background.lightPillarWidth },
+          uPillarHeight:   { value: DEFAULT_SETTINGS.background.lightPillarHeight },
+          uNoiseIntensity: { value: DEFAULT_SETTINGS.background.lightPillarNoiseIntensity },
+          uRotCos:         { value: 1.0 },
+          uRotSin:         { value: 0.0 },
+          uPillarRotCos:   { value: 1.0 },
+          uPillarRotSin:   { value: 0.0 },
+          uWaveSin:        { value: waveSin },
+          uWaveCos:        { value: waveCos },
+        }}
+      />
+    </mesh>
   );
 }

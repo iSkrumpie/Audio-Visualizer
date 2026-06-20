@@ -13,6 +13,9 @@ import * as THREE from 'three';
 import { BackgroundPlane } from './BackgroundPlane';
 import { BackgroundFx } from './BackgroundFx';
 import { MagicRings } from './MagicRings';
+import { LightPillar } from './LightPillar';
+import { LightRays } from './LightRays';
+import { Strands } from './Strands';
 import { NebulaPlane } from './NebulaPlane';
 import { InstancedBars } from './InstancedBars';
 import { GPUParticles } from './GPUParticles';
@@ -124,6 +127,9 @@ export function AudioScene({ className, style }: AudioSceneProps) {
       <SceneCapture />
       <BackgroundPlane />
       <BackgroundFx />
+      <Strands />
+      <LightRays />
+      <LightPillar />
       <MagicRings />
       <NebulaPlane />
       <InstancedBars />

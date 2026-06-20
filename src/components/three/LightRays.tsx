@@ -1,22 +1,16 @@
 /**
- * LightRays — animated god-rays / crepuscular rays effect rendered via ogl
- * (standalone WebGL2 canvas, separate from the R3F scene graph). Mounted as
- * an HTML overlay div; z-ordering relative to the R3F canvas is controlled by
- * the parent container in VisualizerStage.
+ * LightRays — R3F fullscreen-quad effect (ported from standalone ogl overlay).
+ *
+ * Animated god-rays / crepuscular rays. Now part of the R3F scene graph
+ * so it appears in exported MP4s.
  *
  * Shader prefix rule: all local GLSL variables use `lr_` prefix.
  * See AGENTS.md §6 (ANGLE/Windows GLSL-Prefix-Regel).
- *
- * Audio reactivity:
- *   Primary:   uIntensityBoost — overall brightness boost on beat.
- *   Secondary: uPulsating      — activates shimmer-pulsing when beat > 0.3.
- *
- * Mouse-follow from the original reactbits source is intentionally omitted.
  */
 
-import { useEffect, useRef, useMemo, type CSSProperties } from 'react';
-import { Renderer, Program, Mesh, Triangle } from 'ogl';
-import type { OGLRenderingContext } from 'ogl';
+import { useRef, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
 import { audioAnalysis } from '@/hooks/useAudioReactive';
 import { getSettings, DEFAULT_SETTINGS } from '@/lib/settingsStore';
 import { FreqBeatDetector } from '@/lib/audioUtils';
@@ -25,18 +19,17 @@ import { usePhaseSource } from '@/hooks/usePhaseSource';
 
 // ─── Vertex shader ────────────────────────────────────────────────────────────
 
-const VERT = /* glsl */ `#version 300 es
-in vec2 position;
+const VERT = /* glsl */`
 void main() {
-  gl_Position = vec4(position, 0.0, 1.0);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `;
 
 // ─── Fragment shader ──────────────────────────────────────────────────────────
+// Converted from GLSL ES 3.0 to GLSL ES 1.0 for Three.js ShaderMaterial.
 // ALL local variables carry the `lr_` prefix (ANGLE Windows rule).
-// Uniforms (uTime, uResolution, uRayPos, ...) keep their plain names.
 
-const FRAG = /* glsl */ `#version 300 es
+const FRAG = /* glsl */`
 precision highp float;
 
 uniform float uTime;
@@ -51,8 +44,6 @@ uniform float uPulsating;
 uniform float uFadeDistance;
 uniform float uOpacity;
 uniform float uIntensityBoost;
-
-out vec4 fragColor;
 
 float lr_noise(vec2 lr_st) {
   return fract(sin(dot(lr_st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
@@ -97,18 +88,11 @@ void main() {
   float lr_lum   = max(max(lr_rays.r, lr_rays.g), lr_rays.b);
   float lr_alpha = clamp(lr_lum, 0.0, 1.0) * uOpacity;
 
-  fragColor = vec4(lr_rays.rgb * uOpacity, lr_alpha);
+  gl_FragColor = vec4(lr_rays.rgb * uOpacity, lr_alpha);
 }
 `;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function hexToRgb(hex: string): [number, number, number] {
-  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return m
-    ? [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255]
-    : [1, 1, 1];
-}
 
 function getLightRaysAnchorAndDir(
   origin: string,
@@ -128,24 +112,12 @@ function getLightRaysAnchorAndDir(
   }
 }
 
-// ─── Props ────────────────────────────────────────────────────────────────────
-
-export interface LightRaysProps {
-  className?: string;
-  style?: CSSProperties;
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
-/**
- * LightRays renders an animated god-ray effect onto its own ogl canvas
- * element. The canvas is positioned `absolute inset-0` inside the container
- * div. The parent (VisualizerStage) controls z-index and optional logo mask.
- */
-export function LightRays({ className, style }: LightRaysProps = {}) {
-  const containerRef = useRef<HTMLDivElement>(null);
+export function LightRays() {
+  const meshRef = useRef<THREE.Mesh>(null!);
+  const matRef  = useRef<THREE.ShaderMaterial>(null!);
 
-  // ── Beat detection — same pattern as Strands ──────────────────────────
   const lightRaysBeatDetector = useMemo(() => new FreqBeatDetector(48000), []);
   useBeatDetectorRegistration(lightRaysBeatDetector);
 
@@ -171,169 +143,90 @@ export function LightRays({ className, style }: LightRaysProps = {}) {
     },
   });
 
-  // Keep phase source ref current — rAF loop reads it, can't call hooks inside
   const phaseSrcRef = useRef(lightRaysPhaseSrc);
   phaseSrcRef.current = lightRaysPhaseSrc;
 
-  // ── ogl lifecycle ────────────────────────────────────────────────────────
-  useEffect(() => {
-    const ctn = containerRef.current;
-    if (!ctn) return;
+  const startTimeRef = useRef(performance.now());
 
-    // Create renderer — alpha: true so the canvas is transparent where no
-    // rays are drawn. premultipliedAlpha: false for correct CSS compositing.
-    const renderer = new Renderer({
-      alpha:              true,
-      premultipliedAlpha: false,
-      antialias:          false,
-      dpr:                Math.min(window.devicePixelRatio, 2),
-    });
-    const gl: OGLRenderingContext = renderer.gl;
-    gl.clearColor(0, 0, 0, 0);
+  useFrame((state) => {
+    const mat  = matRef.current;
+    const mesh = meshRef.current;
+    if (!mat || !mesh) return;
 
-    const canvas = gl.canvas as HTMLCanvasElement;
-    canvas.style.cssText =
-      'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;';
-    ctn.appendChild(canvas);
+    const { width, height } = state.size;
+    const bg = getSettings().background;
 
-    // ── Initial size ─────────────────────────────────────────────────────
-    const resBuf: [number, number] = [0, 0];
+    mesh.scale.set(width, height, 1);
 
-    // Compute initial anchor/dir based on container size and default origin
-    const initW = ctn.offsetWidth;
-    const initH = ctn.offsetHeight;
-    const initOrigin = DEFAULT_SETTINGS.background.lightRaysOrigin;
-    const { anchor: initAnchor, dir: initDir } = getLightRaysAnchorAndDir(initOrigin, initW, initH);
+    const behindLogo = bg.lightRaysBehindLogo ?? DEFAULT_SETTINGS.background.lightRaysBehindLogo;
+    mesh.position.z = behindLogo ? -0.5 : 1.5;
 
-    // ── Uniform storage ───────────────────────────────────────────────────
-    const uniforms: Record<string, { value: number | number[] }> = {
-      uTime:           { value: 0 },
-      uResolution:     { value: resBuf },
-      uRayPos:         { value: [...initAnchor] },
-      uRayDir:         { value: [...initDir] },
-      uRaysColor:      { value: hexToRgb(DEFAULT_SETTINGS.background.lightRaysColor) },
-      uRaysSpeed:      { value: DEFAULT_SETTINGS.background.lightRaysSpeed },
-      uLightSpread:    { value: DEFAULT_SETTINGS.background.lightRaysSpread },
-      uRayLength:      { value: DEFAULT_SETTINGS.background.lightRaysLength },
-      uPulsating:      { value: 0 },
-      uFadeDistance:   { value: DEFAULT_SETTINGS.background.lightRaysFadeDistance },
-      uOpacity:        { value: DEFAULT_SETTINGS.background.lightRaysOpacity },
-      uIntensityBoost: { value: 1.0 },
-    };
-
-    const program = new Program(gl, {
-      vertex:   VERT,
-      fragment: FRAG,
-      uniforms,
-      transparent: true, // enables SRC_ALPHA / ONE_MINUS_SRC_ALPHA blending
-    });
-
-    const mesh = new Mesh(gl, {
-      geometry: new Triangle(gl),
-      program,
-    });
-
-    // ── Resize ────────────────────────────────────────────────────────────
-    function resize() {
-      if (!ctn) return;
-      const w = ctn.offsetWidth;
-      const h = ctn.offsetHeight;
-      if (w === 0 || h === 0) return;
-      renderer.setSize(w, h);
-      resBuf[0] = w;
-      resBuf[1] = h;
+    if (!(bg.lightRaysEnabled ?? DEFAULT_SETTINGS.background.lightRaysEnabled)) {
+      mat.visible = false;
+      return;
     }
-    resize();
-    window.addEventListener('resize', resize);
+    mat.visible = true;
 
-    let resizeObserver: ResizeObserver | undefined;
-    if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(resize);
-      resizeObserver.observe(ctn);
-    }
+    const elapsed = (performance.now() - startTimeRef.current) / 1000;
+    mat.uniforms.uTime.value = elapsed;
 
-    // ── rAF loop ──────────────────────────────────────────────────────────
-    let animId: number;
-    const startTime = performance.now();
+    // Resolution in physical pixels
+    const dpr = state.gl.getPixelRatio();
+    const pw = width  * dpr;
+    const ph = height * dpr;
+    mat.uniforms.uResolution.value.set(pw, ph);
 
-    function update() {
-      animId = requestAnimationFrame(update);
-      const bg = getSettings().background;
+    // Beat reactivity
+    const beat      = phaseSrcRef.current();
+    const intensity = bg.lightRaysBeatIntensity ?? DEFAULT_SETTINGS.background.lightRaysBeatIntensity;
+    const boost     = intensity * beat;
+    mat.uniforms.uIntensityBoost.value = 1.0 + boost;
+    mat.uniforms.uPulsating.value      = beat > 0.3 ? 1.0 : 0.0;
 
-      if (!(bg.lightRaysEnabled ?? DEFAULT_SETTINGS.background.lightRaysEnabled)) {
-        const rawGl = gl as WebGL2RenderingContext;
-        rawGl.clear(rawGl.COLOR_BUFFER_BIT);
-        return;
-      }
+    // Anchor/dir from origin setting (use physical pixel dimensions)
+    const origin = bg.lightRaysOrigin ?? DEFAULT_SETTINGS.background.lightRaysOrigin;
+    const { anchor, dir } = getLightRaysAnchorAndDir(origin, pw, ph);
+    mat.uniforms.uRayPos.value.set(anchor[0], anchor[1]);
+    mat.uniforms.uRayDir.value.set(dir[0], dir[1]);
 
-      const elapsed = (performance.now() - startTime) / 1000;
-      uniforms.uTime.value = elapsed;
+    // Color
+    const hex = bg.lightRaysColor ?? DEFAULT_SETTINGS.background.lightRaysColor;
+    const c = new THREE.Color(hex);
+    mat.uniforms.uRaysColor.value.set(c.r, c.g, c.b);
 
-      // ── Audio reactivity ───────────────────────────────────────────────
-      const beat        = phaseSrcRef.current();
-      const sensitivity = bg.lightRaysBeatSensitivity ?? DEFAULT_SETTINGS.background.lightRaysBeatSensitivity;
-      const intensity   = bg.lightRaysBeatIntensity   ?? DEFAULT_SETTINGS.background.lightRaysBeatIntensity;
-      const boost       = sensitivity > 0 ? intensity * beat : 0;
-
-      uniforms.uIntensityBoost.value = 1.0 + boost;
-      uniforms.uPulsating.value      = beat > 0.3 ? 1.0 : 0.0;
-
-      // ── Update anchor/dir from origin setting ─────────────────────────
-      const origin = bg.lightRaysOrigin ?? DEFAULT_SETTINGS.background.lightRaysOrigin;
-      const dpr    = renderer.dpr;
-      const w      = (ctn?.offsetWidth  ?? 0) * dpr;
-      const h      = (ctn?.offsetHeight ?? 0) * dpr;
-      const { anchor, dir } = getLightRaysAnchorAndDir(origin, w, h);
-      (uniforms.uRayPos.value as number[])[0] = anchor[0];
-      (uniforms.uRayPos.value as number[])[1] = anchor[1];
-      (uniforms.uRayDir.value as number[])[0] = dir[0];
-      (uniforms.uRayDir.value as number[])[1] = dir[1];
-
-      // ── Settings → uniforms (every frame for live UI response) ────────
-      const hex = bg.lightRaysColor ?? DEFAULT_SETTINGS.background.lightRaysColor;
-      const rgb = hexToRgb(hex);
-      (uniforms.uRaysColor.value as number[])[0] = rgb[0];
-      (uniforms.uRaysColor.value as number[])[1] = rgb[1];
-      (uniforms.uRaysColor.value as number[])[2] = rgb[2];
-
-      uniforms.uRaysSpeed.value     = bg.lightRaysSpeed        ?? DEFAULT_SETTINGS.background.lightRaysSpeed;
-      uniforms.uLightSpread.value   = bg.lightRaysSpread       ?? DEFAULT_SETTINGS.background.lightRaysSpread;
-      uniforms.uRayLength.value     = bg.lightRaysLength       ?? DEFAULT_SETTINGS.background.lightRaysLength;
-      uniforms.uOpacity.value       = bg.lightRaysOpacity      ?? DEFAULT_SETTINGS.background.lightRaysOpacity;
-      uniforms.uFadeDistance.value  = bg.lightRaysFadeDistance ?? DEFAULT_SETTINGS.background.lightRaysFadeDistance;
-
-      renderer.render({ scene: mesh });
-    }
-
-    animId = requestAnimationFrame(update);
-
-    // ── Cleanup ───────────────────────────────────────────────────────────
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener('resize', resize);
-      resizeObserver?.disconnect();
-      try {
-        (gl as WebGL2RenderingContext)
-          .getExtension('WEBGL_lose_context')
-          ?.loseContext();
-      } catch {
-        // best-effort
-      }
-      canvas.remove();
-    };
-  }, []); // setup once; all settings read via getSettings() on each rAF tick
+    mat.uniforms.uRaysSpeed.value    = bg.lightRaysSpeed        ?? DEFAULT_SETTINGS.background.lightRaysSpeed;
+    mat.uniforms.uLightSpread.value  = bg.lightRaysSpread       ?? DEFAULT_SETTINGS.background.lightRaysSpread;
+    mat.uniforms.uRayLength.value    = bg.lightRaysLength       ?? DEFAULT_SETTINGS.background.lightRaysLength;
+    mat.uniforms.uOpacity.value      = bg.lightRaysOpacity      ?? DEFAULT_SETTINGS.background.lightRaysOpacity;
+    mat.uniforms.uFadeDistance.value = bg.lightRaysFadeDistance ?? DEFAULT_SETTINGS.background.lightRaysFadeDistance;
+  });
 
   return (
-    <div
-      ref={containerRef}
-      className={className}
-      style={{
-        position:      'absolute',
-        inset:         0,
-        pointerEvents: 'none',
-        overflow:      'hidden',
-        ...style,
-      }}
-    />
+    <mesh ref={meshRef} renderOrder={9}>
+      <planeGeometry args={[2, 2]} />
+      <shaderMaterial
+        ref={matRef}
+        vertexShader={VERT}
+        fragmentShader={FRAG}
+        transparent
+        depthWrite={false}
+        depthTest={false}
+        blending={THREE.AdditiveBlending}
+        uniforms={{
+          uTime:           { value: 0 },
+          uResolution:     { value: new THREE.Vector2(1, 1) },
+          uRayPos:         { value: new THREE.Vector2(0.5, 0) },
+          uRayDir:         { value: new THREE.Vector2(0, 1) },
+          uRaysColor:      { value: new THREE.Vector3(1, 1, 1) },
+          uRaysSpeed:      { value: DEFAULT_SETTINGS.background.lightRaysSpeed },
+          uLightSpread:    { value: DEFAULT_SETTINGS.background.lightRaysSpread },
+          uRayLength:      { value: DEFAULT_SETTINGS.background.lightRaysLength },
+          uPulsating:      { value: 0 },
+          uFadeDistance:   { value: DEFAULT_SETTINGS.background.lightRaysFadeDistance },
+          uOpacity:        { value: DEFAULT_SETTINGS.background.lightRaysOpacity },
+          uIntensityBoost: { value: 1.0 },
+        }}
+      />
+    </mesh>
   );
 }
