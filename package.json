@@ -1,9 +1,18 @@
 {
-  "name": "audiovisualizer",
-  "private": true,
+  "name": "audio-visualizer",
+  "private": false,
   "version": "0.1.0",
   "type": "module",
-  "description": "Web-based audio visualizer with MP4 export. Vite + React 19 + Three.js + WebCodecs.",
+  "description": "Client-only web audio visualizer with MP4 export. Built with Vite, React 19, Three.js and the WebCodecs API.",
+  "license": "MIT",
+  "homepage": "https://github.com/iSkrumpie/Audio-Visualizer",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iSkrumpie/Audio-Visualizer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/iSkrumpie/Audio-Visualizer/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

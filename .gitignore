@@ -37,3 +37,12 @@ Thumbs.db
 # Vite
 *.tsbuildinfo
 .vite/
+
+# Local agent context (not for public repo)
+AGENTS.md
+
+# Local-only docs (architecture, hot-spots, session log — kept private)
+docs/
+
+# Local test artifacts, generated audio, debug screenshots
+tmp/
