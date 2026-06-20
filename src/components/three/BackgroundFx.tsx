@@ -4,8 +4,8 @@
  *   2. Rain streaks
  *   3. Snow flakes
  *
- * Sits at z = -9.5, renderOrder = 1 — behind NebulaPlane (z=-8) and
- * all other elements. Uses AdditiveBlending + depthWrite=false.
+ * Sits at z = -9.5. renderOrder set dynamically in useFrame (4 = behind logo,
+ * 9 = in front) via the *BehindLogo settings. Uses AdditiveBlending + depthWrite=false.
  *
  * Each effect has its own FreqBeatDetector registered via
  * useBeatDetectorRegistration so the export pipeline can reset them.
@@ -467,15 +467,15 @@ export function BackgroundFx() {
 
   return (
     <group position={[0, 0, -9.5]}>
-      <points ref={bgParticlesRef} renderOrder={1}>
+      <points ref={bgParticlesRef}>
         <primitive object={bgParticlesGeo} attach="geometry" />
         <primitive object={bgParticlesMat} attach="material" />
       </points>
-      <points ref={rainRef} renderOrder={1}>
+      <points ref={rainRef}>
         <primitive object={rainGeo} attach="geometry" />
         <primitive object={rainMat} attach="material" />
       </points>
-      <points ref={snowRef} renderOrder={1}>
+      <points ref={snowRef}>
         <primitive object={snowGeo} attach="geometry" />
         <primitive object={snowMat} attach="material" />
       </points>
