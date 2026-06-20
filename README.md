@@ -12,11 +12,13 @@ No backend, no login, no tracking. Everything runs in the browser.
 
 ![Audio Visualizer 4](./assets/screenshots/4.png)
 
-## Demos
+## Examples on Youtube
 
 [![Demo video 1 on YouTube](https://img.youtube.com/vi/ksfSVNRBrJY/maxresdefault.jpg)](https://www.youtube.com/watch?v=ksfSVNRBrJY)
+Link: [https://www.youtube.com/watch?v=ksfSVNRBrJY](https://www.youtube.com/watch?v=ksfSVNRBrJY)
 
 [![Demo video 2 on YouTube](https://img.youtube.com/vi/nOnmXuzDtiI/maxresdefault.jpg)](https://www.youtube.com/watch?v=nOnmXuzDtiI)
+Link: [https://www.youtube.com/watch?v=nOnmXuzDtiI](https://www.youtube.com/watch?v=nOnmXuzDtiI)
 
 ## Features
 
