@@ -183,11 +183,11 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
         <div className="flex items-center gap-2">
           {/* Autoplay toggle — left of Play/Pause */}
           <div className="flex items-center gap-1.5">
-            <span className="font-ui text-[10px]" style={{ color: 'var(--text-muted)' }}>Autoplay</span>
+            <span className="font-ui text-xs" style={{ color: 'var(--text-muted)' }}>Autoplay</span>
             <button
               type="button"
               onClick={toggleAutoplay}
-              className="flex h-5 min-w-[2rem] items-center justify-center rounded border px-1.5 font-ui text-[9px] font-bold transition-all"
+              className="flex h-8 min-w-[2.5rem] items-center justify-center rounded-md border px-2 font-ui text-xs font-semibold transition-all"
               style={{
                 background: autoplay ? 'var(--accent)' : 'transparent',
                 borderColor: autoplay ? 'var(--accent)' : 'var(--border)',
