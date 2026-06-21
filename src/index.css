@@ -333,19 +333,19 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 input.transport-range::-webkit-slider-runnable-track {
-  height: 2px;
+  height: 1px;
   background: transparent;
   border-radius: 9999px;
 }
 
 input.transport-range::-moz-range-track {
-  height: 2px;
+  height: 1px;
   background: transparent;
   border-radius: 9999px;
 }
 
 input.transport-range::-webkit-slider-thumb {
-  margin-top: -4px; /* center 10px thumb on 2px track: -(10-2)/2 */
+  margin-top: -4.5px; /* center 10px thumb on 1px track: -(10-1)/2 */
   background: #fff;
   border-radius: 50%;
   border: 1.5px solid var(--step-1);
