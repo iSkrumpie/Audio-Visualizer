@@ -60,7 +60,9 @@ export function SettingsPanel() {
       bg.lightPillarEnabled,
       bg.lightningEnabled,
       bg.magicRingsEnabled,
-      bg.bgParticlesEnabled || bg.rainEnabled || bg.snowEnabled,
+      bg.bgParticlesEnabled,
+      bg.rainEnabled,
+      bg.snowEnabled,
       bg.hyperspeedEnabled,
       bg.faultyTerminalEnabled,
       bg.ferrofluidEnabled,
@@ -1083,7 +1085,7 @@ function OverlayCard({
         background: 'var(--bg-elev-2)',
       }}
     >
-      <div className="flex items-center gap-2 px-3 py-2.5">
+      <div className="flex items-center gap-2 px-3 py-2">
         <span
           className="h-2 w-2 flex-shrink-0 rounded-full transition-colors"
           style={{ background: enabled ? 'var(--accent)' : 'var(--border-strong)' }}
@@ -1137,7 +1139,7 @@ function OverlayCard({
           </button>
         )}
       </div>
-      {expanded && enabled && children && (
+      {expanded && children && (
         <div
           className="border-t px-3 pb-3 pt-3"
           style={{ borderColor: 'var(--border)' }}
@@ -1356,8 +1358,6 @@ function OverlaysSection() {
   const [ffBFE,  sffBFE] = useF('background', 'ferrofluidBeatFreqEnd');
   const [ffBS,   sffBS]  = useF('background', 'ferrofluidBeatSensitivity');
   const [ffGB,   sffGB]  = useF('background', 'ferrofluidGlowBoost');
-
-  const weatherEnabled = (bgPE as boolean) || (rnE as boolean) || (snE as boolean);
 
   return (
     <div>
@@ -1657,12 +1657,7 @@ function OverlaysSection() {
         </FR>
       </OverlayCard>
 
-      <OverlayCard
-        label="Weather FX"
-        enabled={weatherEnabled}
-        onToggle={(v) => { sBgPE(v); sRnE(v); sSnE(v); }}
-      >
-        <EffectCard label="Background particles" enabled={bgPE as boolean} onToggle={sBgPE} info={hintFor('background.bgParticlesEnabled')}>
+      <OverlayCard label="Background Particles" enabled={bgPE as boolean} onToggle={sBgPE}>
           <FR label="Position" info={hintFor('background.bgParticlesBehindLogo')}>
             <CB
               value={(bgPBL as boolean) ? 'behind' : 'front'}
@@ -1699,9 +1694,9 @@ function OverlaysSection() {
           <FR label="Blend mode" info={hintFor('background.bgParticlesBlendMode')}>
             <BlendSel value={bgPBM as string} onChange={sBgPBM as (v: string) => void} />
           </FR>
-        </EffectCard>
+      </OverlayCard>
 
-        <EffectCard label="Rain" enabled={rnE as boolean} onToggle={sRnE} info={hintFor('background.rainEnabled')}>
+      <OverlayCard label="Rain" enabled={rnE as boolean} onToggle={sRnE}>
           <FR label="Position" info={hintFor('background.rainBehindLogo')}>
             <CB
               value={(rnBL as boolean) ? 'behind' : 'front'}
@@ -1744,9 +1739,9 @@ function OverlaysSection() {
           <FR label="Blend mode" info={hintFor('background.rainBlendMode')}>
             <BlendSel value={rnBM as string} onChange={sRnBM as (v: string) => void} />
           </FR>
-        </EffectCard>
+      </OverlayCard>
 
-        <EffectCard label="Snow" enabled={snE as boolean} onToggle={sSnE} info={hintFor('background.snowEnabled')}>
+      <OverlayCard label="Snow" enabled={snE as boolean} onToggle={sSnE}>
           <FR label="Position" info={hintFor('background.snowBehindLogo')}>
             <CB
               value={(snBL as boolean) ? 'behind' : 'front'}
@@ -1786,7 +1781,6 @@ function OverlaysSection() {
           <FR label="Blend mode" info={hintFor('background.snowBlendMode')}>
             <BlendSel value={snBM as string} onChange={sSnBM as (v: string) => void} />
           </FR>
-        </EffectCard>
       </OverlayCard>
 
       <OverlayCard label="Hyperspeed" enabled={hspE as boolean} onToggle={sHspE}>
@@ -2026,7 +2020,7 @@ function LogoSection_() {
   const [sparksCCool, sSparksCCool] = useF('logo', 'sparksColorCool');
 
   return (
-    <div>
+    <div className="flex flex-col gap-2">
       <Tg value={en as boolean} onChange={sEn} label="Show logo" />
 
       <Acc label="Size" description={ACCORDION_DESCRIPTIONS['logo.size']}>
@@ -2549,7 +2543,7 @@ function BarsSection() {
   const binToHz = (bin: number) => Math.round((bin / 128) * 22050);
 
   return (
-    <div>
+    <div className="flex flex-col gap-2">
       <Tg value={en as boolean} onChange={sEn} label="Radial bars" />
 
       <Acc label="General" description={ACCORDION_DESCRIPTIONS['bars.general']}>
@@ -2680,7 +2674,7 @@ function ParticlesSection() {
   const [op,   sOp]  = useF('particles', 'opacity');
 
   return (
-    <div>
+    <div className="flex flex-col gap-2">
       <Tg value={en as boolean} onChange={sEn} label="Particles" />
 
       <Acc label="General" description={ACCORDION_DESCRIPTIONS['particles.general']}>
