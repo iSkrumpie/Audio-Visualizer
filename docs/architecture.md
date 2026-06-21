@@ -20,7 +20,7 @@ src/
 │   ├── DropZone.tsx         # Wiederverwendbar: drag/drop + click, mit Preview
 │   ├── ThemeToggle.tsx      # Existiert noch (Datei), aber NICHT mehr verwendet
 │   ├── VisualizerStage.tsx  # 3-Layer-Stage: <AudioScene/> + HTML-Overlays
-│   ├── TransportBar.tsx     # Player: Seek-Slider, Play/Pause, Volume, Export
+│   ├── TransportBar.tsx     # Player: Seek-Slider, Play/Pause, Volume, Export — draggable via framer-motion useDragControls
 │   ├── SettingsPanel.tsx    # Right-Drawer mit 5 Tabs + Preset-Dropdown + Accordion-Sections
 │   ├── ExportOverlay.tsx    # 2-Screen-Modal: Preset-Picker → Progress
 │   ├── HzRangePicker.tsx    # Shared: 10 Preset-Buttons + log-Dual-Slider + Bin-Quality-Indicator

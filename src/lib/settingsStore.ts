@@ -74,6 +74,8 @@ export type Settings = {
     /** Show the Audio tab in SettingsPanel (power-user / advanced toggle).
      *  Default false — hidden from casual users. Detection pipeline still runs. */
     showAdvancedAudio: boolean;
+    /** Auto-start playback when transitioning to the visualize stage. Default true. */
+    autoplay: boolean;
   };
 
   background: {
@@ -528,6 +530,7 @@ const DEFAULT_SETTINGS: Settings = {
     accent: '#6366F1',
     secondary: '#22D3EE',
     showAdvancedAudio: false,
+    autoplay: true,
   },
 
   background: {
@@ -943,9 +946,9 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v22',
+      name: 'audiovisualizer:settings:v23',
       storage: createJSONStorage(() => localStorage),
-      version: 22,
+      version: 23,
       migrate: (persistedState: unknown, version: number): { settings: Settings } => {
         // Safety: no persisted data → start fresh
         const ps = persistedState as Record<string, unknown> | null | undefined;
@@ -1001,6 +1004,10 @@ export const useSettingsStore = create<SettingsStore>()(
         if (version < 22) {
           const bg = (s['background'] as Record<string, unknown>) ?? {};
           s['background'] = { ...DEFAULT_SETTINGS.background, ...bg };
+        }
+        if (version < 23) {
+          const th = (s['theme'] as Record<string, unknown>) ?? {};
+          s['theme'] = { ...DEFAULT_SETTINGS.theme, ...th };
         }
         return ps as { settings: Settings };
       },

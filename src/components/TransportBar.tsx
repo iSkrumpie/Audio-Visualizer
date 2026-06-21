@@ -12,8 +12,9 @@
  */
 
 import { useCallback } from 'react';
-import { motion, useDragControls } from 'framer-motion';
+import { motion, useDragControls, useMotionValue } from 'framer-motion';
 import { useAudioStore } from '@/lib/audioStore';
+import { useSettingsStore } from '@/lib/settingsStore';
 import { formatTime } from '@/lib/utils';
 
 
@@ -27,6 +28,30 @@ type TransportBarProps = {
 
 export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragConstraintsRef }: TransportBarProps) {
   const dragControls = useDragControls();
+
+  // ── Drag position persistence ──────────────────────────────────────────
+  const STORAGE_KEY = 'audiovisualizer:player-pos';
+  const savedPos = (() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw) as { x: number; y: number };
+    } catch {}
+    return { x: 0, y: 0 };
+  })();
+  const motionX = useMotionValue(savedPos.x);
+  const motionY = useMotionValue(savedPos.y);
+
+  // ── Autoplay ───────────────────────────────────────────────────────────
+  const autoplay = useSettingsStore((s) => s.settings.theme.autoplay);
+  const setSettings = useSettingsStore((s) => s.setSettings);
+  const toggleAutoplay = useCallback(() =>
+    setSettings((prev) => ({
+      ...prev,
+      theme: { ...prev.theme, autoplay: !prev.theme.autoplay },
+    })),
+    [setSettings],
+  );
+
   const currentTime = useAudioStore((s) => s.currentTime);
   const volume = useAudioStore((s) => s.volume);
   const setVolume = useAudioStore((s) => s.setVolume);
@@ -48,11 +73,18 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
       dragMomentum={false}
       dragElastic={0}
       dragConstraints={dragConstraintsRef}
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{ delay: 0.2 }}
+      onDragEnd={() => {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ x: motionX.get(), y: motionY.get() }));
+        } catch {}
+      }}
       className="absolute bottom-6 left-1/2 flex w-[min(680px,calc(100%-48px))] -translate-x-1/2 flex-col overflow-hidden rounded-lg border"
       style={{
+        x: motionX,
+        y: motionY,
         background: 'var(--bg-overlay)',
         borderColor: 'var(--border)',
         boxShadow: 'var(--shadow-lg)',
@@ -163,6 +195,23 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
           >
             {isPlaying ? <PauseIcon /> : <PlayIcon />}
           </button>
+
+          {/* Autoplay toggle */}
+          <button
+            type="button"
+            onClick={toggleAutoplay}
+            title={autoplay ? 'Autoplay on — click to disable' : 'Autoplay off — click to enable'}
+            className="flex h-7 w-7 items-center justify-center rounded-md border transition-all"
+            style={{
+              background: autoplay ? 'var(--bg-elev-2)' : 'transparent',
+              borderColor: autoplay ? 'var(--accent)' : 'var(--border)',
+              color: autoplay ? 'var(--accent)' : 'var(--text-dim)',
+            }}
+            aria-label={autoplay ? 'Autoplay enabled' : 'Autoplay disabled'}
+            aria-pressed={autoplay}
+          >
+            <AutoplayIcon active={autoplay} />
+          </button>
         </div>
 
         <div className="flex items-center gap-1">
@@ -249,6 +298,19 @@ function DownloadIcon() {
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="7 10 12 15 17 10" />
       <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+function AutoplayIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {/* Play triangle */}
+      <polygon points="5 3 19 12 5 21 5 3" fill={active ? 'currentColor' : 'none'} stroke="currentColor" />
+      {active ? null : (
+        /* Strike-through line when disabled */
+        <line x1="3" y1="3" x2="21" y2="21" />
+      )}
     </svg>
   );
 }

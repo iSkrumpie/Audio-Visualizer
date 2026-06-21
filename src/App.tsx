@@ -14,6 +14,7 @@ import { useAudioReactive } from '@/hooks/useAudioReactive';
 import { useAudioStore } from '@/lib/audioStore';
 import { exportMP4, downloadBlob, type ExportProgress } from '@/lib/exportEngine';
 import { type ExportPreset } from '@/lib/exportPresets';
+import { getSettings } from '@/lib/settingsStore';
 
 type Stage = 'upload' | 'visualize';
 
@@ -54,6 +55,7 @@ function App() {
     setError(null);
     setStage('visualize');
     requestAnimationFrame(async () => {
+      if (!(getSettings().theme.autoplay ?? true)) return;
       try {
         await play();
       } catch (e) {
