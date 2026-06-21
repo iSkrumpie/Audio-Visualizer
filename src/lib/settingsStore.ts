@@ -622,7 +622,7 @@ const DEFAULT_SETTINGS: Settings = {
     rainCount: 600,
     rainSpeed: 1.5,
     rainAngle: 8,
-    rainLength: 1.5,
+    rainLength: 7.0,
     rainWidth: 0.6,
     rainColor: '#A8C8FF',
     rainOpacity: 0.5,
