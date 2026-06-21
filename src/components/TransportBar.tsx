@@ -133,12 +133,6 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
           {formatTime(currentTime)}
         </span>
         <div className="relative flex-1">
-          {/* Animated visual track — inset-0 + flex items-center guarantees alignment with native thumb */}
-          <div className="pointer-events-none absolute inset-0 flex items-center">
-            <div className="relative w-full rounded-full" style={{ height: '2px', background: 'var(--border-strong)' }}>
-              <div className="transport-fill absolute inset-y-0 left-0" style={{ width: `${progress}%` }} />
-            </div>
-          </div>
           <input
             type="range"
             min={0}
@@ -147,7 +141,9 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
             value={currentTime}
             onChange={handleSeek}
             className="transport-range w-full"
-            style={{ background: 'transparent' }}
+            style={{
+              background: `linear-gradient(to right, var(--step-1) 0%, var(--step-2) ${progress * 0.5}%, var(--step-3) ${progress}%, var(--border-strong) ${progress}%, var(--border-strong) 100%)`,
+            }}
             aria-label="Seek"
           />
         </div>
@@ -225,25 +221,19 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
             style={{ color: 'var(--text-muted)' }}
           >
             <VolumeIcon muted={volume === 0} />
-            {/* Animated visual track for volume */}
-            <div className="relative w-16">
-              <div className="pointer-events-none absolute inset-0 flex items-center">
-                <div className="relative w-full rounded-full" style={{ height: '2px', background: 'var(--border-strong)' }}>
-                  <div className="transport-fill absolute inset-y-0 left-0" style={{ width: `${volPct}%` }} />
-                </div>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={volume}
-                onChange={(e) => setVolume(parseFloat(e.target.value))}
-                className="transport-range w-16"
-                style={{ background: 'transparent' }}
-                aria-label="Volume"
-              />
-            </div>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={volume}
+              onChange={(e) => setVolume(parseFloat(e.target.value))}
+              className="transport-range w-16"
+              style={{
+                background: `linear-gradient(to right, var(--step-1) 0%, var(--step-2) ${volPct * 0.5}%, var(--step-3) ${volPct}%, var(--border-strong) ${volPct}%, var(--border-strong) 100%)`,
+              }}
+              aria-label="Volume"
+            />
           </div>
           <button
             type="button"
@@ -256,8 +246,8 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = 'var(--bg-elev-2)';
-              e.currentTarget.style.borderColor = 'var(--accent)';
-              e.currentTarget.style.color = 'var(--accent)';
+              e.currentTarget.style.borderColor = 'var(--step-4)';
+              e.currentTarget.style.color = 'var(--step-4)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'transparent';
