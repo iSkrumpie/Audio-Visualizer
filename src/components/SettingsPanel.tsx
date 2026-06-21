@@ -1776,7 +1776,7 @@ function BackgroundSection() {
               <CP value={ftTint as string} onChange={sFtTint} />
             </FR>
             <FR label="Brightness" hint={`${(ftBri as number).toFixed(1)}`} info={hintFor('background.faultyTerminalBrightness')}>
-              <Sl value={ftBri as number} min={0.1} max={2} step={0.05} onChange={sFtBri} />
+              <Sl value={ftBri as number} min={0.1} max={3} step={0.05} onChange={sFtBri} />
             </FR>
             <FR label="Scale" hint={`${(ftSc as number).toFixed(1)}`} info={hintFor('background.faultyTerminalScale')}>
               <Sl value={ftSc as number} min={0.5} max={4} step={0.1} onChange={sFtSc} />
@@ -1791,7 +1791,7 @@ function BackgroundSection() {
               <Sl value={ftFl as number} min={0} max={2} step={0.05} onChange={sFtFl} />
             </FR>
             <FR label="Noise Amplitude" hint={`${(ftNA as number).toFixed(1)}`} info={hintFor('background.faultyTerminalNoiseAmp')}>
-              <Sl value={ftNA as number} min={0} max={2} step={0.05} onChange={sFtNA} />
+              <Sl value={ftNA as number} min={0} max={4} step={0.05} onChange={sFtNA} />
             </FR>
             <FR label="CRT Curvature" hint={`${(ftCv as number).toFixed(2)}`} info={hintFor('background.faultyTerminalCurvature')}>
               <Sl value={ftCv as number} min={0} max={0.5} step={0.01} onChange={sFtCv} />

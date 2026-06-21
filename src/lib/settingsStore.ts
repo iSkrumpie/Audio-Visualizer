@@ -738,12 +738,12 @@ const DEFAULT_SETTINGS: Settings = {
     faultyTerminalEnabled: false,
     faultyTerminalBehindLogo: true,
     faultyTerminalTint: '#00ff41',
-    faultyTerminalBrightness: 0.8,
+    faultyTerminalBrightness: 1.0,
     faultyTerminalScale: 1.0,
     faultyTerminalScanlineIntensity: 1.0,
     faultyTerminalGlitchAmount: 1.0,
     faultyTerminalFlickerAmount: 1.0,
-    faultyTerminalNoiseAmp: 0.5,
+    faultyTerminalNoiseAmp: 2.0,
     faultyTerminalCurvature: 0.2,
     faultyTerminalSpeed: 1.0,
     faultyTerminalBeatFreqStart: 40,
@@ -901,9 +901,9 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v20',
+      name: 'audiovisualizer:settings:v21',
       storage: createJSONStorage(() => localStorage),
-      version: 20,
+      version: 21,
       migrate: (persistedState: unknown, version: number): { settings: Settings } => {
         // Safety: no persisted data → start fresh
         const ps = persistedState as Record<string, unknown> | null | undefined;
@@ -943,6 +943,17 @@ export const useSettingsStore = create<SettingsStore>()(
         }
         if (version < 20) {
           const bg = (s['background'] as Record<string, unknown>) ?? {};
+          s['background'] = { ...DEFAULT_SETTINGS.background, ...bg };
+        }
+        if (version < 21) {
+          const bg = (s['background'] as Record<string, unknown>) ?? {};
+          // Fix: old default noiseAmp (0.5) was too low — digits were invisible
+          if (typeof bg['faultyTerminalNoiseAmp'] === 'undefined' || (bg['faultyTerminalNoiseAmp'] as number) <= 0.5) {
+            bg['faultyTerminalNoiseAmp'] = 2.0;
+          }
+          if (typeof bg['faultyTerminalBrightness'] === 'undefined' || (bg['faultyTerminalBrightness'] as number) <= 0.8) {
+            bg['faultyTerminalBrightness'] = 1.0;
+          }
           s['background'] = { ...DEFAULT_SETTINGS.background, ...bg };
         }
         return ps as { settings: Settings };
