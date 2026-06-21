@@ -320,6 +320,23 @@ export type Settings = {
     hyperspeedBeatFreqEnd: number;
     hyperspeedBeatSensitivity: number;
     hyperspeedBlendMode: BlendMode;
+    // ── FaultyTerminal (v20) ─────────────────────────────────────────────────
+    faultyTerminalEnabled: boolean;
+    faultyTerminalBehindLogo: boolean;
+    faultyTerminalTint: string;
+    faultyTerminalBrightness: number;
+    faultyTerminalScale: number;
+    faultyTerminalScanlineIntensity: number;
+    faultyTerminalGlitchAmount: number;
+    faultyTerminalFlickerAmount: number;
+    faultyTerminalNoiseAmp: number;
+    faultyTerminalCurvature: number;
+    faultyTerminalSpeed: number;
+    faultyTerminalBeatFreqStart: number;
+    faultyTerminalBeatFreqEnd: number;
+    faultyTerminalBeatSensitivity: number;
+    faultyTerminalBeatGlitchBoost: number;
+    faultyTerminalBlendMode: BlendMode;
   };
 
   logo: {
@@ -717,6 +734,23 @@ const DEFAULT_SETTINGS: Settings = {
     hyperspeedBeatFreqEnd: 120,
     hyperspeedBeatSensitivity: 1.0,
     hyperspeedBlendMode: 'normal' as BlendMode,
+    // ── FaultyTerminal (v20) ─────────────────────────────────────────────────
+    faultyTerminalEnabled: false,
+    faultyTerminalBehindLogo: true,
+    faultyTerminalTint: '#00ff41',
+    faultyTerminalBrightness: 0.8,
+    faultyTerminalScale: 1.0,
+    faultyTerminalScanlineIntensity: 1.0,
+    faultyTerminalGlitchAmount: 1.0,
+    faultyTerminalFlickerAmount: 1.0,
+    faultyTerminalNoiseAmp: 0.5,
+    faultyTerminalCurvature: 0.2,
+    faultyTerminalSpeed: 1.0,
+    faultyTerminalBeatFreqStart: 40,
+    faultyTerminalBeatFreqEnd: 250,
+    faultyTerminalBeatSensitivity: 1.0,
+    faultyTerminalBeatGlitchBoost: 1.5,
+    faultyTerminalBlendMode: 'add' as BlendMode,
   },
 
   logo: {
@@ -867,9 +901,9 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v19',
+      name: 'audiovisualizer:settings:v20',
       storage: createJSONStorage(() => localStorage),
-      version: 19,
+      version: 20,
       migrate: (persistedState: unknown, version: number): { settings: Settings } => {
         // Safety: no persisted data → start fresh
         const ps = persistedState as Record<string, unknown> | null | undefined;
@@ -905,6 +939,10 @@ export const useSettingsStore = create<SettingsStore>()(
             bg['lightPillarBlendMode'] = 'add';
           }
           // Deep-merge to pick up all new fields with defaults
+          s['background'] = { ...DEFAULT_SETTINGS.background, ...bg };
+        }
+        if (version < 20) {
+          const bg = (s['background'] as Record<string, unknown>) ?? {};
           s['background'] = { ...DEFAULT_SETTINGS.background, ...bg };
         }
         return ps as { settings: Settings };

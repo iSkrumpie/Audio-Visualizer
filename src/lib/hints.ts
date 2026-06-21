@@ -504,6 +504,40 @@ export const SETTING_HINTS: Record<string, string> = {
   'background.hyperspeedBlendMode':
     'How the hyperspeed layer blends with layers below it.',
 
+  // ── FaultyTerminal ──────────────────────────────────────────────────────────────────────────
+  'background.faultyTerminalEnabled':
+    'Overlays a retro CRT terminal aesthetic with animated glyphs, scanlines and glitch distortion.',
+  'background.faultyTerminalBehindLogo':
+    'When set to "Behind logo", the effect is masked out at the logo position. "In front" lets it cover everything including the logo.',
+  'background.faultyTerminalTint':
+    'Tint color applied to all terminal digits. Classic green (#00ff41) gives a retro hacker look.',
+  'background.faultyTerminalBrightness':
+    'Overall brightness of the terminal pattern. Higher values make the digits glow brighter.',
+  'background.faultyTerminalScale':
+    'Scales the digit grid density. Higher = smaller, denser digits.',
+  'background.faultyTerminalScanlineIntensity':
+    'Strength of the moving scanline bar. Higher = brighter horizontal sweep across the screen.',
+  'background.faultyTerminalGlitchAmount':
+    'How strongly individual columns shift horizontally during glitch events. 1 = default; 0 = no glitch.',
+  'background.faultyTerminalFlickerAmount':
+    'Controls how often glitch flicker events are triggered. 0 = no flicker; 2 = very frequent.',
+  'background.faultyTerminalNoiseAmp':
+    'Amplitude of the underlying FBM noise that drives digit density variation across the grid.',
+  'background.faultyTerminalCurvature':
+    'CRT barrel distortion — bends the corners of the screen inward like an old monitor.',
+  'background.faultyTerminalSpeed':
+    'How fast the terminal animation evolves over time.',
+  'background.faultyTerminalBeatFreqStart':
+    'Lowest frequency (Hz) that is monitored for beat-triggered glitch events.',
+  'background.faultyTerminalBeatFreqEnd':
+    'Highest frequency (Hz) that is monitored for beat-triggered glitch events.',
+  'background.faultyTerminalBeatSensitivity':
+    'How sensitive the beat detector is. Lower = triggers on subtler transients. Higher = only strong hits.',
+  'background.faultyTerminalBeatGlitchBoost':
+    'How strongly a beat amplifies the glitch displacement. 0 = no reaction; 3 = heavy distortion on every beat.',
+  'background.faultyTerminalBlendMode':
+    'How this effect blends with layers behind it. "add" makes digits glow over the background.',
+
 
   // ── Logo ───────────────────────────────────────────────────────────────────────────────────
   'logo.enabled':

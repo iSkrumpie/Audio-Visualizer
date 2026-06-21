@@ -909,6 +909,24 @@ function BackgroundSection() {
   const [hspBSen, sHspBSen] = useF('background', 'hyperspeedBeatSensitivity');
   const [hspBM,   sHspBM]   = useF('background', 'hyperspeedBlendMode');
 
+  // FaultyTerminal
+  const [ftE,    sFtE]    = useF('background', 'faultyTerminalEnabled');
+  const [ftBL,   sFtBL]   = useF('background', 'faultyTerminalBehindLogo');
+  const [ftTint, sFtTint] = useF('background', 'faultyTerminalTint');
+  const [ftBri,  sFtBri]  = useF('background', 'faultyTerminalBrightness');
+  const [ftSc,   sFtSc]   = useF('background', 'faultyTerminalScale');
+  const [ftScan, sFtScan] = useF('background', 'faultyTerminalScanlineIntensity');
+  const [ftGl,   sFtGl]   = useF('background', 'faultyTerminalGlitchAmount');
+  const [ftFl,   sFtFl]   = useF('background', 'faultyTerminalFlickerAmount');
+  const [ftNA,   sFtNA]   = useF('background', 'faultyTerminalNoiseAmp');
+  const [ftCv,   sFtCv]   = useF('background', 'faultyTerminalCurvature');
+  const [ftSp,   sFtSp]   = useF('background', 'faultyTerminalSpeed');
+  const [ftBFS,  sFtBFS]  = useF('background', 'faultyTerminalBeatFreqStart');
+  const [ftBFE,  sFtBFE]  = useF('background', 'faultyTerminalBeatFreqEnd');
+  const [ftBSen, sFtBSen] = useF('background', 'faultyTerminalBeatSensitivity');
+  const [ftBGB,  sFtBGB]  = useF('background', 'faultyTerminalBeatGlitchBoost');
+  const [ftBM,   sFtBM]   = useF('background', 'faultyTerminalBlendMode');
+
   return (
     <div>
       <Acc label="Image" description={ACCORDION_DESCRIPTIONS['background.image']}>
@@ -1740,6 +1758,66 @@ function BackgroundSection() {
                 </FR>
               </div>
             </div>
+          </>
+        )}
+      </Acc>
+      <Acc label="Faulty Terminal">
+        <Tg value={ftE as boolean} onChange={sFtE} label="Show Faulty Terminal" />
+        {(ftE as boolean) && (
+          <>
+            <FR label="Position" info={hintFor('background.faultyTerminalBehindLogo')}>
+              <CB
+                value={(ftBL as boolean) ? 'behind' : 'front'}
+                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+                onChange={(v) => sFtBL(v === 'behind')}
+              />
+            </FR>
+            <FR label="Tint" info={hintFor('background.faultyTerminalTint')}>
+              <CP value={ftTint as string} onChange={sFtTint} />
+            </FR>
+            <FR label="Brightness" hint={`${(ftBri as number).toFixed(1)}`} info={hintFor('background.faultyTerminalBrightness')}>
+              <Sl value={ftBri as number} min={0.1} max={2} step={0.05} onChange={sFtBri} />
+            </FR>
+            <FR label="Scale" hint={`${(ftSc as number).toFixed(1)}`} info={hintFor('background.faultyTerminalScale')}>
+              <Sl value={ftSc as number} min={0.5} max={4} step={0.1} onChange={sFtSc} />
+            </FR>
+            <FR label="Scanline Intensity" hint={`${(ftScan as number).toFixed(1)}`} info={hintFor('background.faultyTerminalScanlineIntensity')}>
+              <Sl value={ftScan as number} min={0} max={2} step={0.05} onChange={sFtScan} />
+            </FR>
+            <FR label="Glitch Amount" hint={`${(ftGl as number).toFixed(1)}`} info={hintFor('background.faultyTerminalGlitchAmount')}>
+              <Sl value={ftGl as number} min={0} max={5} step={0.1} onChange={sFtGl} />
+            </FR>
+            <FR label="Flicker Amount" hint={`${(ftFl as number).toFixed(1)}`} info={hintFor('background.faultyTerminalFlickerAmount')}>
+              <Sl value={ftFl as number} min={0} max={2} step={0.05} onChange={sFtFl} />
+            </FR>
+            <FR label="Noise Amplitude" hint={`${(ftNA as number).toFixed(1)}`} info={hintFor('background.faultyTerminalNoiseAmp')}>
+              <Sl value={ftNA as number} min={0} max={2} step={0.05} onChange={sFtNA} />
+            </FR>
+            <FR label="CRT Curvature" hint={`${(ftCv as number).toFixed(2)}`} info={hintFor('background.faultyTerminalCurvature')}>
+              <Sl value={ftCv as number} min={0} max={0.5} step={0.01} onChange={sFtCv} />
+            </FR>
+            <FR label="Speed" hint={`${(ftSp as number).toFixed(1)}`} info={hintFor('background.faultyTerminalSpeed')}>
+              <Sl value={ftSp as number} min={0.1} max={3} step={0.1} onChange={sFtSp} />
+            </FR>
+            <div className="mt-2">
+              <HzRangePicker
+                startHz={ftBFS as number}
+                endHz={ftBFE as number}
+                onChangeStart={sFtBFS}
+                onChangeEnd={sFtBFE}
+              />
+              <div className="mt-2">
+                <FR label="Beat Sensitivity" hint={`${(ftBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.faultyTerminalBeatSensitivity')}>
+                  <Sl value={ftBSen as number} min={0} max={5} step={0.1} onChange={sFtBSen} />
+                </FR>
+                <FR label="Beat Glitch Boost" hint={`${(ftBGB as number).toFixed(1)}`} info={hintFor('background.faultyTerminalBeatGlitchBoost')}>
+                  <Sl value={ftBGB as number} min={0} max={3} step={0.1} onChange={sFtBGB} />
+                </FR>
+              </div>
+            </div>
+            <FR label="Blend mode" info={hintFor('background.faultyTerminalBlendMode')}>
+              <BlendSel value={ftBM as string} onChange={sFtBM as (v: string) => void} />
+            </FR>
           </>
         )}
       </Acc>
