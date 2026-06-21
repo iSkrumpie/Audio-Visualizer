@@ -14,10 +14,11 @@ import { Hint } from '@/components/Hint';
 import { SETTING_HINTS, ACCORDION_DESCRIPTIONS, ENUM_HINTS } from '@/lib/hints';
 import { BLEND_MODE_OPTIONS } from '@/lib/blendMode';
 
-type Section = 'background' | 'logo' | 'bars' | 'particles' | 'audio';
+type Section = 'background' | 'overlays' | 'logo' | 'bars' | 'particles' | 'audio';
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: 'background', label: 'Background' },
+  { id: 'overlays',   label: 'Overlays' },
   { id: 'logo',       label: 'Logo' },
   { id: 'bars',       label: 'Bars' },
   { id: 'particles',  label: 'Particles' },
@@ -50,6 +51,43 @@ export function SettingsPanel() {
     if (!next && section === 'audio') setSection('background');
   };
 
+  // ── Active count selectors for tab badges ─────────────────────────────────
+  const activeOverlays = useSettingsStore((s) => {
+    const bg = s.settings.background;
+    return [
+      bg.strandsEnabled,
+      bg.lightRaysEnabled,
+      bg.lightPillarEnabled,
+      bg.lightningEnabled,
+      bg.magicRingsEnabled,
+      bg.bgParticlesEnabled || bg.rainEnabled || bg.snowEnabled,
+      bg.hyperspeedEnabled,
+      bg.faultyTerminalEnabled,
+    ].filter(Boolean).length;
+  });
+
+  const activeBackground = useSettingsStore((s) => {
+    const bg = s.settings.background;
+    return [
+      bg.nebulaEnabled,
+      bg.vignetteEnabled,
+      bg.bloomEnabled,
+      bg.caEnabled,
+      bg.noiseEnabled,
+      bg.scanlineEnabled,
+      bg.glitchEnabled,
+      bg.pixelationEnabled,
+      bg.dotScreenEnabled,
+      bg.gridEnabled,
+      bg.sepiaEnabled,
+      bg.colorAverageEnabled,
+    ].filter(Boolean).length;
+  });
+
+  const logoEnabled = useSettingsStore((s) => s.settings.logo.enabled);
+  const barsEnabled = useSettingsStore((s) => s.settings.bars.enabled);
+  const particlesEnabled = useSettingsStore((s) => s.settings.particles.enabled);
+
   const handlePresetChange = (id: string) => {
     setSelectedId(id);
     const preset = presets.find((p) => p.id === id);
@@ -62,6 +100,14 @@ export function SettingsPanel() {
     setSelectedId(preset.id);
     setSaving(false);
     setSaveName('');
+  };
+
+  const tabCounts: Record<string, number> = {
+    background: activeBackground,
+    overlays: activeOverlays,
+    logo: logoEnabled ? 1 : 0,
+    bars: barsEnabled ? 1 : 0,
+    particles: particlesEnabled ? 1 : 0,
   };
 
   return (
@@ -95,9 +141,11 @@ export function SettingsPanel() {
             transition={{ type: 'spring', stiffness: 240, damping: 28 }}
             className="absolute right-0 top-0 z-40 flex h-full w-[376px] flex-col"
             style={{
-              background: 'var(--bg-elev-1)',
+              background: 'var(--bg-overlay)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
               borderLeft: '1px solid var(--border)',
-              boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.25)',
+              boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.35)',
             }}
           >
             <Header onClose={() => setOpen(false)} onReset={resetToDefault} />
@@ -246,12 +294,24 @@ export function SettingsPanel() {
                   }}
                 >
                   {s.label}
+                  {(tabCounts[s.id] ?? 0) > 0 && (
+                    <span
+                      className="ml-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 font-ui text-[9px] font-bold tabular-nums"
+                      style={{
+                        background: section === s.id ? 'var(--accent)' : 'var(--accent-muted, var(--border-strong))',
+                        color: section === s.id ? 'var(--bg-base)' : 'var(--text-muted)',
+                      }}
+                    >
+                      {tabCounts[s.id]}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
 
             <div className="flex-1 overflow-y-auto p-4">
               {section === 'background' && <BackgroundSection />}
+              {section === 'overlays'   && <OverlaysSection />}
               {section === 'logo'       && <LogoSection_ />}
               {section === 'bars'       && <BarsSection />}
               {section === 'particles'  && <ParticlesSection />}
@@ -743,189 +803,6 @@ function BackgroundSection() {
   const [gridWS,   sGridWS]   = useF('background', 'gridWaveSpeed');
   const [gridMv,   sGridMv]   = useF('background', 'gridMovement');
   const [gridCl,   sGridCl]   = useF('background', 'gridColor');
-  // Strands
-  const [stE,     sStE]     = useF('background', 'strandsEnabled');
-  const [stBL,    sStBL]    = useF('background', 'strandsBehindLogo');
-  const [stCnt,   sStCnt]   = useF('background', 'strandsCount');
-  const [stSp,    sStSp]    = useF('background', 'strandsSpeed');
-  const [stAmp,   sStAmp]   = useF('background', 'strandsAmplitude');
-  const [stWav,   sStWav]   = useF('background', 'strandsWaviness');
-  const [stThk,   sStThk]   = useF('background', 'strandsThickness');
-  const [stGlw,   sStGlw]   = useF('background', 'strandsGlow');
-  const [stTap,   sStTap]   = useF('background', 'strandsTaper');
-  const [stSpr,   sStSpr]   = useF('background', 'strandsSpread');
-  const [stHue,   sStHue]   = useF('background', 'strandsHueShift');
-  const [stInt,   sStInt]   = useF('background', 'strandsIntensity');
-  const [stSat,   sStSat]   = useF('background', 'strandsSaturation');
-  const [stOp,    sStOp]    = useF('background', 'strandsOpacity');
-  const [stScl,   sStScl]   = useF('background', 'strandsScale');
-  const [stBFS,   sStBFS]   = useF('background', 'strandsBeatFreqStart');
-  const [stBFE,   sStBFE]   = useF('background', 'strandsBeatFreqEnd');
-  const [stBSen,  sStBSen]  = useF('background', 'strandsBeatSensitivity');
-  const [stGlwB,  sStGlwB]  = useF('background', 'strandsGlowBoost');
-  // Magic Rings
-  const [mrE,      sMrE]      = useF('background', 'magicRingsEnabled');
-  const [mrC,      sMrC]      = useF('background', 'magicRingsColor');
-  const [mrC2,     sMrC2]     = useF('background', 'magicRingsColorTwo');
-  const [mrSp,     sMrSp]     = useF('background', 'magicRingsSpeed');
-  const [mrCnt,    sMrCnt]    = useF('background', 'magicRingsCount');
-  const [mrAtt,    sMrAtt]    = useF('background', 'magicRingsAttenuation');
-  const [mrThk,    sMrThk]    = useF('background', 'magicRingsThickness');
-  const [mrBR,     sMrBR]     = useF('background', 'magicRingsBaseRadius');
-  const [mrRS,     sMrRS]     = useF('background', 'magicRingsRadiusStep');
-  const [mrSR,     sMrSR]     = useF('background', 'magicRingsScaleRate');
-  const [mrOp,     sMrOp]     = useF('background', 'magicRingsOpacity');
-  const [mrNoise,  sMrNoise]  = useF('background', 'magicRingsNoiseAmount');
-  const [mrRot,    sMrRot]    = useF('background', 'magicRingsRotation');
-  const [mrGap,    sMrGap]    = useF('background', 'magicRingsRingGap');
-  const [mrBFS,    sMrBFS]    = useF('background', 'magicRingsBeatFreqStart');
-  const [mrBFE,    sMrBFE]    = useF('background', 'magicRingsBeatFreqEnd');
-  const [mrBSen,   sMrBSen]   = useF('background', 'magicRingsBeatSensitivity');
-  const [mrBurst,  sMrBurst]  = useF('background', 'magicRingsBurstStrength');
-  const [mrGlwStr, sMrGlwStr] = useF('background', 'magicRingsGlowStrength');
-  // Light Rays
-  const [lrE,    sLrE]    = useF('background', 'lightRaysEnabled');
-  const [lrOr,   sLrOr]   = useF('background', 'lightRaysOrigin');
-  const [lrCol,  sLrCol]  = useF('background', 'lightRaysColor');
-  const [lrSp,   sLrSp]   = useF('background', 'lightRaysSpeed');
-  const [lrSpr,  sLrSpr]  = useF('background', 'lightRaysSpread');
-  const [lrLen,  sLrLen]  = useF('background', 'lightRaysLength');
-  const [lrOp,   sLrOp]   = useF('background', 'lightRaysOpacity');
-  const [lrFd,   sLrFd]   = useF('background', 'lightRaysFadeDistance');
-  const [lrBL,   sLrBL]   = useF('background', 'lightRaysBehindLogo');
-  const [lrBFS,  sLrBFS]  = useF('background', 'lightRaysBeatFreqStart');
-  const [lrBFE,  sLrBFE]  = useF('background', 'lightRaysBeatFreqEnd');
-  const [lrBSen, sLrBSen] = useF('background', 'lightRaysBeatSensitivity');
-  const [lrBInt, sLrBInt] = useF('background', 'lightRaysBeatIntensity');
-  // Light Pillar
-  const [lpE,      sLpE]      = useF('background', 'lightPillarEnabled');
-  const [lpBL,     sLpBL]     = useF('background', 'lightPillarBehindLogo');
-  const [lpTopCol, sLpTopCol] = useF('background', 'lightPillarTopColor');
-  const [lpBotCol, sLpBotCol] = useF('background', 'lightPillarBottomColor');
-  const [lpInt,    sLpInt]    = useF('background', 'lightPillarIntensity');
-  const [lpRotSpd, sLpRotSpd] = useF('background', 'lightPillarRotationSpeed');
-  const [lpW,      sLpW]      = useF('background', 'lightPillarWidth');
-  const [lpH,      sLpH]      = useF('background', 'lightPillarHeight');
-  const [lpGlow,   sLpGlow]   = useF('background', 'lightPillarGlowAmount');
-  const [lpNoise,  sLpNoise]  = useF('background', 'lightPillarNoiseIntensity');
-  const [lpRot,    sLpRot]    = useF('background', 'lightPillarRotation');
-  const [lpBFS,    sLpBFS]    = useF('background', 'lightPillarBeatFreqStart');
-  const [lpBFE,    sLpBFE]    = useF('background', 'lightPillarBeatFreqEnd');
-  const [lpBSen,   sLpBSen]   = useF('background', 'lightPillarBeatSensitivity');
-  const [lpBInt,   sLpBInt]   = useF('background', 'lightPillarBeatIntensity');
-  const [lpBW,     sLpBW]     = useF('background', 'lightPillarBeatWidthBoost');
-  const [lpBM,     sLpBM]     = useF('background', 'lightPillarBlendMode');
-  // Lightning
-  const [ltnE,    sLtnE]    = useF('background', 'lightningEnabled');
-  const [ltnBL,   sLtnBL]   = useF('background', 'lightningBehindLogo');
-  const [ltnHue,  sLtnHue]  = useF('background', 'lightningHue');
-  const [ltnXOff, sLtnXOff] = useF('background', 'lightningXOffset');
-  const [ltnSp,   sLtnSp]   = useF('background', 'lightningSpeed');
-  const [ltnInt,  sLtnInt]  = useF('background', 'lightningIntensity');
-  const [ltnSz,   sLtnSz]   = useF('background', 'lightningSize');
-  const [ltnOp,   sLtnOp]   = useF('background', 'lightningOpacity');
-  const [ltnBFS,  sLtnBFS]  = useF('background', 'lightningBeatFreqStart');
-  const [ltnBFE,  sLtnBFE]  = useF('background', 'lightningBeatFreqEnd');
-  const [ltnBSen, sLtnBSen] = useF('background', 'lightningBeatSensitivity');
-  const [ltnBInt, sLtnBInt] = useF('background', 'lightningBeatIntensity');
-  const [ltnBScl, sLtnBScl] = useF('background', 'lightningBeatScale');
-  const strandsColors = useSettingsStore((s) => s.settings.background.strandsColors);
-  const setStrandsColors = (newColors: string[]) =>
-    useSettingsStore.getState().setSettings((prev) => ({
-      ...prev,
-      background: { ...prev.background, strandsColors: newColors },
-    }));
-  const updateStrandColor = (i: number, v: string) => {
-    const nc = [...strandsColors]; nc[i] = v; setStrandsColors(nc);
-  };
-  const addStrandColor = () => {
-    if (strandsColors.length < 8) setStrandsColors([...strandsColors, '#ffffff']);
-  };
-  const removeStrandColor = (i: number) => {
-    if (strandsColors.length > 1) setStrandsColors(strandsColors.filter((_, idx) => idx !== i));
-  };
-  // Weather FX
-  const [bgPE,    sBgPE]    = useF('background', 'bgParticlesEnabled');
-  const [bgPCnt,  sBgPCnt]  = useF('background', 'bgParticlesCount');
-  const [bgPSp,   sBgPSp]   = useF('background', 'bgParticlesSpeed');
-  const [bgPSz,   sBgPSz]   = useF('background', 'bgParticlesSize');
-  const [bgPOp,   sBgPOp]   = useF('background', 'bgParticlesOpacity');
-  const [bgPCl,   sBgPCl]   = useF('background', 'bgParticlesColor');
-  const [bgPFS,   sBgPFS]   = useF('background', 'bgParticlesBeatFreqStart');
-  const [bgPFE,   sBgPFE]   = useF('background', 'bgParticlesBeatFreqEnd');
-  const [bgPSen,  sBgPSen]  = useF('background', 'bgParticlesBeatSensitivity');
-  const [rnE,     sRnE]     = useF('background', 'rainEnabled');
-  const [rnCnt,   sRnCnt]   = useF('background', 'rainCount');
-  const [rnSp,    sRnSp]    = useF('background', 'rainSpeed');
-  const [rnAng,   sRnAng]   = useF('background', 'rainAngle');
-  const [rnLen,   sRnLen]   = useF('background', 'rainLength');
-  const [rnWid,   sRnWid]   = useF('background', 'rainWidth');
-  const [rnCl,    sRnCl]    = useF('background', 'rainColor');
-  const [rnOp,    sRnOp]    = useF('background', 'rainOpacity');
-  const [rnFS,    sRnFS]    = useF('background', 'rainBeatFreqStart');
-  const [rnFE,    sRnFE]    = useF('background', 'rainBeatFreqEnd');
-  const [rnSen,   sRnSen]   = useF('background', 'rainBeatSensitivity');
-  const [snE,     sSnE]     = useF('background', 'snowEnabled');
-  const [snCnt,   sSnCnt]   = useF('background', 'snowCount');
-  const [snSp,    sSnSp]    = useF('background', 'snowSpeed');
-  const [snSz,    sSnSz]    = useF('background', 'snowSize');
-  const [snCl,    sSnCl]    = useF('background', 'snowColor');
-  const [snOp,    sSnOp]    = useF('background', 'snowOpacity');
-  const [snSw,    sSnSw]    = useF('background', 'snowSway');
-  const [snFS,    sSnFS]    = useF('background', 'snowBeatFreqStart');
-  const [snFE,    sSnFE]    = useF('background', 'snowBeatFreqEnd');
-  const [snSen,   sSnSen]   = useF('background', 'snowBeatSensitivity');
-  // New blend mode + behindLogo hooks (v19)
-  const [stBM,    sStBM]    = useF('background', 'strandsBlendMode');
-  const [mrBL,    sMrBL]    = useF('background', 'magicRingsBehindLogo');
-  const [mrBM,    sMrBM]    = useF('background', 'magicRingsBlendMode');
-  const [lrBM,    sLrBM]    = useF('background', 'lightRaysBlendMode');
-  const [ltnBM,   sLtnBM]   = useF('background', 'lightningBlendMode');
-  const [bgPBL,   sBgPBL]   = useF('background', 'bgParticlesBehindLogo');
-  const [bgPBM,   sBgPBM]   = useF('background', 'bgParticlesBlendMode');
-  const [rnBL,    sRnBL]    = useF('background', 'rainBehindLogo');
-  const [rnBM,    sRnBM]    = useF('background', 'rainBlendMode');
-  const [snBL,    sSnBL]    = useF('background', 'snowBehindLogo');
-  const [snBM,    sSnBM]    = useF('background', 'snowBlendMode');
-  // Hyperspeed
-  const [hspE,    sHspE]    = useF('background', 'hyperspeedEnabled');
-  const [hspBL,   sHspBL]   = useF('background', 'hyperspeedBehindLogo');
-  const [hspOp,   sHspOp]   = useF('background', 'hyperspeedOpacity');
-  const [hspDist, sHspDist] = useF('background', 'hyperspeedDistortion');
-  const [hspSpd,  sHspSpd]  = useF('background', 'hyperspeedSpeed');
-  const [hspLanes,sHspLanes]= useF('background', 'hyperspeedLanesPerRoad');
-  const [hspRW,   sHspRW]   = useF('background', 'hyperspeedRoadWidth');
-  const [hspFov,  sHspFov]  = useF('background', 'hyperspeedFov');
-  const [hspLC1,  sHspLC1]  = useF('background', 'hyperspeedLeftCarColor1');
-  const [hspLC2,  sHspLC2]  = useF('background', 'hyperspeedLeftCarColor2');
-  const [hspLC3,  sHspLC3]  = useF('background', 'hyperspeedLeftCarColor3');
-  const [hspRC1,  sHspRC1]  = useF('background', 'hyperspeedRightCarColor1');
-  const [hspRC2,  sHspRC2]  = useF('background', 'hyperspeedRightCarColor2');
-  const [hspRC3,  sHspRC3]  = useF('background', 'hyperspeedRightCarColor3');
-  const [hspSC,   sHspSC]   = useF('background', 'hyperspeedSticksColor');
-  const [hspBB,   sHspBB]   = useF('background', 'hyperspeedBeatBrightness');
-  const [hspBFS,  sHspBFS]  = useF('background', 'hyperspeedBeatFreqStart');
-  const [hspBFE,  sHspBFE]  = useF('background', 'hyperspeedBeatFreqEnd');
-  const [hspBSen, sHspBSen] = useF('background', 'hyperspeedBeatSensitivity');
-  const [hspBM,   sHspBM]   = useF('background', 'hyperspeedBlendMode');
-
-  // FaultyTerminal
-  const [ftE,    sFtE]    = useF('background', 'faultyTerminalEnabled');
-  const [ftBL,   sFtBL]   = useF('background', 'faultyTerminalBehindLogo');
-  const [ftTint, sFtTint] = useF('background', 'faultyTerminalTint');
-  const [ftBri,  sFtBri]  = useF('background', 'faultyTerminalBrightness');
-  const [ftSc,   sFtSc]   = useF('background', 'faultyTerminalScale');
-  const [ftScan, sFtScan] = useF('background', 'faultyTerminalScanlineIntensity');
-  const [ftGl,   sFtGl]   = useF('background', 'faultyTerminalGlitchAmount');
-  const [ftFl,   sFtFl]   = useF('background', 'faultyTerminalFlickerAmount');
-  const [ftNA,   sFtNA]   = useF('background', 'faultyTerminalNoiseAmp');
-  const [ftCv,   sFtCv]   = useF('background', 'faultyTerminalCurvature');
-  const [ftSp,   sFtSp]   = useF('background', 'faultyTerminalSpeed');
-  const [ftBFS,  sFtBFS]  = useF('background', 'faultyTerminalBeatFreqStart');
-  const [ftBFE,  sFtBFE]  = useF('background', 'faultyTerminalBeatFreqEnd');
-  const [ftBSen, sFtBSen] = useF('background', 'faultyTerminalBeatSensitivity');
-  const [ftBGB,  sFtBGB]  = useF('background', 'faultyTerminalBeatGlitchBoost');
-  const [ftBM,   sFtBM]   = useF('background', 'faultyTerminalBlendMode');
 
   return (
     <div>
@@ -1178,373 +1055,590 @@ function BackgroundSection() {
         </EffectCard>
       </Acc>
 
-      <Acc label="Strands" description={ACCORDION_DESCRIPTIONS['background.strands']}>
-        <Tg value={stE as boolean} onChange={sStE} label="Show strands" />
-        {(stE as boolean) && (
-          <>
-            <FR label="Position" info={hintFor('background.strandsBehindLogo')}>
-              <CB
-                value={(stBL as boolean) ? 'behind' : 'front'}
-                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
-                onChange={(v) => sStBL(v === 'behind')}
-              />
-            </FR>
-            <FR label="Colors" info={hintFor('background.strandsColors')}>
-              <div className="flex flex-col gap-1 w-full">
-                {strandsColors.map((c, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <CP value={c} onChange={(v) => updateStrandColor(i, v)} />
-                    {strandsColors.length > 1 && (
-                      <button
-                        onClick={() => removeStrandColor(i)}
-                        className="text-xs px-1 rounded"
-                        style={{ color: 'var(--text-dim)', background: 'var(--bg-elev-2)' }}
-                      >×</button>
-                    )}
-                  </div>
-                ))}
-                {strandsColors.length < 8 && (
+    </div>
+  );
+}
+
+// ── OverlayCard ───────────────────────────────────────────────────────────────
+
+function OverlayCard({
+  label,
+  enabled,
+  onToggle,
+  children,
+}: {
+  label: string;
+  enabled: boolean;
+  onToggle: (v: boolean) => void;
+  children?: React.ReactNode;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div
+      className="mb-2 overflow-hidden rounded-lg border transition-colors"
+      style={{
+        borderColor: enabled ? 'var(--accent)' : 'var(--border)',
+        background: 'var(--bg-elev-2)',
+      }}
+    >
+      <div className="flex items-center gap-2 px-3 py-2.5">
+        <span
+          className="h-2 w-2 flex-shrink-0 rounded-full transition-colors"
+          style={{ background: enabled ? 'var(--accent)' : 'var(--border-strong)' }}
+        />
+        <span
+          className="flex-1 font-ui text-xs font-semibold"
+          style={{ color: enabled ? 'var(--text)' : 'var(--text-muted)' }}
+        >
+          {label}
+        </span>
+        <button
+          type="button"
+          onClick={() => onToggle(!enabled)}
+          className="flex h-4 w-7 flex-shrink-0 items-center rounded-full transition-colors"
+          style={{ background: enabled ? 'var(--accent)' : 'var(--border-strong)' }}
+          aria-label={enabled ? 'Disable' : 'Enable'}
+        >
+          <span
+            className="h-3 w-3 rounded-full transition-transform"
+            style={{
+              background: 'var(--bg-elev-1)',
+              transform: enabled ? 'translateX(15px)' : 'translateX(2px)',
+            }}
+          />
+        </button>
+        {children && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="flex h-5 w-5 items-center justify-center rounded transition-colors"
+            style={{ color: 'var(--text-muted)' }}
+            aria-label={expanded ? 'Collapse settings' : 'Expand settings'}
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+              style={{
+                transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s',
+              }}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        )}
+      </div>
+      {expanded && enabled && children && (
+        <div
+          className="border-t px-3 pb-3 pt-3"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Overlays Section ──────────────────────────────────────────────────────────
+
+function OverlaysSection() {
+  // Strands
+  const [stE,     sStE]     = useF('background', 'strandsEnabled');
+  const [stBL,    sStBL]    = useF('background', 'strandsBehindLogo');
+  const [stCnt,   sStCnt]   = useF('background', 'strandsCount');
+  const [stSp,    sStSp]    = useF('background', 'strandsSpeed');
+  const [stAmp,   sStAmp]   = useF('background', 'strandsAmplitude');
+  const [stWav,   sStWav]   = useF('background', 'strandsWaviness');
+  const [stThk,   sStThk]   = useF('background', 'strandsThickness');
+  const [stGlw,   sStGlw]   = useF('background', 'strandsGlow');
+  const [stTap,   sStTap]   = useF('background', 'strandsTaper');
+  const [stSpr,   sStSpr]   = useF('background', 'strandsSpread');
+  const [stHue,   sStHue]   = useF('background', 'strandsHueShift');
+  const [stInt,   sStInt]   = useF('background', 'strandsIntensity');
+  const [stSat,   sStSat]   = useF('background', 'strandsSaturation');
+  const [stOp,    sStOp]    = useF('background', 'strandsOpacity');
+  const [stScl,   sStScl]   = useF('background', 'strandsScale');
+  const [stBFS,   sStBFS]   = useF('background', 'strandsBeatFreqStart');
+  const [stBFE,   sStBFE]   = useF('background', 'strandsBeatFreqEnd');
+  const [stBSen,  sStBSen]  = useF('background', 'strandsBeatSensitivity');
+  const [stGlwB,  sStGlwB]  = useF('background', 'strandsGlowBoost');
+  const [stBM,    sStBM]    = useF('background', 'strandsBlendMode');
+  // Magic Rings
+  const [mrE,      sMrE]      = useF('background', 'magicRingsEnabled');
+  const [mrC,      sMrC]      = useF('background', 'magicRingsColor');
+  const [mrC2,     sMrC2]     = useF('background', 'magicRingsColorTwo');
+  const [mrSp,     sMrSp]     = useF('background', 'magicRingsSpeed');
+  const [mrCnt,    sMrCnt]    = useF('background', 'magicRingsCount');
+  const [mrAtt,    sMrAtt]    = useF('background', 'magicRingsAttenuation');
+  const [mrThk,    sMrThk]    = useF('background', 'magicRingsThickness');
+  const [mrBR,     sMrBR]     = useF('background', 'magicRingsBaseRadius');
+  const [mrRS,     sMrRS]     = useF('background', 'magicRingsRadiusStep');
+  const [mrSR,     sMrSR]     = useF('background', 'magicRingsScaleRate');
+  const [mrOp,     sMrOp]     = useF('background', 'magicRingsOpacity');
+  const [mrNoise,  sMrNoise]  = useF('background', 'magicRingsNoiseAmount');
+  const [mrRot,    sMrRot]    = useF('background', 'magicRingsRotation');
+  const [mrGap,    sMrGap]    = useF('background', 'magicRingsRingGap');
+  const [mrBFS,    sMrBFS]    = useF('background', 'magicRingsBeatFreqStart');
+  const [mrBFE,    sMrBFE]    = useF('background', 'magicRingsBeatFreqEnd');
+  const [mrBSen,   sMrBSen]   = useF('background', 'magicRingsBeatSensitivity');
+  const [mrBurst,  sMrBurst]  = useF('background', 'magicRingsBurstStrength');
+  const [mrGlwStr, sMrGlwStr] = useF('background', 'magicRingsGlowStrength');
+  const [mrBL,    sMrBL]    = useF('background', 'magicRingsBehindLogo');
+  const [mrBM,    sMrBM]    = useF('background', 'magicRingsBlendMode');
+  // Light Rays
+  const [lrE,    sLrE]    = useF('background', 'lightRaysEnabled');
+  const [lrOr,   sLrOr]   = useF('background', 'lightRaysOrigin');
+  const [lrCol,  sLrCol]  = useF('background', 'lightRaysColor');
+  const [lrSp,   sLrSp]   = useF('background', 'lightRaysSpeed');
+  const [lrSpr,  sLrSpr]  = useF('background', 'lightRaysSpread');
+  const [lrLen,  sLrLen]  = useF('background', 'lightRaysLength');
+  const [lrOp,   sLrOp]   = useF('background', 'lightRaysOpacity');
+  const [lrFd,   sLrFd]   = useF('background', 'lightRaysFadeDistance');
+  const [lrBL,   sLrBL]   = useF('background', 'lightRaysBehindLogo');
+  const [lrBFS,  sLrBFS]  = useF('background', 'lightRaysBeatFreqStart');
+  const [lrBFE,  sLrBFE]  = useF('background', 'lightRaysBeatFreqEnd');
+  const [lrBSen, sLrBSen] = useF('background', 'lightRaysBeatSensitivity');
+  const [lrBInt, sLrBInt] = useF('background', 'lightRaysBeatIntensity');
+  const [lrBM,    sLrBM]    = useF('background', 'lightRaysBlendMode');
+  // Light Pillar
+  const [lpE,      sLpE]      = useF('background', 'lightPillarEnabled');
+  const [lpBL,     sLpBL]     = useF('background', 'lightPillarBehindLogo');
+  const [lpTopCol, sLpTopCol] = useF('background', 'lightPillarTopColor');
+  const [lpBotCol, sLpBotCol] = useF('background', 'lightPillarBottomColor');
+  const [lpInt,    sLpInt]    = useF('background', 'lightPillarIntensity');
+  const [lpRotSpd, sLpRotSpd] = useF('background', 'lightPillarRotationSpeed');
+  const [lpW,      sLpW]      = useF('background', 'lightPillarWidth');
+  const [lpH,      sLpH]      = useF('background', 'lightPillarHeight');
+  const [lpGlow,   sLpGlow]   = useF('background', 'lightPillarGlowAmount');
+  const [lpNoise,  sLpNoise]  = useF('background', 'lightPillarNoiseIntensity');
+  const [lpRot,    sLpRot]    = useF('background', 'lightPillarRotation');
+  const [lpBFS,    sLpBFS]    = useF('background', 'lightPillarBeatFreqStart');
+  const [lpBFE,    sLpBFE]    = useF('background', 'lightPillarBeatFreqEnd');
+  const [lpBSen,   sLpBSen]   = useF('background', 'lightPillarBeatSensitivity');
+  const [lpBInt,   sLpBInt]   = useF('background', 'lightPillarBeatIntensity');
+  const [lpBW,     sLpBW]     = useF('background', 'lightPillarBeatWidthBoost');
+  const [lpBM,     sLpBM]     = useF('background', 'lightPillarBlendMode');
+  // Lightning
+  const [ltnE,    sLtnE]    = useF('background', 'lightningEnabled');
+  const [ltnBL,   sLtnBL]   = useF('background', 'lightningBehindLogo');
+  const [ltnHue,  sLtnHue]  = useF('background', 'lightningHue');
+  const [ltnXOff, sLtnXOff] = useF('background', 'lightningXOffset');
+  const [ltnSp,   sLtnSp]   = useF('background', 'lightningSpeed');
+  const [ltnInt,  sLtnInt]  = useF('background', 'lightningIntensity');
+  const [ltnSz,   sLtnSz]   = useF('background', 'lightningSize');
+  const [ltnOp,   sLtnOp]   = useF('background', 'lightningOpacity');
+  const [ltnBFS,  sLtnBFS]  = useF('background', 'lightningBeatFreqStart');
+  const [ltnBFE,  sLtnBFE]  = useF('background', 'lightningBeatFreqEnd');
+  const [ltnBSen, sLtnBSen] = useF('background', 'lightningBeatSensitivity');
+  const [ltnBInt, sLtnBInt] = useF('background', 'lightningBeatIntensity');
+  const [ltnBScl, sLtnBScl] = useF('background', 'lightningBeatScale');
+  const [ltnBM,   sLtnBM]   = useF('background', 'lightningBlendMode');
+  // strandsColors
+  const strandsColors = useSettingsStore((s) => s.settings.background.strandsColors);
+  const setStrandsColors = (newColors: string[]) =>
+    useSettingsStore.getState().setSettings((prev) => ({
+      ...prev,
+      background: { ...prev.background, strandsColors: newColors },
+    }));
+  const updateStrandColor = (i: number, v: string) => {
+    const nc = [...strandsColors]; nc[i] = v; setStrandsColors(nc);
+  };
+  const addStrandColor = () => {
+    if (strandsColors.length < 8) setStrandsColors([...strandsColors, '#ffffff']);
+  };
+  const removeStrandColor = (i: number) => {
+    if (strandsColors.length > 1) setStrandsColors(strandsColors.filter((_, idx) => idx !== i));
+  };
+  // Weather FX
+  const [bgPE,    sBgPE]    = useF('background', 'bgParticlesEnabled');
+  const [bgPCnt,  sBgPCnt]  = useF('background', 'bgParticlesCount');
+  const [bgPSp,   sBgPSp]   = useF('background', 'bgParticlesSpeed');
+  const [bgPSz,   sBgPSz]   = useF('background', 'bgParticlesSize');
+  const [bgPOp,   sBgPOp]   = useF('background', 'bgParticlesOpacity');
+  const [bgPCl,   sBgPCl]   = useF('background', 'bgParticlesColor');
+  const [bgPFS,   sBgPFS]   = useF('background', 'bgParticlesBeatFreqStart');
+  const [bgPFE,   sBgPFE]   = useF('background', 'bgParticlesBeatFreqEnd');
+  const [bgPSen,  sBgPSen]  = useF('background', 'bgParticlesBeatSensitivity');
+  const [bgPBL,   sBgPBL]   = useF('background', 'bgParticlesBehindLogo');
+  const [bgPBM,   sBgPBM]   = useF('background', 'bgParticlesBlendMode');
+  const [rnE,     sRnE]     = useF('background', 'rainEnabled');
+  const [rnCnt,   sRnCnt]   = useF('background', 'rainCount');
+  const [rnSp,    sRnSp]    = useF('background', 'rainSpeed');
+  const [rnAng,   sRnAng]   = useF('background', 'rainAngle');
+  const [rnLen,   sRnLen]   = useF('background', 'rainLength');
+  const [rnWid,   sRnWid]   = useF('background', 'rainWidth');
+  const [rnCl,    sRnCl]    = useF('background', 'rainColor');
+  const [rnOp,    sRnOp]    = useF('background', 'rainOpacity');
+  const [rnFS,    sRnFS]    = useF('background', 'rainBeatFreqStart');
+  const [rnFE,    sRnFE]    = useF('background', 'rainBeatFreqEnd');
+  const [rnSen,   sRnSen]   = useF('background', 'rainBeatSensitivity');
+  const [rnBL,    sRnBL]    = useF('background', 'rainBehindLogo');
+  const [rnBM,    sRnBM]    = useF('background', 'rainBlendMode');
+  const [snE,     sSnE]     = useF('background', 'snowEnabled');
+  const [snCnt,   sSnCnt]   = useF('background', 'snowCount');
+  const [snSp,    sSnSp]    = useF('background', 'snowSpeed');
+  const [snSz,    sSnSz]    = useF('background', 'snowSize');
+  const [snCl,    sSnCl]    = useF('background', 'snowColor');
+  const [snOp,    sSnOp]    = useF('background', 'snowOpacity');
+  const [snSw,    sSnSw]    = useF('background', 'snowSway');
+  const [snFS,    sSnFS]    = useF('background', 'snowBeatFreqStart');
+  const [snFE,    sSnFE]    = useF('background', 'snowBeatFreqEnd');
+  const [snSen,   sSnSen]   = useF('background', 'snowBeatSensitivity');
+  const [snBL,    sSnBL]    = useF('background', 'snowBehindLogo');
+  const [snBM,    sSnBM]    = useF('background', 'snowBlendMode');
+  // Hyperspeed
+  const [hspE,    sHspE]    = useF('background', 'hyperspeedEnabled');
+  const [hspBL,   sHspBL]   = useF('background', 'hyperspeedBehindLogo');
+  const [hspOp,   sHspOp]   = useF('background', 'hyperspeedOpacity');
+  const [hspDist, sHspDist] = useF('background', 'hyperspeedDistortion');
+  const [hspSpd,  sHspSpd]  = useF('background', 'hyperspeedSpeed');
+  const [hspLanes,sHspLanes]= useF('background', 'hyperspeedLanesPerRoad');
+  const [hspRW,   sHspRW]   = useF('background', 'hyperspeedRoadWidth');
+  const [hspFov,  sHspFov]  = useF('background', 'hyperspeedFov');
+  const [hspLC1,  sHspLC1]  = useF('background', 'hyperspeedLeftCarColor1');
+  const [hspLC2,  sHspLC2]  = useF('background', 'hyperspeedLeftCarColor2');
+  const [hspLC3,  sHspLC3]  = useF('background', 'hyperspeedLeftCarColor3');
+  const [hspRC1,  sHspRC1]  = useF('background', 'hyperspeedRightCarColor1');
+  const [hspRC2,  sHspRC2]  = useF('background', 'hyperspeedRightCarColor2');
+  const [hspRC3,  sHspRC3]  = useF('background', 'hyperspeedRightCarColor3');
+  const [hspSC,   sHspSC]   = useF('background', 'hyperspeedSticksColor');
+  const [hspBB,   sHspBB]   = useF('background', 'hyperspeedBeatBrightness');
+  const [hspBFS,  sHspBFS]  = useF('background', 'hyperspeedBeatFreqStart');
+  const [hspBFE,  sHspBFE]  = useF('background', 'hyperspeedBeatFreqEnd');
+  const [hspBSen, sHspBSen] = useF('background', 'hyperspeedBeatSensitivity');
+  const [hspBM,   sHspBM]   = useF('background', 'hyperspeedBlendMode');
+  // FaultyTerminal
+  const [ftE,    sFtE]    = useF('background', 'faultyTerminalEnabled');
+  const [ftBL,   sFtBL]   = useF('background', 'faultyTerminalBehindLogo');
+  const [ftTint, sFtTint] = useF('background', 'faultyTerminalTint');
+  const [ftBri,  sFtBri]  = useF('background', 'faultyTerminalBrightness');
+  const [ftSc,   sFtSc]   = useF('background', 'faultyTerminalScale');
+  const [ftScan, sFtScan] = useF('background', 'faultyTerminalScanlineIntensity');
+  const [ftGl,   sFtGl]   = useF('background', 'faultyTerminalGlitchAmount');
+  const [ftFl,   sFtFl]   = useF('background', 'faultyTerminalFlickerAmount');
+  const [ftNA,   sFtNA]   = useF('background', 'faultyTerminalNoiseAmp');
+  const [ftCv,   sFtCv]   = useF('background', 'faultyTerminalCurvature');
+  const [ftSp,   sFtSp]   = useF('background', 'faultyTerminalSpeed');
+  const [ftBFS,  sFtBFS]  = useF('background', 'faultyTerminalBeatFreqStart');
+  const [ftBFE,  sFtBFE]  = useF('background', 'faultyTerminalBeatFreqEnd');
+  const [ftBSen, sFtBSen] = useF('background', 'faultyTerminalBeatSensitivity');
+  const [ftBGB,  sFtBGB]  = useF('background', 'faultyTerminalBeatGlitchBoost');
+  const [ftBM,   sFtBM]   = useF('background', 'faultyTerminalBlendMode');
+
+  const weatherEnabled = (bgPE as boolean) || (rnE as boolean) || (snE as boolean);
+
+  return (
+    <div>
+      <OverlayCard label="Strands" enabled={stE as boolean} onToggle={sStE}>
+        <FR label="Position" info={hintFor('background.strandsBehindLogo')}>
+          <CB
+            value={(stBL as boolean) ? 'behind' : 'front'}
+            options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+            onChange={(v) => sStBL(v === 'behind')}
+          />
+        </FR>
+        <FR label="Colors" info={hintFor('background.strandsColors')}>
+          <div className="flex flex-col gap-1 w-full">
+            {strandsColors.map((c, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <CP value={c} onChange={(v) => updateStrandColor(i, v)} />
+                {strandsColors.length > 1 && (
                   <button
-                    onClick={addStrandColor}
-                    className="mt-1 text-xs px-2 py-0.5 rounded self-start"
-                    style={{ color: 'var(--accent)', background: 'var(--bg-elev-2)' }}
-                  >+ Add color</button>
+                    onClick={() => removeStrandColor(i)}
+                    className="text-xs px-1 rounded"
+                    style={{ color: 'var(--text-dim)', background: 'var(--bg-elev-2)' }}
+                  >×</button>
                 )}
               </div>
+            ))}
+            {strandsColors.length < 8 && (
+              <button
+                onClick={addStrandColor}
+                className="mt-1 text-xs px-2 py-0.5 rounded self-start"
+                style={{ color: 'var(--accent)', background: 'var(--bg-elev-2)' }}
+              >+ Add color</button>
+            )}
+          </div>
+        </FR>
+        <FR label="Strand count" hint={`${stCnt}`} info={hintFor('background.strandsCount')}>
+          <Sl value={stCnt as number} min={1} max={12} step={1} onChange={sStCnt} />
+        </FR>
+        <FR label="Speed" hint={`${(stSp as number).toFixed(2)}`} info={hintFor('background.strandsSpeed')}>
+          <Sl value={stSp as number} min={0} max={3} step={0.05} onChange={sStSp} />
+        </FR>
+        <FR label="Amplitude" hint={`${(stAmp as number).toFixed(2)}`} info={hintFor('background.strandsAmplitude')}>
+          <Sl value={stAmp as number} min={0} max={3} step={0.05} onChange={sStAmp} />
+        </FR>
+        <FR label="Waviness" hint={`${(stWav as number).toFixed(2)}`} info={hintFor('background.strandsWaviness')}>
+          <Sl value={stWav as number} min={0} max={3} step={0.05} onChange={sStWav} />
+        </FR>
+        <FR label="Thickness" hint={`${(stThk as number).toFixed(2)}`} info={hintFor('background.strandsThickness')}>
+          <Sl value={stThk as number} min={0} max={3} step={0.05} onChange={sStThk} />
+        </FR>
+        <FR label="Glow" hint={`${(stGlw as number).toFixed(1)}`} info={hintFor('background.strandsGlow')}>
+          <Sl value={stGlw as number} min={0} max={6} step={0.1} onChange={sStGlw} />
+        </FR>
+        <FR label="Taper" hint={`${(stTap as number).toFixed(1)}`} info={hintFor('background.strandsTaper')}>
+          <Sl value={stTap as number} min={0} max={10} step={0.1} onChange={sStTap} />
+        </FR>
+        <FR label="Spread" hint={`${(stSpr as number).toFixed(2)}`} info={hintFor('background.strandsSpread')}>
+          <Sl value={stSpr as number} min={0} max={3} step={0.05} onChange={sStSpr} />
+        </FR>
+        <FR label="Hue shift" hint={`${(stHue as number).toFixed(2)}`} info={hintFor('background.strandsHueShift')}>
+          <Sl value={stHue as number} min={0} max={2} step={0.01} onChange={sStHue} />
+        </FR>
+        <FR label="Intensity" hint={`${Math.round((stInt as number) * 100)}%`} info={hintFor('background.strandsIntensity')}>
+          <Sl value={stInt as number} min={0} max={1} step={0.01} onChange={sStInt} />
+        </FR>
+        <FR label="Saturation" hint={`${(stSat as number).toFixed(2)}`} info={hintFor('background.strandsSaturation')}>
+          <Sl value={stSat as number} min={0} max={3} step={0.05} onChange={sStSat} />
+        </FR>
+        <FR label="Opacity" hint={`${Math.round((stOp as number) * 100)}%`} info={hintFor('background.strandsOpacity')}>
+          <Sl value={stOp as number} min={0} max={1} step={0.01} onChange={sStOp} />
+        </FR>
+        <FR label="Scale" hint={`${(stScl as number).toFixed(1)}×`} info={hintFor('background.strandsScale')}>
+          <Sl value={stScl as number} min={0.1} max={5} step={0.1} onChange={sStScl} />
+        </FR>
+        <div className="mt-2">
+          <HzRangePicker startHz={stBFS as number} endHz={stBFE as number} onChangeStart={sStBFS} onChangeEnd={sStBFE} />
+          <div className="mt-2">
+            <FR label="Beat sensitivity" hint={`${(stBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.strandsBeatSensitivity')}>
+              <Sl value={stBSen as number} min={0} max={5} step={0.1} onChange={sStBSen} />
             </FR>
-            <FR label="Strand count" hint={`${stCnt}`} info={hintFor('background.strandsCount')}>
-              <Sl value={stCnt as number} min={1} max={12} step={1} onChange={sStCnt} />
+            <FR label="Glow on beat" hint={`${(stGlwB as number).toFixed(2)}`} info={hintFor('background.strandsGlowBoost')}>
+              <Sl value={stGlwB as number} min={0} max={2} step={0.05} onChange={sStGlwB} />
             </FR>
-            <FR label="Speed" hint={`${(stSp as number).toFixed(2)}`} info={hintFor('background.strandsSpeed')}>
-              <Sl value={stSp as number} min={0} max={3} step={0.05} onChange={sStSp} />
-            </FR>
-            <FR label="Amplitude" hint={`${(stAmp as number).toFixed(2)}`} info={hintFor('background.strandsAmplitude')}>
-              <Sl value={stAmp as number} min={0} max={3} step={0.05} onChange={sStAmp} />
-            </FR>
-            <FR label="Waviness" hint={`${(stWav as number).toFixed(2)}`} info={hintFor('background.strandsWaviness')}>
-              <Sl value={stWav as number} min={0} max={3} step={0.05} onChange={sStWav} />
-            </FR>
-            <FR label="Thickness" hint={`${(stThk as number).toFixed(2)}`} info={hintFor('background.strandsThickness')}>
-              <Sl value={stThk as number} min={0} max={3} step={0.05} onChange={sStThk} />
-            </FR>
-            <FR label="Glow" hint={`${(stGlw as number).toFixed(1)}`} info={hintFor('background.strandsGlow')}>
-              <Sl value={stGlw as number} min={0} max={6} step={0.1} onChange={sStGlw} />
-            </FR>
-            <FR label="Taper" hint={`${(stTap as number).toFixed(1)}`} info={hintFor('background.strandsTaper')}>
-              <Sl value={stTap as number} min={0} max={10} step={0.1} onChange={sStTap} />
-            </FR>
-            <FR label="Spread" hint={`${(stSpr as number).toFixed(2)}`} info={hintFor('background.strandsSpread')}>
-              <Sl value={stSpr as number} min={0} max={3} step={0.05} onChange={sStSpr} />
-            </FR>
-            <FR label="Hue shift" hint={`${(stHue as number).toFixed(2)}`} info={hintFor('background.strandsHueShift')}>
-              <Sl value={stHue as number} min={0} max={2} step={0.01} onChange={sStHue} />
-            </FR>
-            <FR label="Intensity" hint={`${Math.round((stInt as number) * 100)}%`} info={hintFor('background.strandsIntensity')}>
-              <Sl value={stInt as number} min={0} max={1} step={0.01} onChange={sStInt} />
-            </FR>
-            <FR label="Saturation" hint={`${(stSat as number).toFixed(2)}`} info={hintFor('background.strandsSaturation')}>
-              <Sl value={stSat as number} min={0} max={3} step={0.05} onChange={sStSat} />
-            </FR>
-            <FR label="Opacity" hint={`${Math.round((stOp as number) * 100)}%`} info={hintFor('background.strandsOpacity')}>
-              <Sl value={stOp as number} min={0} max={1} step={0.01} onChange={sStOp} />
-            </FR>
-            <FR label="Scale" hint={`${(stScl as number).toFixed(1)}×`} info={hintFor('background.strandsScale')}>
-              <Sl value={stScl as number} min={0.1} max={5} step={0.1} onChange={sStScl} />
-            </FR>
-            <div className="mt-2">
-              <HzRangePicker
-                startHz={stBFS as number}
-                endHz={stBFE as number}
-                onChangeStart={sStBFS}
-                onChangeEnd={sStBFE}
-              />
-              <div className="mt-2">
-                <FR label="Beat sensitivity" hint={`${(stBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.strandsBeatSensitivity')}>
-                  <Sl value={stBSen as number} min={0} max={5} step={0.1} onChange={sStBSen} />
-                </FR>
-                <FR label="Glow on beat" hint={`${(stGlwB as number).toFixed(2)}`} info={hintFor('background.strandsGlowBoost')}>
-                  <Sl value={stGlwB as number} min={0} max={2} step={0.05} onChange={sStGlwB} />
-                </FR>
-              </div>
-            </div>
-            <FR label="Blend mode" info={hintFor('background.strandsBlendMode')}>
-              <BlendSel value={stBM as string} onChange={sStBM as (v: string) => void} />
-            </FR>
-          </>
-        )}
-      </Acc>
+          </div>
+        </div>
+        <FR label="Blend mode" info={hintFor('background.strandsBlendMode')}>
+          <BlendSel value={stBM as string} onChange={sStBM as (v: string) => void} />
+        </FR>
+      </OverlayCard>
 
-      <Acc label="Light Rays">
-        <Tg value={lrE as boolean} onChange={sLrE} label="Light Rays" />
-        {(lrE as boolean) && (
-          <>
-            <FR label="Position" info={hintFor('background.lightRaysBehindLogo')}>
-              <CB
-                value={(lrBL as boolean) ? 'behind' : 'front'}
-                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
-                onChange={(v) => sLrBL(v === 'behind')}
-              />
+      <OverlayCard label="Light Rays" enabled={lrE as boolean} onToggle={sLrE}>
+        <FR label="Position" info={hintFor('background.lightRaysBehindLogo')}>
+          <CB
+            value={(lrBL as boolean) ? 'behind' : 'front'}
+            options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+            onChange={(v) => sLrBL(v === 'behind')}
+          />
+        </FR>
+        <FR label="Origin" info={hintFor('background.lightRaysOrigin')}>
+          <select value={lrOr as string} onChange={(e) => sLrOr(e.target.value)}
+            style={{ width: '100%', background: 'var(--bg-elev-2)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.85rem' }}>
+            <option value="top-center">Top Center</option>
+            <option value="top-left">Top Left</option>
+            <option value="top-right">Top Right</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+            <option value="bottom-center">Bottom Center</option>
+            <option value="bottom-left">Bottom Left</option>
+            <option value="bottom-right">Bottom Right</option>
+          </select>
+        </FR>
+        <FR label="Color" info={hintFor('background.lightRaysColor')}><CP value={lrCol as string} onChange={sLrCol} /></FR>
+        <FR label="Speed" hint={`${(lrSp as number).toFixed(2)}`} info={hintFor('background.lightRaysSpeed')}>
+          <Sl value={lrSp as number} min={0.1} max={3} step={0.1} onChange={sLrSp} />
+        </FR>
+        <FR label="Spread" hint={`${(lrSpr as number).toFixed(2)}`} info={hintFor('background.lightRaysSpread')}>
+          <Sl value={lrSpr as number} min={0.1} max={3} step={0.1} onChange={sLrSpr} />
+        </FR>
+        <FR label="Length" hint={`${(lrLen as number).toFixed(2)}`} info={hintFor('background.lightRaysLength')}>
+          <Sl value={lrLen as number} min={0.5} max={3} step={0.1} onChange={sLrLen} />
+        </FR>
+        <FR label="Opacity" hint={`${Math.round((lrOp as number) * 100)}%`} info={hintFor('background.lightRaysOpacity')}>
+          <Sl value={lrOp as number} min={0} max={1} step={0.05} onChange={sLrOp} />
+        </FR>
+        <FR label="Fade Distance" hint={`${(lrFd as number).toFixed(2)}`} info={hintFor('background.lightRaysFadeDistance')}>
+          <Sl value={lrFd as number} min={0.1} max={2} step={0.1} onChange={sLrFd} />
+        </FR>
+        <div className="mt-2">
+          <HzRangePicker startHz={lrBFS as number} endHz={lrBFE as number} onChangeStart={sLrBFS} onChangeEnd={sLrBFE} />
+          <div className="mt-2">
+            <FR label="Beat Sensitivity" hint={`${(lrBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.lightRaysBeatSensitivity')}>
+              <Sl value={lrBSen as number} min={0} max={5} step={0.1} onChange={sLrBSen} />
             </FR>
-            <FR label="Origin" info={hintFor('background.lightRaysOrigin')}>
-              <select
-                value={lrOr as string}
-                onChange={(e) => sLrOr(e.target.value)}
-                style={{
-                  width: '100%',
-                  background: 'var(--bg-elev-2)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '4px',
-                  padding: '4px 6px',
-                  fontSize: '0.85rem',
-                }}
-              >
-                <option value="top-center">Top Center</option>
-                <option value="top-left">Top Left</option>
-                <option value="top-right">Top Right</option>
-                <option value="left">Left</option>
-                <option value="right">Right</option>
-                <option value="bottom-center">Bottom Center</option>
-                <option value="bottom-left">Bottom Left</option>
-                <option value="bottom-right">Bottom Right</option>
-              </select>
+            <FR label="Beat Intensity" hint={`${(lrBInt as number).toFixed(2)}`} info={hintFor('background.lightRaysBeatIntensity')}>
+              <Sl value={lrBInt as number} min={0} max={2} step={0.1} onChange={sLrBInt} />
             </FR>
-            <FR label="Color" info={hintFor('background.lightRaysColor')}>
-              <CP value={lrCol as string} onChange={sLrCol} />
-            </FR>
-            <FR label="Speed" hint={`${(lrSp as number).toFixed(2)}`} info={hintFor('background.lightRaysSpeed')}>
-              <Sl value={lrSp as number} min={0.1} max={3} step={0.1} onChange={sLrSp} />
-            </FR>
-            <FR label="Spread" hint={`${(lrSpr as number).toFixed(2)}`} info={hintFor('background.lightRaysSpread')}>
-              <Sl value={lrSpr as number} min={0.1} max={3} step={0.1} onChange={sLrSpr} />
-            </FR>
-            <FR label="Length" hint={`${(lrLen as number).toFixed(2)}`} info={hintFor('background.lightRaysLength')}>
-              <Sl value={lrLen as number} min={0.5} max={3} step={0.1} onChange={sLrLen} />
-            </FR>
-            <FR label="Opacity" hint={`${Math.round((lrOp as number) * 100)}%`} info={hintFor('background.lightRaysOpacity')}>
-              <Sl value={lrOp as number} min={0} max={1} step={0.05} onChange={sLrOp} />
-            </FR>
-            <FR label="Fade Distance" hint={`${(lrFd as number).toFixed(2)}`} info={hintFor('background.lightRaysFadeDistance')}>
-              <Sl value={lrFd as number} min={0.1} max={2} step={0.1} onChange={sLrFd} />
-            </FR>
-            <div className="mt-2">
-              <HzRangePicker
-                startHz={lrBFS as number}
-                endHz={lrBFE as number}
-                onChangeStart={sLrBFS}
-                onChangeEnd={sLrBFE}
-              />
-              <div className="mt-2">
-                <FR label="Beat Sensitivity" hint={`${(lrBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.lightRaysBeatSensitivity')}>
-                  <Sl value={lrBSen as number} min={0} max={5} step={0.1} onChange={sLrBSen} />
-                </FR>
-                <FR label="Beat Intensity" hint={`${(lrBInt as number).toFixed(2)}`} info={hintFor('background.lightRaysBeatIntensity')}>
-                  <Sl value={lrBInt as number} min={0} max={2} step={0.1} onChange={sLrBInt} />
-                </FR>
-              </div>
-            </div>
-            <FR label="Blend mode" info={hintFor('background.lightRaysBlendMode')}>
-              <BlendSel value={lrBM as string} onChange={sLrBM as (v: string) => void} />
-            </FR>
-          </>
-        )}
-      </Acc>
+          </div>
+        </div>
+        <FR label="Blend mode" info={hintFor('background.lightRaysBlendMode')}>
+          <BlendSel value={lrBM as string} onChange={sLrBM as (v: string) => void} />
+        </FR>
+      </OverlayCard>
 
-      <Acc label="Light Pillar">
-        <Tg value={lpE as boolean} onChange={sLpE} label="Light Pillar" />
-        {(lpE as boolean) && (
-          <>
-            {/* Position FIRST — mandatory pattern (howto-effects.md §C-8) */}
-            <FR label="Position" info={hintFor('background.lightPillarBehindLogo')}>
-              <CB
-                value={(lpBL as boolean) ? 'behind' : 'front'}
-                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
-                onChange={(v) => sLpBL(v === 'behind')}
-              />
+      <OverlayCard label="Light Pillar" enabled={lpE as boolean} onToggle={sLpE}>
+        <FR label="Position" info={hintFor('background.lightPillarBehindLogo')}>
+          <CB
+            value={(lpBL as boolean) ? 'behind' : 'front'}
+            options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+            onChange={(v) => sLpBL(v === 'behind')}
+          />
+        </FR>
+        <FR label="Top Color" info={hintFor('background.lightPillarTopColor')}><CP value={lpTopCol as string} onChange={sLpTopCol} /></FR>
+        <FR label="Bottom Color" info={hintFor('background.lightPillarBottomColor')}><CP value={lpBotCol as string} onChange={sLpBotCol} /></FR>
+        <FR label="Intensity" hint={`${(lpInt as number).toFixed(2)}`} info={hintFor('background.lightPillarIntensity')}>
+          <Sl value={lpInt as number} min={0.1} max={3} step={0.1} onChange={sLpInt} />
+        </FR>
+        <FR label="Rotation Speed" hint={`${(lpRotSpd as number).toFixed(2)}`} info={hintFor('background.lightPillarRotationSpeed')}>
+          <Sl value={lpRotSpd as number} min={0} max={2} step={0.05} onChange={sLpRotSpd} />
+        </FR>
+        <FR label="Pillar Width" hint={`${(lpW as number).toFixed(2)}`} info={hintFor('background.lightPillarWidth')}>
+          <Sl value={lpW as number} min={0.5} max={8} step={0.1} onChange={sLpW} />
+        </FR>
+        <FR label="Pillar Height" hint={`${(lpH as number).toFixed(2)}`} info={hintFor('background.lightPillarHeight')}>
+          <Sl value={lpH as number} min={0.1} max={2} step={0.05} onChange={sLpH} />
+        </FR>
+        <FR label="Glow Amount" hint={`${(lpGlow as number).toFixed(4)}`} info={hintFor('background.lightPillarGlowAmount')}>
+          <Sl value={lpGlow as number} min={0.001} max={0.02} step={0.001} onChange={sLpGlow} />
+        </FR>
+        <FR label="Noise" hint={`${(lpNoise as number).toFixed(2)}`} info={hintFor('background.lightPillarNoiseIntensity')}>
+          <Sl value={lpNoise as number} min={0} max={1} step={0.05} onChange={sLpNoise} />
+        </FR>
+        <FR label="Pillar Rotation" hint={`${Math.round(lpRot as number)}°`} info={hintFor('background.lightPillarRotation')}>
+          <Sl value={lpRot as number} min={0} max={360} step={1} onChange={sLpRot} />
+        </FR>
+        <div className="mt-2">
+          <HzRangePicker startHz={lpBFS as number} endHz={lpBFE as number} onChangeStart={sLpBFS} onChangeEnd={sLpBFE} />
+          <div className="mt-2">
+            <FR label="Beat Sensitivity" hint={`${(lpBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.lightPillarBeatSensitivity')}>
+              <Sl value={lpBSen as number} min={0} max={5} step={0.1} onChange={sLpBSen} />
             </FR>
-            <FR label="Top Color" info={hintFor('background.lightPillarTopColor')}>
-              <CP value={lpTopCol as string} onChange={sLpTopCol} />
+            <FR label="Beat Intensity" hint={`${(lpBInt as number).toFixed(2)}`} info={hintFor('background.lightPillarBeatIntensity')}>
+              <Sl value={lpBInt as number} min={0} max={2} step={0.1} onChange={sLpBInt} />
             </FR>
-            <FR label="Bottom Color" info={hintFor('background.lightPillarBottomColor')}>
-              <CP value={lpBotCol as string} onChange={sLpBotCol} />
+            <FR label="Beat Width Boost" hint={`${(lpBW as number).toFixed(2)}`} info={hintFor('background.lightPillarBeatWidthBoost')}>
+              <Sl value={lpBW as number} min={0} max={1} step={0.05} onChange={sLpBW} />
             </FR>
-            <FR label="Intensity" hint={`${(lpInt as number).toFixed(2)}`} info={hintFor('background.lightPillarIntensity')}>
-              <Sl value={lpInt as number} min={0.1} max={3} step={0.1} onChange={sLpInt} />
-            </FR>
-            <FR label="Rotation Speed" hint={`${(lpRotSpd as number).toFixed(2)}`} info={hintFor('background.lightPillarRotationSpeed')}>
-              <Sl value={lpRotSpd as number} min={0} max={2} step={0.05} onChange={sLpRotSpd} />
-            </FR>
-            <FR label="Pillar Width" hint={`${(lpW as number).toFixed(2)}`} info={hintFor('background.lightPillarWidth')}>
-              <Sl value={lpW as number} min={0.5} max={8} step={0.1} onChange={sLpW} />
-            </FR>
-            <FR label="Pillar Height" hint={`${(lpH as number).toFixed(2)}`} info={hintFor('background.lightPillarHeight')}>
-              <Sl value={lpH as number} min={0.1} max={2} step={0.05} onChange={sLpH} />
-            </FR>
-            <FR label="Glow Amount" hint={`${(lpGlow as number).toFixed(4)}`} info={hintFor('background.lightPillarGlowAmount')}>
-              <Sl value={lpGlow as number} min={0.001} max={0.02} step={0.001} onChange={sLpGlow} />
-            </FR>
-            <FR label="Noise" hint={`${(lpNoise as number).toFixed(2)}`} info={hintFor('background.lightPillarNoiseIntensity')}>
-              <Sl value={lpNoise as number} min={0} max={1} step={0.05} onChange={sLpNoise} />
-            </FR>
-            <FR label="Pillar Rotation" hint={`${Math.round(lpRot as number)}°`} info={hintFor('background.lightPillarRotation')}>
-              <Sl value={lpRot as number} min={0} max={360} step={1} onChange={sLpRot} />
-            </FR>
-            <div className="mt-2">
-              <HzRangePicker
-                startHz={lpBFS as number}
-                endHz={lpBFE as number}
-                onChangeStart={sLpBFS}
-                onChangeEnd={sLpBFE}
-              />
-              <div className="mt-2">
-                <FR label="Beat Sensitivity" hint={`${(lpBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.lightPillarBeatSensitivity')}>
-                  <Sl value={lpBSen as number} min={0} max={5} step={0.1} onChange={sLpBSen} />
-                </FR>
-                <FR label="Beat Intensity" hint={`${(lpBInt as number).toFixed(2)}`} info={hintFor('background.lightPillarBeatIntensity')}>
-                  <Sl value={lpBInt as number} min={0} max={2} step={0.1} onChange={sLpBInt} />
-                </FR>
-                <FR label="Beat Width Boost" hint={`${(lpBW as number).toFixed(2)}`} info={hintFor('background.lightPillarBeatWidthBoost')}>
-                  <Sl value={lpBW as number} min={0} max={1} step={0.05} onChange={sLpBW} />
-                </FR>
-              </div>
-            </div>
-            <FR label="Blend mode" info={hintFor('background.lightPillarBlendMode')}>
-              <BlendSel value={lpBM as string} onChange={sLpBM as (v: string) => void} />
-            </FR>
-          </>
-        )}
-      </Acc>
+          </div>
+        </div>
+        <FR label="Blend mode" info={hintFor('background.lightPillarBlendMode')}>
+          <BlendSel value={lpBM as string} onChange={sLpBM as (v: string) => void} />
+        </FR>
+      </OverlayCard>
 
-      <Acc label="Lightning">
-        <Tg value={ltnE as boolean} onChange={sLtnE} label="Show Lightning" />
-        {(ltnE as boolean) && (
-          <>
-            <FR label="Position" info={hintFor('background.lightningBehindLogo')}>
-              <CB
-                value={(ltnBL as boolean) ? 'behind' : 'front'}
-                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
-                onChange={(v) => sLtnBL(v === 'behind')}
-              />
+      <OverlayCard label="Lightning" enabled={ltnE as boolean} onToggle={sLtnE}>
+        <FR label="Position" info={hintFor('background.lightningBehindLogo')}>
+          <CB
+            value={(ltnBL as boolean) ? 'behind' : 'front'}
+            options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+            onChange={(v) => sLtnBL(v === 'behind')}
+          />
+        </FR>
+        <FR label="Hue" hint={`${Math.round(ltnHue as number)}°`} info={hintFor('background.lightningHue')}>
+          <Sl value={ltnHue as number} min={0} max={360} step={1} onChange={sLtnHue} />
+        </FR>
+        <FR label="X Offset" hint={`${(ltnXOff as number).toFixed(2)}`} info={hintFor('background.lightningXOffset')}>
+          <Sl value={ltnXOff as number} min={-1} max={1} step={0.01} onChange={sLtnXOff} />
+        </FR>
+        <FR label="Speed" hint={`${(ltnSp as number).toFixed(1)}`} info={hintFor('background.lightningSpeed')}>
+          <Sl value={ltnSp as number} min={0.1} max={3} step={0.1} onChange={sLtnSp} />
+        </FR>
+        <FR label="Intensity" hint={`${(ltnInt as number).toFixed(1)}`} info={hintFor('background.lightningIntensity')}>
+          <Sl value={ltnInt as number} min={0.1} max={3} step={0.1} onChange={sLtnInt} />
+        </FR>
+        <FR label="Size" hint={`${(ltnSz as number).toFixed(1)}`} info={hintFor('background.lightningSize')}>
+          <Sl value={ltnSz as number} min={0.1} max={3} step={0.1} onChange={sLtnSz} />
+        </FR>
+        <FR label="Opacity" hint={`${(ltnOp as number).toFixed(2)}`} info={hintFor('background.lightningOpacity')}>
+          <Sl value={ltnOp as number} min={0} max={1} step={0.01} onChange={sLtnOp} />
+        </FR>
+        <div className="mt-2">
+          <HzRangePicker startHz={ltnBFS as number} endHz={ltnBFE as number} onChangeStart={sLtnBFS} onChangeEnd={sLtnBFE} />
+          <div className="mt-2">
+            <FR label="Beat Sensitivity" hint={`${(ltnBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.lightningBeatSensitivity')}>
+              <Sl value={ltnBSen as number} min={0} max={5} step={0.1} onChange={sLtnBSen} />
             </FR>
-            <FR label="Hue" hint={`${Math.round(ltnHue as number)}°`} info={hintFor('background.lightningHue')}>
-              <Sl value={ltnHue as number} min={0} max={360} step={1} onChange={sLtnHue} />
+            <FR label="Beat Intensity Boost" hint={`${(ltnBInt as number).toFixed(1)}`} info={hintFor('background.lightningBeatIntensity')}>
+              <Sl value={ltnBInt as number} min={0} max={2} step={0.1} onChange={sLtnBInt} />
             </FR>
-            <FR label="X Offset" hint={`${(ltnXOff as number).toFixed(2)}`} info={hintFor('background.lightningXOffset')}>
-              <Sl value={ltnXOff as number} min={-1} max={1} step={0.01} onChange={sLtnXOff} />
+            <FR label="Beat Scale Boost" hint={`${(ltnBScl as number).toFixed(2)}`} info={hintFor('background.lightningBeatScale')}>
+              <Sl value={ltnBScl as number} min={0} max={1} step={0.05} onChange={sLtnBScl} />
             </FR>
-            <FR label="Speed" hint={`${(ltnSp as number).toFixed(1)}`} info={hintFor('background.lightningSpeed')}>
-              <Sl value={ltnSp as number} min={0.1} max={3} step={0.1} onChange={sLtnSp} />
-            </FR>
-            <FR label="Intensity" hint={`${(ltnInt as number).toFixed(1)}`} info={hintFor('background.lightningIntensity')}>
-              <Sl value={ltnInt as number} min={0.1} max={3} step={0.1} onChange={sLtnInt} />
-            </FR>
-            <FR label="Size" hint={`${(ltnSz as number).toFixed(1)}`} info={hintFor('background.lightningSize')}>
-              <Sl value={ltnSz as number} min={0.1} max={3} step={0.1} onChange={sLtnSz} />
-            </FR>
-            <FR label="Opacity" hint={`${(ltnOp as number).toFixed(2)}`} info={hintFor('background.lightningOpacity')}>
-              <Sl value={ltnOp as number} min={0} max={1} step={0.01} onChange={sLtnOp} />
-            </FR>
-            <div className="mt-2">
-              <HzRangePicker
-                startHz={ltnBFS as number}
-                endHz={ltnBFE as number}
-                onChangeStart={sLtnBFS}
-                onChangeEnd={sLtnBFE}
-              />
-              <div className="mt-2">
-                <FR label="Beat Sensitivity" hint={`${(ltnBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.lightningBeatSensitivity')}>
-                  <Sl value={ltnBSen as number} min={0} max={5} step={0.1} onChange={sLtnBSen} />
-                </FR>
-                <FR label="Beat Intensity Boost" hint={`${(ltnBInt as number).toFixed(1)}`} info={hintFor('background.lightningBeatIntensity')}>
-                  <Sl value={ltnBInt as number} min={0} max={2} step={0.1} onChange={sLtnBInt} />
-                </FR>
-                <FR label="Beat Scale Boost" hint={`${(ltnBScl as number).toFixed(2)}`} info={hintFor('background.lightningBeatScale')}>
-                  <Sl value={ltnBScl as number} min={0} max={1} step={0.05} onChange={sLtnBScl} />
-                </FR>
-              </div>
-            </div>
-            <FR label="Blend mode" info={hintFor('background.lightningBlendMode')}>
-              <BlendSel value={ltnBM as string} onChange={sLtnBM as (v: string) => void} />
-            </FR>
-          </>
-        )}
-      </Acc>
+          </div>
+        </div>
+        <FR label="Blend mode" info={hintFor('background.lightningBlendMode')}>
+          <BlendSel value={ltnBM as string} onChange={sLtnBM as (v: string) => void} />
+        </FR>
+      </OverlayCard>
 
-      <Acc label="Magic Rings">
-        <Tg value={mrE as boolean} onChange={sMrE} label="Show magic rings" />
-        {(mrE as boolean) && (
-          <>
-            <FR label="Position" info={hintFor('background.magicRingsBehindLogo')}>
-              <CB
-                value={(mrBL as boolean) ? 'behind' : 'front'}
-                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
-                onChange={(v) => sMrBL(v === 'behind')}
-              />
+      <OverlayCard label="Magic Rings" enabled={mrE as boolean} onToggle={sMrE}>
+        <FR label="Position" info={hintFor('background.magicRingsBehindLogo')}>
+          <CB
+            value={(mrBL as boolean) ? 'behind' : 'front'}
+            options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+            onChange={(v) => sMrBL(v === 'behind')}
+          />
+        </FR>
+        <FR label="Color 1" info={hintFor('background.magicRingsColor')}><CP value={mrC as string} onChange={sMrC} /></FR>
+        <FR label="Color 2" info={hintFor('background.magicRingsColorTwo')}><CP value={mrC2 as string} onChange={sMrC2} /></FR>
+        <FR label="Speed" hint={`${(mrSp as number).toFixed(2)}`} info={hintFor('background.magicRingsSpeed')}>
+          <Sl value={mrSp as number} min={0.1} max={3.0} step={0.05} onChange={sMrSp} />
+        </FR>
+        <FR label="Ring count" hint={`${mrCnt}`} info={hintFor('background.magicRingsCount')}>
+          <Sl value={mrCnt as number} min={1} max={10} step={1} onChange={sMrCnt} />
+        </FR>
+        <FR label="Opacity" hint={`${Math.round((mrOp as number) * 100)}%`} info={hintFor('background.magicRingsOpacity')}>
+          <Sl value={mrOp as number} min={0} max={1} step={0.01} onChange={sMrOp} />
+        </FR>
+        <FR label="Thickness" hint={`${(mrThk as number).toFixed(1)}`} info={hintFor('background.magicRingsThickness')}>
+          <Sl value={mrThk as number} min={0.5} max={5} step={0.1} onChange={sMrThk} />
+        </FR>
+        <FR label="Attenuation" hint={`${(mrAtt as number).toFixed(1)}`} info={hintFor('background.magicRingsAttenuation')}>
+          <Sl value={mrAtt as number} min={2} max={30} step={0.5} onChange={sMrAtt} />
+        </FR>
+        <FR label="Base radius" hint={`${(mrBR as number).toFixed(2)}`} info={hintFor('background.magicRingsBaseRadius')}>
+          <Sl value={mrBR as number} min={0.1} max={0.8} step={0.01} onChange={sMrBR} />
+        </FR>
+        <FR label="Radius step" hint={`${(mrRS as number).toFixed(2)}`} info={hintFor('background.magicRingsRadiusStep')}>
+          <Sl value={mrRS as number} min={0.02} max={0.3} step={0.01} onChange={sMrRS} />
+        </FR>
+        <FR label="Scale rate" hint={`${(mrSR as number).toFixed(2)}`} info={hintFor('background.magicRingsScaleRate')}>
+          <Sl value={mrSR as number} min={0} max={0.5} step={0.01} onChange={sMrSR} />
+        </FR>
+        <FR label="Noise amount" hint={`${(mrNoise as number).toFixed(3)}`} info={hintFor('background.magicRingsNoiseAmount')}>
+          <Sl value={mrNoise as number} min={0} max={0.5} step={0.005} onChange={sMrNoise} />
+        </FR>
+        <FR label="Rotation" hint={`${Math.round(mrRot as number)}°`} info={hintFor('background.magicRingsRotation')}>
+          <Sl value={mrRot as number} min={0} max={360} step={1} onChange={sMrRot} />
+        </FR>
+        <FR label="Ring gap" hint={`${(mrGap as number).toFixed(2)}`} info={hintFor('background.magicRingsRingGap')}>
+          <Sl value={mrGap as number} min={1.0} max={3.0} step={0.05} onChange={sMrGap} />
+        </FR>
+        <div className="mt-2">
+          <HzRangePicker startHz={mrBFS as number} endHz={mrBFE as number} onChangeStart={sMrBFS} onChangeEnd={sMrBFE} />
+          <div className="mt-2">
+            <FR label="Beat sensitivity" hint={`${(mrBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.magicRingsBeatSensitivity')}>
+              <Sl value={mrBSen as number} min={0.1} max={5.0} step={0.05} onChange={sMrBSen} />
             </FR>
-            <FR label="Color 1" info={hintFor('background.magicRingsColor')}><CP value={mrC as string} onChange={sMrC} /></FR>
-            <FR label="Color 2" info={hintFor('background.magicRingsColorTwo')}><CP value={mrC2 as string} onChange={sMrC2} /></FR>
-            <FR label="Speed" hint={`${(mrSp as number).toFixed(2)}`} info={hintFor('background.magicRingsSpeed')}>
-              <Sl value={mrSp as number} min={0.1} max={3.0} step={0.05} onChange={sMrSp} />
+            <FR label="Burst strength" hint={`${(mrBurst as number).toFixed(2)}`} info={hintFor('background.magicRingsBurstStrength')}>
+              <Sl value={mrBurst as number} min={0} max={2.0} step={0.05} onChange={sMrBurst} />
             </FR>
-            <FR label="Ring count" hint={`${mrCnt}`} info={hintFor('background.magicRingsCount')}>
-              <Sl value={mrCnt as number} min={1} max={10} step={1} onChange={sMrCnt} />
+            <FR label="Glow on beat" hint={`${(mrGlwStr as number).toFixed(2)}`} info={hintFor('background.magicRingsGlowStrength')}>
+              <Sl value={mrGlwStr as number} min={0} max={1.0} step={0.05} onChange={sMrGlwStr} />
             </FR>
-            <FR label="Opacity" hint={`${Math.round((mrOp as number) * 100)}%`} info={hintFor('background.magicRingsOpacity')}>
-              <Sl value={mrOp as number} min={0} max={1} step={0.01} onChange={sMrOp} />
-            </FR>
-            <FR label="Thickness" hint={`${(mrThk as number).toFixed(1)}`} info={hintFor('background.magicRingsThickness')}>
-              <Sl value={mrThk as number} min={0.5} max={5} step={0.1} onChange={sMrThk} />
-            </FR>
-            <FR label="Attenuation" hint={`${(mrAtt as number).toFixed(1)}`} info={hintFor('background.magicRingsAttenuation')}>
-              <Sl value={mrAtt as number} min={2} max={30} step={0.5} onChange={sMrAtt} />
-            </FR>
-            <FR label="Base radius" hint={`${(mrBR as number).toFixed(2)}`} info={hintFor('background.magicRingsBaseRadius')}>
-              <Sl value={mrBR as number} min={0.1} max={0.8} step={0.01} onChange={sMrBR} />
-            </FR>
-            <FR label="Radius step" hint={`${(mrRS as number).toFixed(2)}`} info={hintFor('background.magicRingsRadiusStep')}>
-              <Sl value={mrRS as number} min={0.02} max={0.3} step={0.01} onChange={sMrRS} />
-            </FR>
-            <FR label="Scale rate" hint={`${(mrSR as number).toFixed(2)}`} info={hintFor('background.magicRingsScaleRate')}>
-              <Sl value={mrSR as number} min={0} max={0.5} step={0.01} onChange={sMrSR} />
-            </FR>
-            <FR label="Noise amount" hint={`${(mrNoise as number).toFixed(3)}`} info={hintFor('background.magicRingsNoiseAmount')}>
-              <Sl value={mrNoise as number} min={0} max={0.5} step={0.005} onChange={sMrNoise} />
-            </FR>
-            <FR label="Rotation" hint={`${Math.round(mrRot as number)}°`} info={hintFor('background.magicRingsRotation')}>
-              <Sl value={mrRot as number} min={0} max={360} step={1} onChange={sMrRot} />
-            </FR>
-            <FR label="Ring gap" hint={`${(mrGap as number).toFixed(2)}`} info={hintFor('background.magicRingsRingGap')}>
-              <Sl value={mrGap as number} min={1.0} max={3.0} step={0.05} onChange={sMrGap} />
-            </FR>
-            <div className="mt-2">
-              <HzRangePicker
-                startHz={mrBFS as number}
-                endHz={mrBFE as number}
-                onChangeStart={sMrBFS}
-                onChangeEnd={sMrBFE}
-              />
-              <div className="mt-2">
-                <FR label="Beat sensitivity" hint={`${(mrBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.magicRingsBeatSensitivity')}>
-                  <Sl value={mrBSen as number} min={0.1} max={5.0} step={0.05} onChange={sMrBSen} />
-                </FR>
-                <FR label="Burst strength" hint={`${(mrBurst as number).toFixed(2)}`} info={hintFor('background.magicRingsBurstStrength')}>
-                  <Sl value={mrBurst as number} min={0} max={2.0} step={0.05} onChange={sMrBurst} />
-                </FR>
-                <FR label="Glow on beat" hint={`${(mrGlwStr as number).toFixed(2)}`} info={hintFor('background.magicRingsGlowStrength')}>
-                  <Sl value={mrGlwStr as number} min={0} max={1.0} step={0.05} onChange={sMrGlwStr} />
-                </FR>
-              </div>
-            </div>
-            <FR label="Blend mode" info={hintFor('background.magicRingsBlendMode')}>
-              <BlendSel value={mrBM as string} onChange={sMrBM as (v: string) => void} />
-            </FR>
-          </>
-        )}
-      </Acc>
+          </div>
+        </div>
+        <FR label="Blend mode" info={hintFor('background.magicRingsBlendMode')}>
+          <BlendSel value={mrBM as string} onChange={sMrBM as (v: string) => void} />
+        </FR>
+      </OverlayCard>
 
-      <Acc label="Weather FX" description={ACCORDION_DESCRIPTIONS['background.weather']}>
-        <p className="mb-2 font-mono text-[10px] leading-relaxed" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>Backdrop particles, rain and snow behind all other elements</p>
-
+      <OverlayCard
+        label="Weather FX"
+        enabled={weatherEnabled}
+        onToggle={(v) => { sBgPE(v); sRnE(v); sSnE(v); }}
+      >
         <EffectCard label="Background particles" enabled={bgPE as boolean} onToggle={sBgPE} info={hintFor('background.bgParticlesEnabled')}>
           <FR label="Position" info={hintFor('background.bgParticlesBehindLogo')}>
             <CB
@@ -1670,157 +1764,124 @@ function BackgroundSection() {
             <BlendSel value={snBM as string} onChange={sSnBM as (v: string) => void} />
           </FR>
         </EffectCard>
-      </Acc>
+      </OverlayCard>
 
-      <Acc label="Hyperspeed">
-        <Tg value={hspE as boolean} onChange={sHspE} label="Show Hyperspeed" />
-        {(hspE as boolean) && (
-          <>
-            <FR label="Position" info={hintFor('background.hyperspeedBehindLogo')}>
-              <CB
-                value={(hspBL as boolean) ? 'behind' : 'front'}
-                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
-                onChange={(v) => sHspBL(v === 'behind')}
-              />
+      <OverlayCard label="Hyperspeed" enabled={hspE as boolean} onToggle={sHspE}>
+        <FR label="Position" info={hintFor('background.hyperspeedBehindLogo')}>
+          <CB
+            value={(hspBL as boolean) ? 'behind' : 'front'}
+            options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+            onChange={(v) => sHspBL(v === 'behind')}
+          />
+        </FR>
+        <FR label="Blend Mode" info={hintFor('background.hyperspeedBlendMode')}>
+          <BlendSel value={hspBM as string} onChange={sHspBM as (v: string) => void} />
+        </FR>
+        <FR label="Opacity" info={hintFor('background.hyperspeedOpacity')}>
+          <Sl value={hspOp as number} min={0} max={1} step={0.01} onChange={sHspOp} />
+        </FR>
+        <FR label="Distortion" info={hintFor('background.hyperspeedDistortion')}>
+          <select value={hspDist as string} onChange={(e) => sHspDist(e.target.value)}
+            style={{ background: 'var(--bg-elev-2)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px', padding: '4px 8px', fontSize: '12px', cursor: 'pointer', width: '100%' }}>
+            <option value="turbulentDistortion">Turbulent</option>
+            <option value="mountainDistortion">Mountain</option>
+            <option value="xyDistortion">XY Wave</option>
+            <option value="LongRaceDistortion">Long Race</option>
+            <option value="deepDistortion">Deep</option>
+            <option value="turbulentDistortionStill">Turbulent Still</option>
+            <option value="deepDistortionStill">Deep Still</option>
+          </select>
+        </FR>
+        <FR label="Speed" info={hintFor('background.hyperspeedSpeed')}>
+          <Sl value={hspSpd as number} min={0.1} max={5} step={0.1} onChange={sHspSpd} />
+        </FR>
+        <FR label="Lanes" info={hintFor('background.hyperspeedLanesPerRoad')}>
+          <Sl value={hspLanes as number} min={1} max={5} step={1} onChange={sHspLanes} />
+        </FR>
+        <FR label="Road Width" info={hintFor('background.hyperspeedRoadWidth')}>
+          <Sl value={hspRW as number} min={5} max={25} step={1} onChange={sHspRW} />
+        </FR>
+        <FR label="FOV" info={hintFor('background.hyperspeedFov')}>
+          <Sl value={hspFov as number} min={60} max={150} step={1} onChange={sHspFov} />
+        </FR>
+        <FR label="Left Cars" info={hintFor('background.hyperspeedLeftCarColor1')}>
+          <div className="flex gap-1">
+            <CP value={hspLC1 as string} onChange={sHspLC1 as (v: string) => void} />
+            <CP value={hspLC2 as string} onChange={sHspLC2 as (v: string) => void} />
+            <CP value={hspLC3 as string} onChange={sHspLC3 as (v: string) => void} />
+          </div>
+        </FR>
+        <FR label="Right Cars" info={hintFor('background.hyperspeedRightCarColor1')}>
+          <div className="flex gap-1">
+            <CP value={hspRC1 as string} onChange={sHspRC1 as (v: string) => void} />
+            <CP value={hspRC2 as string} onChange={sHspRC2 as (v: string) => void} />
+            <CP value={hspRC3 as string} onChange={sHspRC3 as (v: string) => void} />
+          </div>
+        </FR>
+        <FR label="Side Sticks" info={hintFor('background.hyperspeedSticksColor')}>
+          <CP value={hspSC as string} onChange={sHspSC as (v: string) => void} />
+        </FR>
+        <div className="mt-2">
+          <HzRangePicker startHz={hspBFS as number} endHz={hspBFE as number} onChangeStart={sHspBFS} onChangeEnd={sHspBFE} />
+          <div className="mt-2">
+            <FR label="Beat Sensitivity" hint={`${(hspBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.hyperspeedBeatSensitivity')}>
+              <Sl value={hspBSen as number} min={0.1} max={5} step={0.1} onChange={sHspBSen} />
             </FR>
-            <FR label="Blend Mode" info={hintFor('background.hyperspeedBlendMode')}>
-              <BlendSel value={hspBM as string} onChange={sHspBM as (v: string) => void} />
+            <FR label="Beat Brightness" hint={`${(hspBB as number).toFixed(1)}`} info={hintFor('background.hyperspeedBeatBrightness')}>
+              <Sl value={hspBB as number} min={0} max={3} step={0.1} onChange={sHspBB} />
             </FR>
-            <FR label="Opacity" info={hintFor('background.hyperspeedOpacity')}>
-              <Sl value={hspOp as number} min={0} max={1} step={0.01} onChange={sHspOp} />
+          </div>
+        </div>
+      </OverlayCard>
+
+      <OverlayCard label="Faulty Terminal" enabled={ftE as boolean} onToggle={sFtE}>
+        <FR label="Position" info={hintFor('background.faultyTerminalBehindLogo')}>
+          <CB
+            value={(ftBL as boolean) ? 'behind' : 'front'}
+            options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+            onChange={(v) => sFtBL(v === 'behind')}
+          />
+        </FR>
+        <FR label="Tint" info={hintFor('background.faultyTerminalTint')}><CP value={ftTint as string} onChange={sFtTint} /></FR>
+        <FR label="Brightness" hint={`${(ftBri as number).toFixed(1)}`} info={hintFor('background.faultyTerminalBrightness')}>
+          <Sl value={ftBri as number} min={0.1} max={3} step={0.05} onChange={sFtBri} />
+        </FR>
+        <FR label="Scale" hint={`${(ftSc as number).toFixed(1)}`} info={hintFor('background.faultyTerminalScale')}>
+          <Sl value={ftSc as number} min={0.5} max={4} step={0.1} onChange={sFtSc} />
+        </FR>
+        <FR label="Scanline Intensity" hint={`${(ftScan as number).toFixed(1)}`} info={hintFor('background.faultyTerminalScanlineIntensity')}>
+          <Sl value={ftScan as number} min={0} max={2} step={0.05} onChange={sFtScan} />
+        </FR>
+        <FR label="Glitch Amount" hint={`${(ftGl as number).toFixed(1)}`} info={hintFor('background.faultyTerminalGlitchAmount')}>
+          <Sl value={ftGl as number} min={0} max={5} step={0.1} onChange={sFtGl} />
+        </FR>
+        <FR label="Flicker Amount" hint={`${(ftFl as number).toFixed(1)}`} info={hintFor('background.faultyTerminalFlickerAmount')}>
+          <Sl value={ftFl as number} min={0} max={2} step={0.05} onChange={sFtFl} />
+        </FR>
+        <FR label="Noise Amplitude" hint={`${(ftNA as number).toFixed(1)}`} info={hintFor('background.faultyTerminalNoiseAmp')}>
+          <Sl value={ftNA as number} min={0} max={4} step={0.05} onChange={sFtNA} />
+        </FR>
+        <FR label="CRT Curvature" hint={`${(ftCv as number).toFixed(2)}`} info={hintFor('background.faultyTerminalCurvature')}>
+          <Sl value={ftCv as number} min={0} max={0.5} step={0.01} onChange={sFtCv} />
+        </FR>
+        <FR label="Speed" hint={`${(ftSp as number).toFixed(1)}`} info={hintFor('background.faultyTerminalSpeed')}>
+          <Sl value={ftSp as number} min={0.1} max={3} step={0.1} onChange={sFtSp} />
+        </FR>
+        <div className="mt-2">
+          <HzRangePicker startHz={ftBFS as number} endHz={ftBFE as number} onChangeStart={sFtBFS} onChangeEnd={sFtBFE} />
+          <div className="mt-2">
+            <FR label="Beat Sensitivity" hint={`${(ftBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.faultyTerminalBeatSensitivity')}>
+              <Sl value={ftBSen as number} min={0} max={5} step={0.1} onChange={sFtBSen} />
             </FR>
-            <FR label="Distortion" info={hintFor('background.hyperspeedDistortion')}>
-              <select
-                value={hspDist as string}
-                onChange={(e) => sHspDist(e.target.value)}
-                style={{
-                  background: 'var(--bg-elev-2)',
-                  color: 'var(--text)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  padding: '4px 8px',
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  width: '100%',
-                }}
-              >
-                <option value="turbulentDistortion">Turbulent</option>
-                <option value="mountainDistortion">Mountain</option>
-                <option value="xyDistortion">XY Wave</option>
-                <option value="LongRaceDistortion">Long Race</option>
-                <option value="deepDistortion">Deep</option>
-                <option value="turbulentDistortionStill">Turbulent Still</option>
-                <option value="deepDistortionStill">Deep Still</option>
-              </select>
+            <FR label="Beat Glitch Boost" hint={`${(ftBGB as number).toFixed(1)}`} info={hintFor('background.faultyTerminalBeatGlitchBoost')}>
+              <Sl value={ftBGB as number} min={0} max={3} step={0.1} onChange={sFtBGB} />
             </FR>
-            <FR label="Speed" info={hintFor('background.hyperspeedSpeed')}>
-              <Sl value={hspSpd as number} min={0.1} max={5} step={0.1} onChange={sHspSpd} />
-            </FR>
-            <FR label="Lanes" info={hintFor('background.hyperspeedLanesPerRoad')}>
-              <Sl value={hspLanes as number} min={1} max={5} step={1} onChange={sHspLanes} />
-            </FR>
-            <FR label="Road Width" info={hintFor('background.hyperspeedRoadWidth')}>
-              <Sl value={hspRW as number} min={5} max={25} step={1} onChange={sHspRW} />
-            </FR>
-            <FR label="FOV" info={hintFor('background.hyperspeedFov')}>
-              <Sl value={hspFov as number} min={60} max={150} step={1} onChange={sHspFov} />
-            </FR>
-            <FR label="Left Cars" info={hintFor('background.hyperspeedLeftCarColor1')}>
-              <div className="flex gap-1">
-                <CP value={hspLC1 as string} onChange={sHspLC1 as (v: string) => void} />
-                <CP value={hspLC2 as string} onChange={sHspLC2 as (v: string) => void} />
-                <CP value={hspLC3 as string} onChange={sHspLC3 as (v: string) => void} />
-              </div>
-            </FR>
-            <FR label="Right Cars" info={hintFor('background.hyperspeedRightCarColor1')}>
-              <div className="flex gap-1">
-                <CP value={hspRC1 as string} onChange={sHspRC1 as (v: string) => void} />
-                <CP value={hspRC2 as string} onChange={sHspRC2 as (v: string) => void} />
-                <CP value={hspRC3 as string} onChange={sHspRC3 as (v: string) => void} />
-              </div>
-            </FR>
-            <FR label="Side Sticks" info={hintFor('background.hyperspeedSticksColor')}>
-              <CP value={hspSC as string} onChange={sHspSC as (v: string) => void} />
-            </FR>
-            <div className="mt-2">
-              <HzRangePicker
-                startHz={hspBFS as number}
-                endHz={hspBFE as number}
-                onChangeStart={sHspBFS}
-                onChangeEnd={sHspBFE}
-              />
-              <div className="mt-2">
-                <FR label="Beat Sensitivity" hint={`${(hspBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.hyperspeedBeatSensitivity')}>
-                  <Sl value={hspBSen as number} min={0.1} max={5} step={0.1} onChange={sHspBSen} />
-                </FR>
-                <FR label="Beat Brightness" hint={`${(hspBB as number).toFixed(1)}`} info={hintFor('background.hyperspeedBeatBrightness')}>
-                  <Sl value={hspBB as number} min={0} max={3} step={0.1} onChange={sHspBB} />
-                </FR>
-              </div>
-            </div>
-          </>
-        )}
-      </Acc>
-      <Acc label="Faulty Terminal">
-        <Tg value={ftE as boolean} onChange={sFtE} label="Show Faulty Terminal" />
-        {(ftE as boolean) && (
-          <>
-            <FR label="Position" info={hintFor('background.faultyTerminalBehindLogo')}>
-              <CB
-                value={(ftBL as boolean) ? 'behind' : 'front'}
-                options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
-                onChange={(v) => sFtBL(v === 'behind')}
-              />
-            </FR>
-            <FR label="Tint" info={hintFor('background.faultyTerminalTint')}>
-              <CP value={ftTint as string} onChange={sFtTint} />
-            </FR>
-            <FR label="Brightness" hint={`${(ftBri as number).toFixed(1)}`} info={hintFor('background.faultyTerminalBrightness')}>
-              <Sl value={ftBri as number} min={0.1} max={3} step={0.05} onChange={sFtBri} />
-            </FR>
-            <FR label="Scale" hint={`${(ftSc as number).toFixed(1)}`} info={hintFor('background.faultyTerminalScale')}>
-              <Sl value={ftSc as number} min={0.5} max={4} step={0.1} onChange={sFtSc} />
-            </FR>
-            <FR label="Scanline Intensity" hint={`${(ftScan as number).toFixed(1)}`} info={hintFor('background.faultyTerminalScanlineIntensity')}>
-              <Sl value={ftScan as number} min={0} max={2} step={0.05} onChange={sFtScan} />
-            </FR>
-            <FR label="Glitch Amount" hint={`${(ftGl as number).toFixed(1)}`} info={hintFor('background.faultyTerminalGlitchAmount')}>
-              <Sl value={ftGl as number} min={0} max={5} step={0.1} onChange={sFtGl} />
-            </FR>
-            <FR label="Flicker Amount" hint={`${(ftFl as number).toFixed(1)}`} info={hintFor('background.faultyTerminalFlickerAmount')}>
-              <Sl value={ftFl as number} min={0} max={2} step={0.05} onChange={sFtFl} />
-            </FR>
-            <FR label="Noise Amplitude" hint={`${(ftNA as number).toFixed(1)}`} info={hintFor('background.faultyTerminalNoiseAmp')}>
-              <Sl value={ftNA as number} min={0} max={4} step={0.05} onChange={sFtNA} />
-            </FR>
-            <FR label="CRT Curvature" hint={`${(ftCv as number).toFixed(2)}`} info={hintFor('background.faultyTerminalCurvature')}>
-              <Sl value={ftCv as number} min={0} max={0.5} step={0.01} onChange={sFtCv} />
-            </FR>
-            <FR label="Speed" hint={`${(ftSp as number).toFixed(1)}`} info={hintFor('background.faultyTerminalSpeed')}>
-              <Sl value={ftSp as number} min={0.1} max={3} step={0.1} onChange={sFtSp} />
-            </FR>
-            <div className="mt-2">
-              <HzRangePicker
-                startHz={ftBFS as number}
-                endHz={ftBFE as number}
-                onChangeStart={sFtBFS}
-                onChangeEnd={sFtBFE}
-              />
-              <div className="mt-2">
-                <FR label="Beat Sensitivity" hint={`${(ftBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.faultyTerminalBeatSensitivity')}>
-                  <Sl value={ftBSen as number} min={0} max={5} step={0.1} onChange={sFtBSen} />
-                </FR>
-                <FR label="Beat Glitch Boost" hint={`${(ftBGB as number).toFixed(1)}`} info={hintFor('background.faultyTerminalBeatGlitchBoost')}>
-                  <Sl value={ftBGB as number} min={0} max={3} step={0.1} onChange={sFtBGB} />
-                </FR>
-              </div>
-            </div>
-            <FR label="Blend mode" info={hintFor('background.faultyTerminalBlendMode')}>
-              <BlendSel value={ftBM as string} onChange={sFtBM as (v: string) => void} />
-            </FR>
-          </>
-        )}
-      </Acc>
+          </div>
+        </div>
+        <FR label="Blend mode" info={hintFor('background.faultyTerminalBlendMode')}>
+          <BlendSel value={ftBM as string} onChange={sFtBM as (v: string) => void} />
+        </FR>
+      </OverlayCard>
     </div>
   );
 }
