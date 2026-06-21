@@ -133,12 +133,11 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
           {formatTime(currentTime)}
         </span>
         <div className="relative flex-1">
-          {/* Animated visual track */}
-          <div
-            className="pointer-events-none absolute left-0 right-0 top-1/2 -translate-y-1/2 rounded-full"
-            style={{ height: '2px', background: 'var(--border-strong)' }}
-          >
-            <div className="transport-fill absolute inset-y-0 left-0" style={{ width: `${progress}%` }} />
+          {/* Animated visual track — inset-0 + flex items-center guarantees alignment with native thumb */}
+          <div className="pointer-events-none absolute inset-0 flex items-center">
+            <div className="relative w-full rounded-full" style={{ height: '2px', background: 'var(--border-strong)' }}>
+              <div className="transport-fill absolute inset-y-0 left-0" style={{ width: `${progress}%` }} />
+            </div>
           </div>
           <input
             type="range"
@@ -228,11 +227,10 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
             <VolumeIcon muted={volume === 0} />
             {/* Animated visual track for volume */}
             <div className="relative w-16">
-              <div
-                className="pointer-events-none absolute left-0 right-0 top-1/2 -translate-y-1/2 rounded-full"
-                style={{ height: '2px', background: 'var(--border-strong)' }}
-              >
-                <div className="transport-fill absolute inset-y-0 left-0" style={{ width: `${volPct}%` }} />
+              <div className="pointer-events-none absolute inset-0 flex items-center">
+                <div className="relative w-full rounded-full" style={{ height: '2px', background: 'var(--border-strong)' }}>
+                  <div className="transport-fill absolute inset-y-0 left-0" style={{ width: `${volPct}%` }} />
+                </div>
               </div>
               <input
                 type="range"
