@@ -693,22 +693,26 @@ function Acc({ label, children, description }: {
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="mb-2 overflow-hidden rounded-md border" style={{ borderColor: 'var(--border)' }}>
+    <div
+      className="overflow-hidden rounded-lg border"
+      style={{ borderColor: 'var(--border)', background: 'var(--bg-elev-2)' }}
+    >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between px-3 py-2"
-        style={{ background: 'var(--bg-elev-2)' }}
       >
         <span className="font-ui text-xs font-semibold" style={{ color: 'var(--text)' }}>{label}</span>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-          strokeLinecap="round" strokeLinejoin="round" aria-hidden
-          style={{ color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
+        <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center" style={{ color: 'var(--text-muted)' }}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+            strokeLinecap="round" strokeLinejoin="round" aria-hidden
+            style={{ transform: open ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </span>
       </button>
       {open && (
-        <div className="p-3">
+        <div className="border-t px-3 pb-3 pt-3" style={{ borderColor: 'var(--border)' }}>
           {description && (
             <p className="mb-2 font-ui text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               {description}
@@ -808,7 +812,7 @@ function BackgroundSection() {
   const [gridCl,   sGridCl]   = useF('background', 'gridColor');
 
   return (
-    <div>
+    <div className="flex flex-col gap-2">
       <Acc label="Image" description={ACCORDION_DESCRIPTIONS['background.image']}>
         <FR label="Blur" hint={`${blur}px`} info={hintFor('background.blur')}>
           <Sl value={blur as number} min={0} max={40} step={1} onChange={sBlur} />
@@ -1079,7 +1083,7 @@ function OverlayCard({
 
   return (
     <div
-      className="mb-2 overflow-hidden rounded-lg border transition-colors"
+      className="overflow-hidden rounded-lg border transition-colors"
       style={{
         borderColor: enabled ? 'var(--accent)' : 'var(--border)',
         background: 'var(--bg-elev-2)',
@@ -1360,7 +1364,7 @@ function OverlaysSection() {
   const [ffGB,   sffGB]  = useF('background', 'ferrofluidGlowBoost');
 
   return (
-    <div>
+    <div className="flex flex-col gap-2">
       <OverlayCard label="Strands" enabled={stE as boolean} onToggle={sStE}>
         <FR label="Position" info={hintFor('background.strandsBehindLogo')}>
           <CB
