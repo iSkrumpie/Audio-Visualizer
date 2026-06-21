@@ -337,6 +337,27 @@ export type Settings = {
     faultyTerminalBeatSensitivity: number;
     faultyTerminalBeatGlitchBoost: number;
     faultyTerminalBlendMode: BlendMode;
+    // ── Ferrofluid (v22) ─────────────────────────────────────────────────────
+    ferrofluidEnabled: boolean;
+    ferrofluidBehindLogo: boolean;
+    ferrofluidBlendMode: BlendMode;
+    ferrofluidColor0: string;
+    ferrofluidColor1: string;
+    ferrofluidColor2: string;
+    ferrofluidSpeed: number;
+    ferrofluidScale: number;
+    ferrofluidTurbulence: number;
+    ferrofluidFluidity: number;
+    ferrofluidRimWidth: number;
+    ferrofluidSharpness: number;
+    ferrofluidShimmer: number;
+    ferrofluidGlow: number;
+    ferrofluidFlowDirection: 'up' | 'down' | 'left' | 'right';
+    ferrofluidOpacity: number;
+    ferrofluidBeatFreqStart: number;
+    ferrofluidBeatFreqEnd: number;
+    ferrofluidBeatSensitivity: number;
+    ferrofluidGlowBoost: number;
   };
 
   logo: {
@@ -751,6 +772,27 @@ const DEFAULT_SETTINGS: Settings = {
     faultyTerminalBeatSensitivity: 1.0,
     faultyTerminalBeatGlitchBoost: 1.5,
     faultyTerminalBlendMode: 'add' as BlendMode,
+    // ── Ferrofluid (v22) ─────────────────────────────────────────────────────
+    ferrofluidEnabled: false,
+    ferrofluidBehindLogo: true,
+    ferrofluidBlendMode: 'add' as BlendMode,
+    ferrofluidColor0: '#8B5CF6',
+    ferrofluidColor1: '#06B6D4',
+    ferrofluidColor2: '#E0F2FE',
+    ferrofluidSpeed: 0.5,
+    ferrofluidScale: 1.6,
+    ferrofluidTurbulence: 1.0,
+    ferrofluidFluidity: 0.1,
+    ferrofluidRimWidth: 0.2,
+    ferrofluidSharpness: 2.5,
+    ferrofluidShimmer: 1.5,
+    ferrofluidGlow: 2.0,
+    ferrofluidFlowDirection: 'down' as const,
+    ferrofluidOpacity: 1.0,
+    ferrofluidBeatFreqStart: 40,
+    ferrofluidBeatFreqEnd: 120,
+    ferrofluidBeatSensitivity: 1.0,
+    ferrofluidGlowBoost: 2.0,
   },
 
   logo: {
@@ -901,9 +943,9 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v21',
+      name: 'audiovisualizer:settings:v22',
       storage: createJSONStorage(() => localStorage),
-      version: 21,
+      version: 22,
       migrate: (persistedState: unknown, version: number): { settings: Settings } => {
         // Safety: no persisted data → start fresh
         const ps = persistedState as Record<string, unknown> | null | undefined;
@@ -954,6 +996,10 @@ export const useSettingsStore = create<SettingsStore>()(
           if (typeof bg['faultyTerminalBrightness'] === 'undefined' || (bg['faultyTerminalBrightness'] as number) <= 0.8) {
             bg['faultyTerminalBrightness'] = 1.0;
           }
+          s['background'] = { ...DEFAULT_SETTINGS.background, ...bg };
+        }
+        if (version < 22) {
+          const bg = (s['background'] as Record<string, unknown>) ?? {};
           s['background'] = { ...DEFAULT_SETTINGS.background, ...bg };
         }
         return ps as { settings: Settings };

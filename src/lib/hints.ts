@@ -538,6 +538,44 @@ export const SETTING_HINTS: Record<string, string> = {
   'background.faultyTerminalBlendMode':
     'How this effect blends with layers behind it. "add" makes digits glow over the background.',
 
+  // ── Ferrofluid (v22) ────────────────────────────────────────────────────────────────────
+  'background.ferrofluidEnabled':
+    'Enables the ferrofluid effect — animated liquid-metal spikes rendered as a fullscreen shader.',
+  'background.ferrofluidBehindLogo':
+    'When set to "Behind logo", the ferrofluid is masked at the logo position. "In front" lets it cover everything including the logo.',
+  'background.ferrofluidColor0':
+    'First color in the ferrofluid palette. The three colors are blended step-wise across the noise field.',
+  'background.ferrofluidColor1':
+    'Second color in the ferrofluid palette.',
+  'background.ferrofluidColor2':
+    'Third color in the ferrofluid palette.',
+  'background.ferrofluidFlowDirection':
+    'Primary direction the ferrofluid spikes flow across the screen.',
+  'background.ferrofluidSpeed':
+    'How fast the ferrofluid flows. Higher values produce rapid churning motion.',
+  'background.ferrofluidScale':
+    'Zoom level of the noise pattern. Lower values zoom in for larger, fewer spikes.',
+  'background.ferrofluidTurbulence':
+    'Amount of perpendicular distortion applied to the flow. Higher values create more chaotic, swirling motion.',
+  'background.ferrofluidFluidity':
+    'Controls how smoothly the two noise fields merge. Higher values produce rounder, more liquid transitions between spikes.',
+  'background.ferrofluidRimWidth':
+    'Width of the bright ferrofluid bands / spike edges. Higher values produce thicker glowing edges.',
+  'background.ferrofluidSharpness':
+    'Contrast of the spike edges. Higher values produce sharper, more defined spikes. Lower values are softer.',
+  'background.ferrofluidShimmer':
+    'Adds a secondary noise overlay to the spike edges for a shimmering, iridescent appearance.',
+  'background.ferrofluidGlow':
+    'Overall brightness of the ferrofluid spikes. Multiplied further on beat hits.',
+  'background.ferrofluidOpacity':
+    'Overall transparency of the effect. 0 = invisible, 1 = fully visible.',
+  'background.ferrofluidBeatFreqStart':
+    'Lowest frequency (Hz) that triggers the ferrofluid glow burst. Typically 40–80 Hz for kick drums.',
+  'background.ferrofluidBeatSensitivity':
+    'How sensitive the beat detection is. Higher values trigger on quieter transients.',
+  'background.ferrofluidGlowBoost':
+    'How strongly a beat hit multiplies the glow. 0 = no reaction; 3 = very strong pulse.',
+
 
   // ── Logo ───────────────────────────────────────────────────────────────────────────────────
   'logo.enabled':

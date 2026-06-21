@@ -19,6 +19,7 @@ import { Strands } from './Strands';
 import { LightningEffect } from './LightningEffect';
 import { HyperspeedEffect } from './HyperspeedEffect';
 import { FaultyTerminal } from './FaultyTerminal';
+import { FerrofluidEffect } from './FerrofluidEffect';
 import { NebulaPlane } from './NebulaPlane';
 import { InstancedBars } from './InstancedBars';
 import { GPUParticles } from './GPUParticles';
@@ -137,6 +138,7 @@ export function AudioScene({ className, style }: AudioSceneProps) {
       <MagicRings />
       <HyperspeedEffect />
       <FaultyTerminal />
+      <FerrofluidEffect />
       <NebulaPlane />
       <InstancedBars />
       <GPUParticles />

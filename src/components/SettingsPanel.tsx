@@ -63,6 +63,7 @@ export function SettingsPanel() {
       bg.bgParticlesEnabled || bg.rainEnabled || bg.snowEnabled,
       bg.hyperspeedEnabled,
       bg.faultyTerminalEnabled,
+      bg.ferrofluidEnabled,
     ].filter(Boolean).length;
   });
 
@@ -1334,6 +1335,28 @@ function OverlaysSection() {
   const [ftBGB,  sFtBGB]  = useF('background', 'faultyTerminalBeatGlitchBoost');
   const [ftBM,   sFtBM]   = useF('background', 'faultyTerminalBlendMode');
 
+  // Ferrofluid
+  const [ffE,    sffE]   = useF('background', 'ferrofluidEnabled');
+  const [ffBL,   sffBL]  = useF('background', 'ferrofluidBehindLogo');
+  const [ffBM,   sffBM]  = useF('background', 'ferrofluidBlendMode');
+  const [ffC0,   sffC0]  = useF('background', 'ferrofluidColor0');
+  const [ffC1,   sffC1]  = useF('background', 'ferrofluidColor1');
+  const [ffC2,   sffC2]  = useF('background', 'ferrofluidColor2');
+  const [ffSpd,  sffSpd] = useF('background', 'ferrofluidSpeed');
+  const [ffScl,  sffScl] = useF('background', 'ferrofluidScale');
+  const [ffTrb,  sffTrb] = useF('background', 'ferrofluidTurbulence');
+  const [ffFld,  sffFld] = useF('background', 'ferrofluidFluidity');
+  const [ffRW,   sffRW]  = useF('background', 'ferrofluidRimWidth');
+  const [ffShp,  sffShp] = useF('background', 'ferrofluidSharpness');
+  const [ffShm,  sffShm] = useF('background', 'ferrofluidShimmer');
+  const [ffGlw,  sffGlw] = useF('background', 'ferrofluidGlow');
+  const [ffFlow, sffFlow]= useF('background', 'ferrofluidFlowDirection');
+  const [ffOp,   sffOp]  = useF('background', 'ferrofluidOpacity');
+  const [ffBFS,  sffBFS] = useF('background', 'ferrofluidBeatFreqStart');
+  const [ffBFE,  sffBFE] = useF('background', 'ferrofluidBeatFreqEnd');
+  const [ffBS,   sffBS]  = useF('background', 'ferrofluidBeatSensitivity');
+  const [ffGB,   sffGB]  = useF('background', 'ferrofluidGlowBoost');
+
   const weatherEnabled = (bgPE as boolean) || (rnE as boolean) || (snE as boolean);
 
   return (
@@ -1880,6 +1903,71 @@ function OverlaysSection() {
         </div>
         <FR label="Blend mode" info={hintFor('background.faultyTerminalBlendMode')}>
           <BlendSel value={ftBM as string} onChange={sFtBM as (v: string) => void} />
+        </FR>
+      </OverlayCard>
+
+      <OverlayCard label="Ferrofluid" enabled={ffE as boolean} onToggle={sffE}>
+        <FR label="Position" info={hintFor('background.ferrofluidBehindLogo')}>
+          <CB
+            value={(ffBL as boolean) ? 'behind' : 'front'}
+            options={[
+              { value: 'behind', label: 'Behind logo' },
+              { value: 'front',  label: 'In front'    },
+            ]}
+            onChange={(v) => sffBL(v === 'behind')}
+          />
+        </FR>
+        <FR label="Blend mode" info={hintFor('blendMode')}>
+          <BlendSel value={ffBM as string} onChange={sffBM as (v: string) => void} />
+        </FR>
+        <FR label="Color 1" info={hintFor('background.ferrofluidColor0')}><CP value={ffC0 as string} onChange={sffC0} /></FR>
+        <FR label="Color 2" info={hintFor('background.ferrofluidColor1')}><CP value={ffC1 as string} onChange={sffC1} /></FR>
+        <FR label="Color 3" info={hintFor('background.ferrofluidColor2')}><CP value={ffC2 as string} onChange={sffC2} /></FR>
+        <FR label="Flow direction" info={hintFor('background.ferrofluidFlowDirection')}>
+          <CB
+            value={ffFlow as string}
+            options={[
+              { value: 'up',    label: '↑' },
+              { value: 'down',  label: '↓' },
+              { value: 'left',  label: '←' },
+              { value: 'right', label: '→' },
+            ]}
+            onChange={sffFlow}
+          />
+        </FR>
+        <FR label="Speed" info={hintFor('background.ferrofluidSpeed')}>
+          <Sl value={ffSpd as number} min={0} max={3} step={0.05} onChange={sffSpd} />
+        </FR>
+        <FR label="Scale" info={hintFor('background.ferrofluidScale')}>
+          <Sl value={ffScl as number} min={0.3} max={4} step={0.05} onChange={sffScl} />
+        </FR>
+        <FR label="Turbulence" info={hintFor('background.ferrofluidTurbulence')}>
+          <Sl value={ffTrb as number} min={0} max={3} step={0.05} onChange={sffTrb} />
+        </FR>
+        <FR label="Fluidity" info={hintFor('background.ferrofluidFluidity')}>
+          <Sl value={ffFld as number} min={0.01} max={1} step={0.01} onChange={sffFld} />
+        </FR>
+        <FR label="Rim width" info={hintFor('background.ferrofluidRimWidth')}>
+          <Sl value={ffRW as number} min={0.05} max={0.6} step={0.01} onChange={sffRW} />
+        </FR>
+        <FR label="Sharpness" info={hintFor('background.ferrofluidSharpness')}>
+          <Sl value={ffShp as number} min={0.5} max={6} step={0.1} onChange={sffShp} />
+        </FR>
+        <FR label="Shimmer" info={hintFor('background.ferrofluidShimmer')}>
+          <Sl value={ffShm as number} min={0} max={4} step={0.05} onChange={sffShm} />
+        </FR>
+        <FR label="Glow" info={hintFor('background.ferrofluidGlow')}>
+          <Sl value={ffGlw as number} min={0} max={6} step={0.1} onChange={sffGlw} />
+        </FR>
+        <FR label="Opacity" info={hintFor('background.ferrofluidOpacity')}>
+          <Sl value={ffOp as number} min={0} max={1} step={0.01} onChange={sffOp} />
+        </FR>
+        <HzRangePicker startHz={ffBFS as number} endHz={ffBFE as number} onChangeStart={sffBFS} onChangeEnd={sffBFE} />
+        <FR label="Beat sensitivity" info={hintFor('background.ferrofluidBeatSensitivity')}>
+          <Sl value={ffBS as number} min={0.1} max={5} step={0.1} onChange={sffBS} />
+        </FR>
+        <FR label="Glow boost" info={hintFor('background.ferrofluidGlowBoost')}>
+          <Sl value={ffGB as number} min={0} max={5} step={0.1} onChange={sffGB} />
         </FR>
       </OverlayCard>
     </div>
