@@ -234,7 +234,7 @@ export function FerrofluidEffect() {
     mat.uniforms.uFlow.value.set(fx, fy);
 
     mat.uniforms.uGlow.value       = baseGlow  * (1 + beat * boost);
-    mat.uniforms.uSpeed.value      = baseSpeed * (1 + beat * 0.5);
+    mat.uniforms.uSpeed.value      = baseSpeed;
     mat.uniforms.uScale.value      = bg.ferrofluidScale       ?? DEFAULT_SETTINGS.background.ferrofluidScale;
     mat.uniforms.uTurbulence.value = bg.ferrofluidTurbulence  ?? DEFAULT_SETTINGS.background.ferrofluidTurbulence;
     mat.uniforms.uFluidity.value   = bg.ferrofluidFluidity    ?? DEFAULT_SETTINGS.background.ferrofluidFluidity;
