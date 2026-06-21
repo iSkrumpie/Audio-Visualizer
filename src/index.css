@@ -320,6 +320,52 @@ input[type='range']:active::-moz-range-thumb {
 }
 
 /* ------------------------------------------------------------
+   Transport sliders (Timeline + Volume) — animated gradient fill
+   Uses a visual overlay div (.transport-fill) in front of a
+   plain transparent input, so animation and interaction are
+   fully decoupled.
+   ------------------------------------------------------------ */
+@keyframes transport-flow {
+  0%   { background-position: 0% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.transport-fill {
+  background: linear-gradient(
+    90deg,
+    var(--step-1)  0%,
+    var(--step-2) 40%,
+    var(--step-3) 75%,
+    var(--step-1) 100%
+  );
+  background-size: 200% 100%;
+  animation: transport-flow 5s linear infinite;
+  border-radius: 9999px;
+  filter:
+    drop-shadow(0 0 3px var(--step-1-glow))
+    drop-shadow(0 0 7px var(--step-2-glow));
+}
+
+/* Thumb overrides for transport inputs */
+input.transport-range::-webkit-slider-thumb {
+  margin-top: -4px; /* re-center on 2px track */
+  border-color: var(--step-2);
+  box-shadow: 0 0 0 2px var(--step-2-soft), 0 0 8px var(--step-2-glow);
+}
+input.transport-range::-webkit-slider-thumb:hover {
+  background: var(--step-2);
+  border-color: var(--step-2);
+}
+input.transport-range:active::-webkit-slider-thumb {
+  background: var(--step-2);
+  border-color: var(--step-2);
+}
+input.transport-range::-moz-range-thumb {
+  border-color: var(--step-2);
+  box-shadow: 0 0 0 2px var(--step-2-soft), 0 0 8px var(--step-2-glow);
+}
+
+/* ------------------------------------------------------------
    Color input — theme-aware
    ------------------------------------------------------------ */
 input[type='color'] {

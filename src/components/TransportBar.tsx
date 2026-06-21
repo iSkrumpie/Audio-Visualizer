@@ -133,6 +133,13 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
           {formatTime(currentTime)}
         </span>
         <div className="relative flex-1">
+          {/* Animated visual track */}
+          <div
+            className="pointer-events-none absolute left-0 right-0 top-1/2 -translate-y-1/2 rounded-full"
+            style={{ height: '2px', background: 'var(--border-strong)' }}
+          >
+            <div className="transport-fill absolute inset-y-0 left-0" style={{ width: `${progress}%` }} />
+          </div>
           <input
             type="range"
             min={0}
@@ -140,11 +147,8 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
             step={0.1}
             value={currentTime}
             onChange={handleSeek}
-            className="w-full"
-            style={{
-              background: `linear-gradient(to right, var(--step-1) 0%, var(--step-1) ${progress}%, var(--border-strong) ${progress}%, var(--border-strong) 100%)`,
-              borderRadius: 0,
-            }}
+            className="transport-range w-full"
+            style={{ background: 'transparent' }}
             aria-label="Seek"
           />
         </div>
@@ -222,20 +226,26 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
             style={{ color: 'var(--text-muted)' }}
           >
             <VolumeIcon muted={volume === 0} />
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
-              className="w-16"
-              style={{
-                background: `linear-gradient(to right, var(--step-1) 0%, var(--step-1) ${volPct}%, var(--border-strong) ${volPct}%, var(--border-strong) 100%)`,
-                borderRadius: 0,
-              }}
-              aria-label="Volume"
-            />
+            {/* Animated visual track for volume */}
+            <div className="relative w-16">
+              <div
+                className="pointer-events-none absolute left-0 right-0 top-1/2 -translate-y-1/2 rounded-full"
+                style={{ height: '2px', background: 'var(--border-strong)' }}
+              >
+                <div className="transport-fill absolute inset-y-0 left-0" style={{ width: `${volPct}%` }} />
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={volume}
+                onChange={(e) => setVolume(parseFloat(e.target.value))}
+                className="transport-range w-16"
+                style={{ background: 'transparent' }}
+                aria-label="Volume"
+              />
+            </div>
           </div>
           <button
             type="button"
