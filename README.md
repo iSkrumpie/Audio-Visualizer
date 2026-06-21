@@ -8,10 +8,6 @@ No backend, no login, no tracking. Everything runs in the browser.
 
 ![Audio Visualizer 2](./assets/screenshots/2.png)
 
-![Audio Visualizer 3](./assets/screenshots/3.png)
-
-![Audio Visualizer 4](./assets/screenshots/4.png)
-
 ## Examples on Youtube
 
 [![Demo video 1 on YouTube](https://img.youtube.com/vi/6cqkD_cDcxI/maxresdefault.jpg)](https://www.youtube.com/watch?v=6cqkD_cDcxI)
@@ -52,7 +48,7 @@ Then open <http://localhost:5173> in your browser, drop in an audio file, and st
 
 | Layer        | Library                                                       |
 | ------------ | ------------------------------------------------------------- |
-| Build        | Vite 8 + TypeScript 5.7 (project references)                 |
+| Build        | Vite 8 + TypeScript 5.7 (project references)                  |
 | UI           | React 19 + framer-motion 12                                   |
 | 3D           | three 0.170 + @react-three/fiber 9 + @react-three/drei 10     |
 | Audio        | Web Audio API (native dual-analyser) + essentia.js worker     |
