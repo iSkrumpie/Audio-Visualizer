@@ -2402,7 +2402,7 @@ function AudioSection() {
   const hasResults    = bpm as number > 0;
 
   return (
-    <div>
+    <div className="flex flex-col gap-2">
       <Acc label="Detection Mode" description={ACCORDION_DESCRIPTIONS['audio.detection']}>
         <FR label="Mode" hint={isPrecomputed ? 'Pre-analysed' : 'Live spectral flux'} info={ENUM_HINTS['audio.detectionMode']?.[detMode as string]}>
           <CB value={detMode as string}
