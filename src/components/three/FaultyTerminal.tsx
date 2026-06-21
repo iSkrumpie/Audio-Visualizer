@@ -32,7 +32,7 @@ void main() {
 `;
 
 const FRAG = /* glsl */`
-precision mediump float;
+precision highp float;
 varying vec2 vUv;
 uniform float uTime;
 uniform vec2  uResolution;
