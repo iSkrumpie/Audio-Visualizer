@@ -181,6 +181,25 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
         </button>
 
         <div className="flex items-center gap-2">
+          {/* Autoplay toggle — left of Play/Pause */}
+          <div className="flex items-center gap-1.5">
+            <span className="font-ui text-[10px]" style={{ color: 'var(--text-muted)' }}>Autoplay</span>
+            <button
+              type="button"
+              onClick={toggleAutoplay}
+              className="flex h-5 min-w-[2rem] items-center justify-center rounded border px-1.5 font-ui text-[9px] font-bold transition-all"
+              style={{
+                background: autoplay ? 'var(--accent)' : 'transparent',
+                borderColor: autoplay ? 'var(--accent)' : 'var(--border)',
+                color: autoplay ? 'var(--bg-base)' : 'var(--text-dim)',
+              }}
+              aria-label={autoplay ? 'Autoplay enabled' : 'Autoplay disabled'}
+              aria-pressed={autoplay}
+            >
+              {autoplay ? 'ON' : 'OFF'}
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={onTogglePlay}
@@ -194,23 +213,6 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
             aria-label={isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? <PauseIcon /> : <PlayIcon />}
-          </button>
-
-          {/* Autoplay toggle */}
-          <button
-            type="button"
-            onClick={toggleAutoplay}
-            title={autoplay ? 'Autoplay on — click to disable' : 'Autoplay off — click to enable'}
-            className="flex h-7 w-7 items-center justify-center rounded-md border transition-all"
-            style={{
-              background: autoplay ? 'var(--bg-elev-2)' : 'transparent',
-              borderColor: autoplay ? 'var(--accent)' : 'var(--border)',
-              color: autoplay ? 'var(--accent)' : 'var(--text-dim)',
-            }}
-            aria-label={autoplay ? 'Autoplay enabled' : 'Autoplay disabled'}
-            aria-pressed={autoplay}
-          >
-            <AutoplayIcon active={autoplay} />
           </button>
         </div>
 
@@ -298,19 +300,6 @@ function DownloadIcon() {
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="7 10 12 15 17 10" />
       <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-  );
-}
-
-function AutoplayIcon({ active }: { active: boolean }) {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      {/* Play triangle */}
-      <polygon points="5 3 19 12 5 21 5 3" fill={active ? 'currentColor' : 'none'} stroke="currentColor" />
-      {active ? null : (
-        /* Strike-through line when disabled */
-        <line x1="3" y1="3" x2="21" y2="21" />
-      )}
     </svg>
   );
 }
