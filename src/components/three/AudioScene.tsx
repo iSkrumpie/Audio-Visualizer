@@ -20,6 +20,9 @@ import { LightningEffect } from './LightningEffect';
 import { HyperspeedEffect } from './HyperspeedEffect';
 import { FaultyTerminal } from './FaultyTerminal';
 import { FerrofluidEffect } from './FerrofluidEffect';
+import { LineWavesEffect }  from './LineWavesEffect';
+import { RadarEffect }      from './RadarEffect';
+import { SoftAuroraEffect } from './SoftAuroraEffect';
 import { NebulaPlane } from './NebulaPlane';
 import { InstancedBars } from './InstancedBars';
 import { GPUParticles } from './GPUParticles';
@@ -139,6 +142,9 @@ export function AudioScene({ className, style }: AudioSceneProps) {
       <HyperspeedEffect />
       <FaultyTerminal />
       <FerrofluidEffect />
+      <LineWavesEffect />
+      <RadarEffect />
+      <SoftAuroraEffect />
       <NebulaPlane />
       <InstancedBars />
       <GPUParticles />

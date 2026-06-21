@@ -360,6 +360,68 @@ export type Settings = {
     ferrofluidBeatFreqEnd: number;
     ferrofluidBeatSensitivity: number;
     ferrofluidGlowBoost: number;
+    // ── Line Waves (v24) ──────────────────────────────────────────────────────
+    lineWavesEnabled: boolean;
+    lineWavesBehindLogo: boolean;
+    lineWavesBlendMode: BlendMode;
+    lineWavesSpeed: number;
+    lineWavesInnerLines: number;
+    lineWavesOuterLines: number;
+    lineWavesWarpIntensity: number;
+    lineWavesRotation: number;
+    lineWavesEdgeFadeWidth: number;
+    lineWavesColorCycleSpeed: number;
+    lineWavesBrightness: number;
+    lineWavesColor1: string;
+    lineWavesColor2: string;
+    lineWavesColor3: string;
+    lineWavesOpacity: number;
+    lineWavesBeatFreqStart: number;
+    lineWavesBeatFreqEnd: number;
+    lineWavesBeatSensitivity: number;
+    lineWavesBeatGlowBoost: number;
+    // ── Radar (v24) ───────────────────────────────────────────────────────────
+    radarEnabled: boolean;
+    radarBehindLogo: boolean;
+    radarBlendMode: BlendMode;
+    radarSpeed: number;
+    radarScale: number;
+    radarRingCount: number;
+    radarSpokeCount: number;
+    radarRingThickness: number;
+    radarSpokeThickness: number;
+    radarSweepSpeed: number;
+    radarSweepWidth: number;
+    radarSweepLobes: number;
+    radarColor: string;
+    radarBrightness: number;
+    radarFalloff: number;
+    radarOpacity: number;
+    radarBeatFreqStart: number;
+    radarBeatFreqEnd: number;
+    radarBeatSensitivity: number;
+    radarBeatGlowBoost: number;
+    // ── Soft Aurora (v24) ─────────────────────────────────────────────────────
+    softAuroraEnabled: boolean;
+    softAuroraBehindLogo: boolean;
+    softAuroraBlendMode: BlendMode;
+    softAuroraSpeed: number;
+    softAuroraScale: number;
+    softAuroraBrightness: number;
+    softAuroraColor1: string;
+    softAuroraColor2: string;
+    softAuroraNoiseFreq: number;
+    softAuroraNoiseAmp: number;
+    softAuroraBandHeight: number;
+    softAuroraBandSpread: number;
+    softAuroraOctaveDecay: number;
+    softAuroraLayerOffset: number;
+    softAuroraColorSpeed: number;
+    softAuroraOpacity: number;
+    softAuroraBeatFreqStart: number;
+    softAuroraBeatFreqEnd: number;
+    softAuroraBeatSensitivity: number;
+    softAuroraBeatGlowBoost: number;
   };
 
   logo: {
@@ -796,6 +858,68 @@ const DEFAULT_SETTINGS: Settings = {
     ferrofluidBeatFreqEnd: 120,
     ferrofluidBeatSensitivity: 1.0,
     ferrofluidGlowBoost: 2.0,
+    // ── Line Waves (v24) ──────────────────────────────────────────────────────
+    lineWavesEnabled: false,
+    lineWavesBehindLogo: true,
+    lineWavesBlendMode: 'add' as BlendMode,
+    lineWavesSpeed: 0.3,
+    lineWavesInnerLines: 32.0,
+    lineWavesOuterLines: 36.0,
+    lineWavesWarpIntensity: 1.0,
+    lineWavesRotation: -45,
+    lineWavesEdgeFadeWidth: 0.0,
+    lineWavesColorCycleSpeed: 1.0,
+    lineWavesBrightness: 0.2,
+    lineWavesColor1: '#ffffff',
+    lineWavesColor2: '#ffffff',
+    lineWavesColor3: '#ffffff',
+    lineWavesOpacity: 1.0,
+    lineWavesBeatFreqStart: 40,
+    lineWavesBeatFreqEnd: 120,
+    lineWavesBeatSensitivity: 1.0,
+    lineWavesBeatGlowBoost: 2.0,
+    // ── Radar (v24) ───────────────────────────────────────────────────────────
+    radarEnabled: false,
+    radarBehindLogo: true,
+    radarBlendMode: 'add' as BlendMode,
+    radarSpeed: 1.0,
+    radarScale: 0.5,
+    radarRingCount: 10.0,
+    radarSpokeCount: 10.0,
+    radarRingThickness: 0.05,
+    radarSpokeThickness: 0.01,
+    radarSweepSpeed: 1.0,
+    radarSweepWidth: 2.0,
+    radarSweepLobes: 1.0,
+    radarColor: '#9f29ff',
+    radarBrightness: 1.0,
+    radarFalloff: 2.0,
+    radarOpacity: 1.0,
+    radarBeatFreqStart: 40,
+    radarBeatFreqEnd: 120,
+    radarBeatSensitivity: 1.0,
+    radarBeatGlowBoost: 2.0,
+    // ── Soft Aurora (v24) ─────────────────────────────────────────────────────
+    softAuroraEnabled: false,
+    softAuroraBehindLogo: true,
+    softAuroraBlendMode: 'add' as BlendMode,
+    softAuroraSpeed: 0.6,
+    softAuroraScale: 1.5,
+    softAuroraBrightness: 1.0,
+    softAuroraColor1: '#f7f7f7',
+    softAuroraColor2: '#e100ff',
+    softAuroraNoiseFreq: 2.5,
+    softAuroraNoiseAmp: 1.0,
+    softAuroraBandHeight: 0.5,
+    softAuroraBandSpread: 1.0,
+    softAuroraOctaveDecay: 0.1,
+    softAuroraLayerOffset: 0,
+    softAuroraColorSpeed: 1.0,
+    softAuroraOpacity: 1.0,
+    softAuroraBeatFreqStart: 40,
+    softAuroraBeatFreqEnd: 120,
+    softAuroraBeatSensitivity: 1.0,
+    softAuroraBeatGlowBoost: 2.0,
   },
 
   logo: {
@@ -946,9 +1070,9 @@ export const useSettingsStore = create<SettingsStore>()(
       resetToDefault: () => set({ settings: DEFAULT_SETTINGS }),
     }),
     {
-      name: 'audiovisualizer:settings:v23',
+      name: 'audiovisualizer:settings:v24',
       storage: createJSONStorage(() => localStorage),
-      version: 23,
+      version: 24,
       migrate: (persistedState: unknown, version: number): { settings: Settings } => {
         // Safety: no persisted data → start fresh
         const ps = persistedState as Record<string, unknown> | null | undefined;
@@ -1008,6 +1132,10 @@ export const useSettingsStore = create<SettingsStore>()(
         if (version < 23) {
           const th = (s['theme'] as Record<string, unknown>) ?? {};
           s['theme'] = { ...DEFAULT_SETTINGS.theme, ...th };
+        }
+        if (version < 24) {
+          const bg = (s['background'] as Record<string, unknown>) ?? {};
+          s['background'] = { ...DEFAULT_SETTINGS.background, ...bg };
         }
         return ps as { settings: Settings };
       },

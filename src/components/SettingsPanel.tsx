@@ -66,6 +66,9 @@ export function SettingsPanel() {
       bg.hyperspeedEnabled,
       bg.faultyTerminalEnabled,
       bg.ferrofluidEnabled,
+      bg.lineWavesEnabled,
+      bg.radarEnabled,
+      bg.softAuroraEnabled,
     ].filter(Boolean).length;
   });
 
@@ -1363,6 +1366,69 @@ function OverlaysSection() {
   const [ffBS,   sffBS]  = useF('background', 'ferrofluidBeatSensitivity');
   const [ffGB,   sffGB]  = useF('background', 'ferrofluidGlowBoost');
 
+  // ── Line Waves ───────────────────────────────────────────────────────────────
+  const [lwE,   sLwE]   = useF('background', 'lineWavesEnabled');
+  const [lwBL,  sLwBL]  = useF('background', 'lineWavesBehindLogo');
+  const [lwBM,  sLwBM]  = useF('background', 'lineWavesBlendMode');
+  const [lwSp,  sLwSp]  = useF('background', 'lineWavesSpeed');
+  const [lwIL,  sLwIL]  = useF('background', 'lineWavesInnerLines');
+  const [lwOL,  sLwOL]  = useF('background', 'lineWavesOuterLines');
+  const [lwWI,  sLwWI]  = useF('background', 'lineWavesWarpIntensity');
+  const [lwRot, sLwRot] = useF('background', 'lineWavesRotation');
+  const [lwEFW, sLwEFW] = useF('background', 'lineWavesEdgeFadeWidth');
+  const [lwCCS, sLwCCS] = useF('background', 'lineWavesColorCycleSpeed');
+  const [lwBri, sLwBri] = useF('background', 'lineWavesBrightness');
+  const [lwC1,  sLwC1]  = useF('background', 'lineWavesColor1');
+  const [lwC2,  sLwC2]  = useF('background', 'lineWavesColor2');
+  const [lwC3,  sLwC3]  = useF('background', 'lineWavesColor3');
+  const [lwOp,  sLwOp]  = useF('background', 'lineWavesOpacity');
+  const [lwBFS, sLwBFS] = useF('background', 'lineWavesBeatFreqStart');
+  const [lwBFE, sLwBFE] = useF('background', 'lineWavesBeatFreqEnd');
+  const [lwBS,  sLwBS]  = useF('background', 'lineWavesBeatSensitivity');
+  const [lwBG,  sLwBG]  = useF('background', 'lineWavesBeatGlowBoost');
+  // ── Radar ──────────────────────────────────────────────────────────────────────
+  const [rdE,   sRdE]   = useF('background', 'radarEnabled');
+  const [rdBL,  sRdBL]  = useF('background', 'radarBehindLogo');
+  const [rdBM,  sRdBM]  = useF('background', 'radarBlendMode');
+  const [rdSp,  sRdSp]  = useF('background', 'radarSpeed');
+  const [rdSc,  sRdSc]  = useF('background', 'radarScale');
+  const [rdRC,  sRdRC]  = useF('background', 'radarRingCount');
+  const [rdSpC, sRdSpC] = useF('background', 'radarSpokeCount');
+  const [rdRT,  sRdRT]  = useF('background', 'radarRingThickness');
+  const [rdST,  sRdST]  = useF('background', 'radarSpokeThickness');
+  const [rdSSp, sRdSSp] = useF('background', 'radarSweepSpeed');
+  const [rdSW,  sRdSW]  = useF('background', 'radarSweepWidth');
+  const [rdSL,  sRdSL]  = useF('background', 'radarSweepLobes');
+  const [rdCl,  sRdCl]  = useF('background', 'radarColor');
+  const [rdBri, sRdBri] = useF('background', 'radarBrightness');
+  const [rdFO,  sRdFO]  = useF('background', 'radarFalloff');
+  const [rdOp,  sRdOp]  = useF('background', 'radarOpacity');
+  const [rdBFS, sRdBFS] = useF('background', 'radarBeatFreqStart');
+  const [rdBFE, sRdBFE] = useF('background', 'radarBeatFreqEnd');
+  const [rdBS,  sRdBS]  = useF('background', 'radarBeatSensitivity');
+  const [rdBG,  sRdBG]  = useF('background', 'radarBeatGlowBoost');
+  // ── Soft Aurora ───────────────────────────────────────────────────────────────
+  const [saE,    sSaE]    = useF('background', 'softAuroraEnabled');
+  const [saBL,   sSaBL]   = useF('background', 'softAuroraBehindLogo');
+  const [saBM,   sSaBM]   = useF('background', 'softAuroraBlendMode');
+  const [saSp,   sSaSp]   = useF('background', 'softAuroraSpeed');
+  const [saSc,   sSaSc]   = useF('background', 'softAuroraScale');
+  const [saBri,  sSaBri]  = useF('background', 'softAuroraBrightness');
+  const [saC1,   sSaC1]   = useF('background', 'softAuroraColor1');
+  const [saC2,   sSaC2]   = useF('background', 'softAuroraColor2');
+  const [saNF,   sSaNF]   = useF('background', 'softAuroraNoiseFreq');
+  const [saNA,   sSaNA]   = useF('background', 'softAuroraNoiseAmp');
+  const [saBH,   sSaBH]   = useF('background', 'softAuroraBandHeight');
+  const [saBS_UI,sSaBS_UI]= useF('background', 'softAuroraBandSpread');
+  const [saOD,   sSaOD]   = useF('background', 'softAuroraOctaveDecay');
+  const [saLO,   sSaLO]   = useF('background', 'softAuroraLayerOffset');
+  const [saCS,   sSaCS]   = useF('background', 'softAuroraColorSpeed');
+  const [saOp,   sSaOp]   = useF('background', 'softAuroraOpacity');
+  const [saBFS,  sSaBFS]  = useF('background', 'softAuroraBeatFreqStart');
+  const [saBFE,  sSaBFE]  = useF('background', 'softAuroraBeatFreqEnd');
+  const [saBSen, sSaBSen] = useF('background', 'softAuroraBeatSensitivity');
+  const [saBGlw, sSaBGlw] = useF('background', 'softAuroraBeatGlowBoost');
+
   return (
     <div className="flex flex-col gap-2">
       <OverlayCard label="Strands" enabled={stE as boolean} onToggle={sStE}>
@@ -1966,6 +2032,180 @@ function OverlaysSection() {
         </FR>
         <FR label="Glow boost" info={hintFor('background.ferrofluidGlowBoost')}>
           <Sl value={ffGB as number} min={0} max={5} step={0.1} onChange={sffGB} />
+        </FR>
+      </OverlayCard>
+
+      <OverlayCard label="Line Waves" enabled={lwE as boolean} onToggle={sLwE}>
+        <FR label="Position" info={hintFor('background.lineWavesBehindLogo')}>
+          <CB
+            value={(lwBL as boolean) ? 'behind' : 'front'}
+            options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+            onChange={(v) => sLwBL(v === 'behind')}
+          />
+        </FR>
+        <FR label="Color 1" info={hintFor('background.lineWavesColor1')}><CP value={lwC1 as string} onChange={sLwC1} /></FR>
+        <FR label="Color 2" info={hintFor('background.lineWavesColor2')}><CP value={lwC2 as string} onChange={sLwC2} /></FR>
+        <FR label="Color 3" info={hintFor('background.lineWavesColor3')}><CP value={lwC3 as string} onChange={sLwC3} /></FR>
+        <FR label="Speed" hint={`${(lwSp as number).toFixed(2)}`} info={hintFor('background.lineWavesSpeed')}>
+          <Sl value={lwSp as number} min={0.05} max={2.0} step={0.05} onChange={sLwSp} />
+        </FR>
+        <FR label="Inner lines" hint={`${Math.round(lwIL as number)}`} info={hintFor('background.lineWavesInnerLines')}>
+          <Sl value={lwIL as number} min={4} max={80} step={2} onChange={sLwIL} />
+        </FR>
+        <FR label="Outer lines" hint={`${Math.round(lwOL as number)}`} info={hintFor('background.lineWavesOuterLines')}>
+          <Sl value={lwOL as number} min={4} max={80} step={2} onChange={sLwOL} />
+        </FR>
+        <FR label="Warp intensity" hint={`${(lwWI as number).toFixed(2)}`} info={hintFor('background.lineWavesWarpIntensity')}>
+          <Sl value={lwWI as number} min={0} max={3} step={0.05} onChange={sLwWI} />
+        </FR>
+        <FR label="Rotation" hint={`${Math.round(lwRot as number)}°`} info={hintFor('background.lineWavesRotation')}>
+          <Sl value={lwRot as number} min={-180} max={180} step={1} onChange={sLwRot} />
+        </FR>
+        <FR label="Edge fade width" hint={`${(lwEFW as number).toFixed(2)}`} info={hintFor('background.lineWavesEdgeFadeWidth')}>
+          <Sl value={lwEFW as number} min={0} max={1} step={0.01} onChange={sLwEFW} />
+        </FR>
+        <FR label="Color cycle speed" hint={`${(lwCCS as number).toFixed(2)}`} info={hintFor('background.lineWavesColorCycleSpeed')}>
+          <Sl value={lwCCS as number} min={0} max={3} step={0.05} onChange={sLwCCS} />
+        </FR>
+        <FR label="Brightness" hint={`${(lwBri as number).toFixed(2)}`} info={hintFor('background.lineWavesBrightness')}>
+          <Sl value={lwBri as number} min={0.05} max={2.0} step={0.05} onChange={sLwBri} />
+        </FR>
+        <FR label="Opacity" hint={`${Math.round((lwOp as number) * 100)}%`} info={hintFor('background.lineWavesOpacity')}>
+          <Sl value={lwOp as number} min={0} max={1} step={0.01} onChange={sLwOp} />
+        </FR>
+        <div className="mt-2">
+          <HzRangePicker startHz={lwBFS as number} endHz={lwBFE as number} onChangeStart={sLwBFS} onChangeEnd={sLwBFE} />
+          <div className="mt-2">
+            <FR label="Beat sensitivity" hint={`${(lwBS as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.lineWavesBeatSensitivity')}>
+              <Sl value={lwBS as number} min={0.1} max={5} step={0.1} onChange={sLwBS} />
+            </FR>
+            <FR label="Glow boost" hint={`${(lwBG as number).toFixed(1)}`} info={hintFor('background.lineWavesBeatGlowBoost')}>
+              <Sl value={lwBG as number} min={0} max={5} step={0.1} onChange={sLwBG} />
+            </FR>
+          </div>
+        </div>
+        <FR label="Blend mode" info={hintFor('background.lineWavesBlendMode')}>
+          <BlendSel value={lwBM as string} onChange={sLwBM as (v: string) => void} />
+        </FR>
+      </OverlayCard>
+
+      <OverlayCard label="Radar" enabled={rdE as boolean} onToggle={sRdE}>
+        <FR label="Position" info={hintFor('background.radarBehindLogo')}>
+          <CB
+            value={(rdBL as boolean) ? 'behind' : 'front'}
+            options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+            onChange={(v) => sRdBL(v === 'behind')}
+          />
+        </FR>
+        <FR label="Color" info={hintFor('background.radarColor')}><CP value={rdCl as string} onChange={sRdCl} /></FR>
+        <FR label="Speed" hint={`${(rdSp as number).toFixed(2)}`} info={hintFor('background.radarSpeed')}>
+          <Sl value={rdSp as number} min={0.1} max={5} step={0.1} onChange={sRdSp} />
+        </FR>
+        <FR label="Scale" hint={`${(rdSc as number).toFixed(2)}`} info={hintFor('background.radarScale')}>
+          <Sl value={rdSc as number} min={0.1} max={2} step={0.05} onChange={sRdSc} />
+        </FR>
+        <FR label="Ring count" hint={`${Math.round(rdRC as number)}`} info={hintFor('background.radarRingCount')}>
+          <Sl value={rdRC as number} min={1} max={30} step={1} onChange={sRdRC} />
+        </FR>
+        <FR label="Spoke count" hint={`${Math.round(rdSpC as number)}`} info={hintFor('background.radarSpokeCount')}>
+          <Sl value={rdSpC as number} min={0} max={20} step={1} onChange={sRdSpC} />
+        </FR>
+        <FR label="Ring thickness" hint={`${(rdRT as number).toFixed(3)}`} info={hintFor('background.radarRingThickness')}>
+          <Sl value={rdRT as number} min={0.005} max={0.2} step={0.005} onChange={sRdRT} />
+        </FR>
+        <FR label="Spoke thickness" hint={`${(rdST as number).toFixed(3)}`} info={hintFor('background.radarSpokeThickness')}>
+          <Sl value={rdST as number} min={0.001} max={0.1} step={0.001} onChange={sRdST} />
+        </FR>
+        <FR label="Sweep speed" hint={`${(rdSSp as number).toFixed(2)}`} info={hintFor('background.radarSweepSpeed')}>
+          <Sl value={rdSSp as number} min={0} max={5} step={0.1} onChange={sRdSSp} />
+        </FR>
+        <FR label="Sweep width" hint={`${(rdSW as number).toFixed(1)}`} info={hintFor('background.radarSweepWidth')}>
+          <Sl value={rdSW as number} min={0.5} max={10} step={0.5} onChange={sRdSW} />
+        </FR>
+        <FR label="Sweep lobes" hint={`${Math.round(rdSL as number)}`} info={hintFor('background.radarSweepLobes')}>
+          <Sl value={rdSL as number} min={1} max={6} step={1} onChange={sRdSL} />
+        </FR>
+        <FR label="Brightness" hint={`${(rdBri as number).toFixed(2)}`} info={hintFor('background.radarBrightness')}>
+          <Sl value={rdBri as number} min={0.1} max={5} step={0.1} onChange={sRdBri} />
+        </FR>
+        <FR label="Falloff" hint={`${(rdFO as number).toFixed(1)}`} info={hintFor('background.radarFalloff')}>
+          <Sl value={rdFO as number} min={0.1} max={5} step={0.1} onChange={sRdFO} />
+        </FR>
+        <FR label="Opacity" hint={`${Math.round((rdOp as number) * 100)}%`} info={hintFor('background.radarOpacity')}>
+          <Sl value={rdOp as number} min={0} max={1} step={0.01} onChange={sRdOp} />
+        </FR>
+        <div className="mt-2">
+          <HzRangePicker startHz={rdBFS as number} endHz={rdBFE as number} onChangeStart={sRdBFS} onChangeEnd={sRdBFE} />
+          <div className="mt-2">
+            <FR label="Beat sensitivity" hint={`${(rdBS as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.radarBeatSensitivity')}>
+              <Sl value={rdBS as number} min={0.1} max={5} step={0.1} onChange={sRdBS} />
+            </FR>
+            <FR label="Glow boost" hint={`${(rdBG as number).toFixed(1)}`} info={hintFor('background.radarBeatGlowBoost')}>
+              <Sl value={rdBG as number} min={0} max={5} step={0.1} onChange={sRdBG} />
+            </FR>
+          </div>
+        </div>
+        <FR label="Blend mode" info={hintFor('background.radarBlendMode')}>
+          <BlendSel value={rdBM as string} onChange={sRdBM as (v: string) => void} />
+        </FR>
+      </OverlayCard>
+
+      <OverlayCard label="Soft Aurora" enabled={saE as boolean} onToggle={sSaE}>
+        <FR label="Position" info={hintFor('background.softAuroraBehindLogo')}>
+          <CB
+            value={(saBL as boolean) ? 'behind' : 'front'}
+            options={[{ value: 'behind', label: 'Behind logo' }, { value: 'front', label: 'In front' }]}
+            onChange={(v) => sSaBL(v === 'behind')}
+          />
+        </FR>
+        <FR label="Color 1" info={hintFor('background.softAuroraColor1')}><CP value={saC1 as string} onChange={sSaC1} /></FR>
+        <FR label="Color 2" info={hintFor('background.softAuroraColor2')}><CP value={saC2 as string} onChange={sSaC2} /></FR>
+        <FR label="Speed" hint={`${(saSp as number).toFixed(2)}`} info={hintFor('background.softAuroraSpeed')}>
+          <Sl value={saSp as number} min={0.05} max={3} step={0.05} onChange={sSaSp} />
+        </FR>
+        <FR label="Scale" hint={`${(saSc as number).toFixed(2)}`} info={hintFor('background.softAuroraScale')}>
+          <Sl value={saSc as number} min={0.1} max={5} step={0.05} onChange={sSaSc} />
+        </FR>
+        <FR label="Brightness" hint={`${(saBri as number).toFixed(2)}`} info={hintFor('background.softAuroraBrightness')}>
+          <Sl value={saBri as number} min={0.1} max={5} step={0.1} onChange={sSaBri} />
+        </FR>
+        <FR label="Noise frequency" hint={`${(saNF as number).toFixed(2)}`} info={hintFor('background.softAuroraNoiseFreq')}>
+          <Sl value={saNF as number} min={0.5} max={10} step={0.1} onChange={sSaNF} />
+        </FR>
+        <FR label="Noise amplitude" hint={`${(saNA as number).toFixed(2)}`} info={hintFor('background.softAuroraNoiseAmp')}>
+          <Sl value={saNA as number} min={0.1} max={3} step={0.05} onChange={sSaNA} />
+        </FR>
+        <FR label="Band height" hint={`${(saBH as number).toFixed(2)}`} info={hintFor('background.softAuroraBandHeight')}>
+          <Sl value={saBH as number} min={0} max={1} step={0.01} onChange={sSaBH} />
+        </FR>
+        <FR label="Band spread" hint={`${(saBS_UI as number).toFixed(2)}`} info={hintFor('background.softAuroraBandSpread')}>
+          <Sl value={saBS_UI as number} min={0.1} max={5} step={0.05} onChange={sSaBS_UI} />
+        </FR>
+        <FR label="Octave decay" hint={`${(saOD as number).toFixed(2)}`} info={hintFor('background.softAuroraOctaveDecay')}>
+          <Sl value={saOD as number} min={0.01} max={1} step={0.01} onChange={sSaOD} />
+        </FR>
+        <FR label="Layer offset" hint={`${(saLO as number).toFixed(2)}`} info={hintFor('background.softAuroraLayerOffset')}>
+          <Sl value={saLO as number} min={0} max={5} step={0.1} onChange={sSaLO} />
+        </FR>
+        <FR label="Color speed" hint={`${(saCS as number).toFixed(2)}`} info={hintFor('background.softAuroraColorSpeed')}>
+          <Sl value={saCS as number} min={0} max={5} step={0.05} onChange={sSaCS} />
+        </FR>
+        <FR label="Opacity" hint={`${Math.round((saOp as number) * 100)}%`} info={hintFor('background.softAuroraOpacity')}>
+          <Sl value={saOp as number} min={0} max={1} step={0.01} onChange={sSaOp} />
+        </FR>
+        <div className="mt-2">
+          <HzRangePicker startHz={saBFS as number} endHz={saBFE as number} onChangeStart={sSaBFS} onChangeEnd={sSaBFE} />
+          <div className="mt-2">
+            <FR label="Beat sensitivity" hint={`${(saBSen as number).toFixed(2)}×`} sub="Lower = more sensitive" info={hintFor('background.softAuroraBeatSensitivity')}>
+              <Sl value={saBSen as number} min={0.1} max={5} step={0.1} onChange={sSaBSen} />
+            </FR>
+            <FR label="Glow boost" hint={`${(saBGlw as number).toFixed(1)}`} info={hintFor('background.softAuroraBeatGlowBoost')}>
+              <Sl value={saBGlw as number} min={0} max={5} step={0.1} onChange={sSaBGlw} />
+            </FR>
+          </div>
+        </div>
+        <FR label="Blend mode" info={hintFor('background.softAuroraBlendMode')}>
+          <BlendSel value={saBM as string} onChange={sSaBM as (v: string) => void} />
         </FR>
       </OverlayCard>
     </div>
