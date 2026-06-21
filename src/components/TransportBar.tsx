@@ -141,9 +141,7 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
             value={currentTime}
             onChange={handleSeek}
             className="transport-range w-full"
-            style={{
-              background: `linear-gradient(to right, var(--step-1) 0%, var(--step-2) ${progress * 0.5}%, var(--step-3) ${progress}%, var(--border-strong) ${progress}%, var(--border-strong) 100%)`,
-            }}
+            style={{ '--pct': `${progress}%` } as React.CSSProperties}
             aria-label="Seek"
           />
         </div>
@@ -229,9 +227,7 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragCo
               value={volume}
               onChange={(e) => setVolume(parseFloat(e.target.value))}
               className="transport-range w-16"
-              style={{
-                background: `linear-gradient(to right, var(--step-1) 0%, var(--step-2) ${volPct * 0.5}%, var(--step-3) ${volPct}%, var(--border-strong) ${volPct}%, var(--border-strong) 100%)`,
-              }}
+              style={{ '--pct': `${volPct}%` } as React.CSSProperties}
               aria-label="Volume"
             />
           </div>
