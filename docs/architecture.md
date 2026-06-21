@@ -21,7 +21,7 @@ src/
 │   ├── ThemeToggle.tsx      # Existiert noch (Datei), aber NICHT mehr verwendet
 │   ├── VisualizerStage.tsx  # 3-Layer-Stage: <AudioScene/> + HTML-Overlays
 │   ├── TransportBar.tsx     # Player: Seek-Slider, Play/Pause, Volume, Export
-│   ├── SettingsPanel.tsx    # Right-Drawer mit 4 Tabs + Preset-Dropdown + Accordion-Sections
+│   ├── SettingsPanel.tsx    # Right-Drawer mit 5 Tabs + Preset-Dropdown + Accordion-Sections
 │   ├── ExportOverlay.tsx    # 2-Screen-Modal: Preset-Picker → Progress
 │   ├── HzRangePicker.tsx    # Shared: 10 Preset-Buttons + log-Dual-Slider + Bin-Quality-Indicator
 │   └── three/
@@ -176,16 +176,23 @@ exportMP4(file, options)
 
 ### 4.8 SettingsPanel - Tab-Struktur
 
-**4 Tabs**: Background · Logo · Bars · Particles
+**5 Tabs**: Background · Overlays · Logo · Bars · Particles
 
-Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einmal aufklappbar.
+Background, Logo, Bars, Particles nutzen **Accordion-Sections** (`<Acc label="...">`) — nur eine auf einmal aufklappbar.
+Overlays nutzt **`OverlayCard`** (keine Acc) — eigene Komponente mit Accent-Border/Status-Dot/Expand-Chevron.
 
-| Tab | Accordions |
-|-----|-----------|
+| Tab | Inhalt |
+|-----|-------|
 | Background | Image · Tint · **Beat FX (HzRangePicker + Sensitivity)** · Vignette · **Nebula/Fog (Scale+Offset + optional Beat-Pulse Mode)** · Glow FX · Color FX (CA, Sepia, ColorAvg) · Effects (Noise+anim, Scanlines+anim, Glitch+Controls+beatReactivity, Pixelation+beatReactivity, DotScreen+anim, Grid+anim) |
+| **Overlays** | 8× `OverlayCard`: Strands · Light Rays · Light Pillar · Lightning · Magic Rings · Weather FX · Hyperspeed · Faulty Terminal. Card-Header: Accent-Border + Status-Dot wenn aktiv, Inline-Toggle, Expand-Chevron. Settings sichtbar nur wenn `expanded && enabled`. Weather FX: Master-Toggle schaltet alle 3 Sub-Flags (bgParticles/rain/snow); innen 3× `EffectCard`. |
 | Logo | Size · **Outer Glow (ColorMode solid/rainbow/custom/random + CycleSpeed)** · **Inner Glow (soft falloff, same ColorMode controls)** · **Fire Ring (HzRangePicker + Sensitivity)** · **Animation (HzRangePicker + Sensitivity, kein Rotation-Burst mehr)** |
-| Bars | General · Shape · Frequency · Animation · Size & Radius · Peaks · **Beat Boost (HzRangePicker + Sensitivity, NEU v11)** · **Custom Colors** (bei colorMode=custom) |
+| Bars | General · Shape · Frequency · Animation · Size & Radius · Peaks · **Beat Boost (HzRangePicker + Sensitivity)** · **Custom Colors** (bei colorMode=custom) |
 | Particles | General · Shape & Size · Orbit · **Physics (HzRangePicker + Sensitivity)** · Connections · Flicker · **Custom Colors** (bei colorMode=custom) |
+
+**Active-Count-Badges** auf Tab-Buttons (Pill, nur sichtbar wenn > 0, Accent-farbig wenn Tab aktiv):
+- Background: Anzahl aktiver Shader-Effekte (Nebula, Vignette, Bloom, CA, Noise, Scanlines, Glitch, Pixelation, DotScreen, Grid, Sepia, ColorAverage)
+- Overlays: Anzahl aktiver Overlay-Effekte (Weather FX zählt als 1 wenn mind. 1 Sub-Effekt aktiv)
+- Logo / Bars / Particles: `1` wenn enabled, sonst kein Badge
 
 **HzRangePicker** (`src/components/HzRangePicker.tsx`):
 - **10 Preset-Buttons**: Kick (40-120), Sub-Bass (20-80), Bass (20-250), Snare (150-900), Vocal (300-3000), Mids (250-4000), High-Mids (2000-6000), Highs (4000-20000), Hi-Hat (6000-14000), Full (20-16000)
@@ -203,6 +210,7 @@ Jeder Tab nutzt **Accordion-Sections** (`<Acc label="...">`) - nur eine auf einm
 - `Tg({ value, onChange, label, info? })` - Toggle Switch. **`info?`** rendert `Hint` als Sibling inline neben dem Toggle (DOM: `<div flex>` + inner `<button flex-1>` + `<Hint/>` - keine nested-buttons). Setze `info` nur, wenn der Toggle-Name nicht selbsterklärend ist (z.B. `outerGlowEnabled`, `connectionLines`). Master-Toggles wie `logo.enabled` / `bars.enabled` / `particles.enabled` **bekommen KEINEN Hint** - der Name ist klar genug.
 - `Acc({ label, children, description? })` - Accordion. **`defaultOpen?` ist in Session 19 entfernt** - `useState(false)` ist jetzt hartcodiert. Alle Zieharmonikas starten eingeklappt, ohne Ausnahme. Beim Hinzufügen eines neuen `<Acc>` **kein** `defaultOpen` setzen.
 - `EffectCard({ label, enabled, onToggle, children? })` - PostFX-Card mit Toggle
+- `OverlayCard({ label, enabled, onToggle, children? })` - Overlay-Card mit Accent-Border, Status-Dot, Expand-Chevron. Settings body nur sichtbar wenn `expanded && enabled`. Nutzt internes `useState(false)` für Expanded-State.
 - `CustomColorEditor({ group })` - Editor für custom Farb-Zonen (Bars + Particles; nicht Glow - Glow hat eigenen inline-Editor)
 - `useF(group, key)` - gibt `[value, setter]` zurück, **kein** Rerender-overhead für Three.js. **Defensive**: gibt `DEFAULT_SETTINGS[group][key]` zurück wenn Feld im aktuellen State `undefined` ist (z.B. altes Preset geladen).
 
