@@ -12,7 +12,7 @@
  */
 
 import { useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useDragControls } from 'framer-motion';
 import { useAudioStore } from '@/lib/audioStore';
 import { formatTime } from '@/lib/utils';
 
@@ -22,9 +22,11 @@ type TransportBarProps = {
   onTogglePlay: () => void;
   onBack: () => void;
   onExport: () => void;
+  dragConstraintsRef?: React.RefObject<HTMLDivElement | null>;
 };
 
-export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport }: TransportBarProps) {
+export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport, dragConstraintsRef }: TransportBarProps) {
+  const dragControls = useDragControls();
   const currentTime = useAudioStore((s) => s.currentTime);
   const volume = useAudioStore((s) => s.volume);
   const setVolume = useAudioStore((s) => s.setVolume);
@@ -41,18 +43,47 @@ export function TransportBar({ isPlaying, onTogglePlay, onBack, onExport }: Tran
 
   return (
     <motion.div
+      drag
+      dragControls={dragControls}
+      dragMomentum={false}
+      dragElastic={0}
+      dragConstraints={dragConstraintsRef}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
       className="absolute bottom-6 left-1/2 flex w-[min(680px,calc(100%-48px))] -translate-x-1/2 flex-col overflow-hidden rounded-lg border"
       style={{
-        background: 'var(--bg-elev-1)',
+        background: 'var(--bg-overlay)',
         borderColor: 'var(--border)',
         boxShadow: 'var(--shadow-lg)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        cursor: 'default',
       }}
     >
+      {/* Drag handle — initiates drag on pointer down */}
+      <div
+        className="flex cursor-grab items-center justify-center py-1 active:cursor-grabbing select-none"
+        onPointerDown={(e) => dragControls.start(e)}
+        style={{ touchAction: 'none' }}
+        aria-label="Drag to reposition"
+      >
+        <svg
+          width="20"
+          height="6"
+          viewBox="0 0 20 6"
+          fill="none"
+          aria-hidden
+        >
+          <circle cx="6" cy="1.5" r="1" fill="var(--border-strong)" />
+          <circle cx="10" cy="1.5" r="1" fill="var(--border-strong)" />
+          <circle cx="14" cy="1.5" r="1" fill="var(--border-strong)" />
+          <circle cx="6" cy="4.5" r="1" fill="var(--border-strong)" />
+          <circle cx="10" cy="4.5" r="1" fill="var(--border-strong)" />
+          <circle cx="14" cy="4.5" r="1" fill="var(--border-strong)" />
+        </svg>
+      </div>
+
       {/* Hairline workflow-stripe — same 4 colors as the Uploader.
           Subtle visual hint that the player is part of the same app. */}
       <div

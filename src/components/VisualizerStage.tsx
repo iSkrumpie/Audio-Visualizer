@@ -6,6 +6,7 @@
  * TransportBar and SettingsPanel are HTML overlays rendered on top.
  */
 
+import { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { AudioScene } from './three/AudioScene';
 import { TransportBar } from './TransportBar';
@@ -24,8 +25,11 @@ export function VisualizerStage({
   onBack,
   onExport,
 }: VisualizerStageProps) {
+  const stageRef = useRef<HTMLDivElement>(null);
+
   return (
     <motion.div
+      ref={stageRef}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -42,6 +46,7 @@ export function VisualizerStage({
         onTogglePlay={onTogglePlay}
         onBack={onBack}
         onExport={onExport}
+        dragConstraintsRef={stageRef}
       />
       <SettingsPanel />
     </motion.div>
